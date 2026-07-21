@@ -11,6 +11,19 @@ tagged release.
 | Latest release tag | Yes |
 | Older tags | Best effort |
 
+## Threat model (read this)
+
+`ton` is a **local orchestrator**. After `/start` it drives coding-agent CLIs
+on your machine. By default:
+
+- **Sandbox is off** (`sandbox.enabled=false`) — agents are not path-locked
+- **Git auto-commit may run** after successful steps when configured
+- Drivers such as Cursor may run with elevated flags (`--force --trust`)
+
+Treat the workspace as a trusted project directory. Do not point `ton` at
+untrusted trees, and do not share session logs (`.ton/`) that may contain
+prompts or secrets.
+
 ## What counts as a vulnerability
 
 Please report issues that can:
@@ -50,6 +63,6 @@ Include:
 ## Secret hygiene for users
 
 - Put keys only in environment variables (`TON_LLM_API_KEY`, `CURSOR_API_KEY`, …)
-- Never commit `~/.config/ton/config.yaml` with secrets, `.env`, or workspace
-  `.ton/` session artifacts
+  or `~/.config/ton/llm.env` (mode `600`)
+- Never commit secrets, `.env`, or workspace `.ton/` session artifacts
 - Run `ton config` to confirm redaction before sharing screenshots

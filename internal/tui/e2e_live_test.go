@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/toninfo/ton/internal/backend/fake"
+	"github.com/toninfo/ton/internal/brand"
 	"github.com/toninfo/ton/internal/clarify"
 	"github.com/toninfo/ton/internal/config"
 	"github.com/toninfo/ton/internal/domain"
@@ -30,7 +31,7 @@ func TestRenderPreview(t *testing.T) {
 	base := func(phase domain.Phase) Model {
 		m := NewModel(&SessionController{session: &domain.Session{}})
 		m.width, m.height = 84, 30
-		m.session = domain.Session{Workspace: "D:/Working/github/ton", Driver: "opencode", Model: "deepseek-chat", Phase: phase}
+		m.session = domain.Session{Workspace: filepath.Join("workspace", "demo"), Driver: "opencode", Model: "deepseek-chat", Phase: phase}
 		return m
 	}
 
@@ -90,7 +91,7 @@ func TestLiveClarifyAndStart(t *testing.T) {
 		t.Skip("set TON_E2E=1 to run the live end-to-end harness")
 	}
 
-	cfg, err := config.LoadEffective(filepath.Join(os.Getenv("APPDATA"), "ton", "config.yaml"))
+	cfg, err := config.LoadEffective(filepath.Join(brand.ResolveConfigDir(), "config.yaml"))
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}

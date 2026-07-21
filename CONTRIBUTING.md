@@ -49,4 +49,6 @@ export TON_LLM_API_KEY=dummy
 
 Security reports: see [SECURITY.md](SECURITY.md) — do not open a public issue.
 
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 User-visible changes go in [CHANGELOG.md](CHANGELOG.md) under `Unreleased`.

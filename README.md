@@ -1,5 +1,6 @@
 # ton
 
+[![CI](https://github.com/toninfo/ton/actions/workflows/ci.yml/badge.svg)](https://github.com/toninfo/ton/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -15,11 +16,12 @@ It drives headless local agents (OpenCode / Claude Code / Cursor CLI), keeps a
 milestone-first UI, and persists the full audit trail under
 `<workspace>/.ton/`.
 
-> Status: **v1 candidate**. Design-contract paths are implemented (clarify →
-> plan → execute → verify ⇄ repair → summarize, soft/hard stop, Git, budget,
-> crash resume, session lock). CI proves the orchestration with the built-in
-> `fake` driver. Live OpenCode / Claude / Cursor still need their CLIs + auth
-> on your machine — treat those as integration smoke, not CI coverage.
+> Status: **v1 candidate**. Core session loop is implemented (clarify → plan →
+> execute → verify ⇄ repair → summarize, soft/hard stop, Git, budget, crash
+> resume, session lock). CI runs `go vet` / `go test` / build with the
+> built-in `fake` driver covering orchestration. Live OpenCode / Claude /
+> Cursor still need their CLIs + auth on your machine — treat those as
+> integration smoke, not CI coverage.
 
 ## Why ton
 
@@ -35,7 +37,7 @@ milestone-first UI, and persists the full audit trail under
 Requires Go 1.24+.
 
 ```bash
-# From the module
+# From the module (after a tagged release is published)
 go install github.com/toninfo/ton/cmd/ton@latest
 
 # From a checkout
@@ -44,8 +46,8 @@ cd ton
 make build
 ```
 
-Release binaries (when tags are published) are built with GoReleaser for
-linux / darwin / windows on amd64 and arm64.
+Release binaries (on `v*` tags) are built with GoReleaser for linux / darwin /
+windows on amd64 and arm64.
 
 ## Quick start
 
@@ -54,10 +56,10 @@ conductor) and a local coding-agent CLI (plan/execute/repair after `/start`).
 
 ```bash
 cd /path/to/workspace
-ton setup --api-key …             # 写入 ~/.config/ton/llm.env（也可用 export / TUI /key）
-# 可选：钉死 driver；不设则扫描本机 opencode/claude/agent 后自主抉择
+ton setup --api-key …             # writes ~/.config/ton/llm.env (or export / TUI /key)
+# optional: pin driver; unset → scan opencode/claude/agent and choose
 # export TON_DRIVER=opencode
-ton doctor                        # 扫描 agent + 打印配置/密钥/缓存路径
+ton doctor                        # scan agents + print config/key/cache paths
 ton
 ```
 
@@ -70,7 +72,7 @@ In the TUI: describe the goal → refine until **Ready** → `/start`.
 | `/status` | Compact phase · subphase · queue · driver · why |
 | `/todos` | Toggle plan items |
 | `/stop` `[soft|hard]` | Soft-stop at next boundary, or hard interrupt (default from config) |
-| `/driver <name>` | Switch backend (`auto` 重扫并自主抉择) |
+| `/driver <name>` | Switch backend (`auto` rescans and chooses) |
 | `/model <name>` | Switch clarify/plan model |
 | `/key <api_key>` | Save LLM key to `~/.config/ton/llm.env` |
 | `/queue` | Show queued input kinds during execution |
@@ -95,6 +97,13 @@ Clarify is LLM-only. After `/start`, the coding agent writes under
 agent **auto-selected**, sandbox **off**, and **git auto-commit** after
 successful steps — clarify never asks about these.
 
+## Security note
+
+`ton` runs local coding agents against your workspace. Defaults are
+automation-first: **sandbox off**, optional **git auto-commit**, and some
+drivers use elevated flags (e.g. Cursor `--force --trust`). Only use trusted
+workspaces; see [SECURITY.md](SECURITY.md).
+
 ## Configuration
 
 Load order:
@@ -108,7 +117,7 @@ Load order:
 | `TON_LLM_API_KEY` | Clarify/plan API key (**required** for live clarify) |
 | `TON_LLM_BASE_URL` | OpenAI-compatible base URL |
 | `TON_LLM_MODEL` | Planning model |
-| `TON_DRIVER` | 钉死 `opencode` · `claude` · `cursor` · `fake`；`auto`/不设则扫描抉择 |
+| `TON_DRIVER` | Pin `opencode` · `claude` · `cursor` · `fake`; `auto`/unset scans |
 | `TON_WORKSPACE` | Default workspace path |
 | `TON_CONFIG_DIR` | Override the config dir (default `~/.config/ton`); relocates `config.yaml` + `llm.env` |
 | `TON_LOG_LEVEL` | Log level |
@@ -117,6 +126,7 @@ Load order:
 See [`examples/config.yaml`](examples/config.yaml) for an annotated file and
 [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for the full field reference.
 `ton config` prints the effective config with secrets redacted.
+`ton setup --help` explains the LLM triad (`base_url` + `model` + API key).
 
 > **Windows:** verify gates run through the default shell. `powershell` /
 > `pwsh` work out of the box; POSIX-style gate commands (e.g. `test -f`) need
@@ -132,17 +142,19 @@ ton serve status   # OpenCode serve surface (lifecycle still maturing)
 
 ## Drivers
 
-未配置 `driver.default` / `TON_DRIVER` 时，ton 会扫描 PATH（`opencode` → `claude` → `agent`），
-结果缓存到 `~/.local/share/ton/discovered_agents.json`（默认 TTL 24h）。
-TTL 到期、`ton doctor`、`/driver auto`、或当前 agent 报错时会重扫并更新缓存；
-auto 模式下失败还可能改选其他仍可用的 agent。显式配置则始终尊重配置，不静默改道。
+When `driver.default` / `TON_DRIVER` is unset or `auto`, ton scans PATH
+(`opencode` → `claude` → `agent`) and caches under
+`~/.local/share/ton/discovered_agents.json` (default TTL 24h). TTL expiry,
+`ton doctor`, `/driver auto`, or agent failure triggers a rescan; auto mode
+may switch to another available agent on failure. Explicit pins are always
+honored.
 
 | Driver | Executable | Mode |
 | --- | --- | --- |
 | `opencode` | `opencode` | Headless JSON; optional workspace serve |
 | `claude` | `claude` | `-p` + `stream-json` |
 | `cursor` | `agent` | `--force --trust` + `stream-json` |
-| `fake` | _(none)_ | Deterministic backend for tests/demos（仅显式配置） |
+| `fake` | _(none)_ | Deterministic backend for tests/demos (explicit only) |
 
 Authenticate the chosen driver first, then `/start`. ton records events,
 verification output, repair rounds, and `report.md` under
@@ -170,8 +182,9 @@ Config reference: [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports go through
-[SECURITY.md](SECURITY.md) only. Release notes: [CHANGELOG.md](CHANGELOG.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+Security reports go through [SECURITY.md](SECURITY.md) only.
+Release notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
