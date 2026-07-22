@@ -1,0 +1,34 @@
+- generic [ref=e4]:
+  - heading "Welcome Back" [level=1] [ref=e5]
+  - paragraph [ref=e6]: Sign in to continue
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: Email
+      - textbox "Email" [ref=e11]:
+        - /placeholder: you@example.com
+        - text: invalid-email
+      - generic [ref=e12]: Please enter a valid email
+    - generic [ref=e13]:
+      - generic [ref=e14]: Password
+      - textbox "Password" [ref=e16]:
+        - /placeholder: Enter your password
+      - generic [ref=e17]: Password is required
+    - generic [ref=e18]:
+      - generic [ref=e19] [cursor=pointer]:
+        - checkbox "Remember me"
+        - generic [ref=e21]: Remember me
+      - link "Forgot password?" [ref=e22] [cursor=pointer]:
+        - /url: "#"
+    - button "登录" [active] [ref=e23] [cursor=pointer]
+  - generic [ref=e24]: or continue with
+  - generic [ref=e26]:
+    - button "Sign in with Google" [ref=e27] [cursor=pointer]:
+      - generic [ref=e33]: Google
+    - button "Sign in with Apple" [ref=e34] [cursor=pointer]:
+      - generic [ref=e37]: Apple
+    - button "Sign in with GitHub" [ref=e38] [cursor=pointer]:
+      - generic [ref=e41]: GitHub
+  - paragraph [ref=e42]:
+    - text: Don't have an account?
+    - link "Sign up" [ref=e43] [cursor=pointer]:
+      - /url: "#"

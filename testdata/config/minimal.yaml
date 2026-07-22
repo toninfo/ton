@@ -1,0 +1,6 @@
+llm:
+  base_url: "https://api.example.com/v1"
+  model: "test-model"
+
+driver:
+  default: opencode

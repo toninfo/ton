@@ -1,0 +1,31 @@
+- generic [ref=f9e4]:
+  - heading "Welcome Back" [level=1] [ref=f9e5]
+  - paragraph [ref=f9e6]: Sign in to continue
+  - generic [ref=f9e7]:
+    - generic [ref=f9e8]:
+      - generic [ref=f9e9]: Email
+      - textbox "Email" [ref=f9e11]:
+        - /placeholder: you@example.com
+    - generic [ref=f9e13]:
+      - generic [ref=f9e14]: Password
+      - generic [ref=f9e15]:
+        - textbox "Password" [ref=f9e16]:
+          - /placeholder: Enter your password
+        - button "Show password" [ref=f9e17] [cursor=pointer]
+    - generic [ref=f9e27]:
+      - generic [ref=f9e28] [cursor=pointer]:
+        - checkbox "Remember me"
+        - generic [ref=f9e30]: Remember me
+      - link "Forgot password?" [ref=f9e31] [cursor=pointer]:
+        - /url: "#"
+    - button "登录" [ref=f9e32] [cursor=pointer]
+  - generic [ref=f9e33]: 或
+  - generic [ref=f9e35]:
+    - button "Sign in with Google" [ref=f9e36] [cursor=pointer]:
+      - generic [ref=f9e42]: Google
+    - button "Sign in with GitHub" [ref=f9e43] [cursor=pointer]:
+      - generic [ref=f9e46]: GitHub
+  - paragraph [ref=f9e47]:
+    - text: 还没有账号？
+    - link "立即注册" [ref=f9e48] [cursor=pointer]:
+      - /url: "#"
