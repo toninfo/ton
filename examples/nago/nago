@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# nago — quick launcher for the desktop stickman companion.
+# Usage: nago
+# Always (re)starts: if an instance is already running, stop it first.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+LOCK="${NAGO_LOCK_PATH:-/tmp/nago-stickman.lock}"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/nago"
+LOG="${NAGO_LOG:-$CACHE_DIR/nago.log}"
+PYTHON="${NAGO_PYTHON:-}"
+
+mkdir -p "$CACHE_DIR"
+
+_pick_python() {
+  if [[ -n "$PYTHON" ]]; then
+    command -v "$PYTHON" >/dev/null 2>&1 && { echo "$PYTHON"; return; }
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    echo "python3"
+    return
+  fi
+  if command -v python >/dev/null 2>&1; then
+    echo "python"
+    return
+  fi
+  echo ""
+}
+
+_stop_existing() {
+  local pid=""
+  if [[ -f "$LOCK" ]]; then
+    pid="$(tr -d '[:space:]' <"$LOCK" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "${pid:-}" ]] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    echo "Stopping Nago (pid $pid)…"
+    kill "$pid" 2>/dev/null || true
+    # Give Qt a moment for a clean aboutToQuit / lock release.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.15
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  fi
+
+  # Fallback: any leftover main.py under this repo path.
+  local p
+  while read -r p; do
+    [[ -z "$p" ]] && continue
+    [[ "$p" == "$$" ]] && continue
+    echo "Stopping leftover Nago (pid $p)…"
+    kill "$p" 2>/dev/null || true
+    sleep 0.2
+    kill -9 "$p" 2>/dev/null || true
+  done < <(pgrep -f "${ROOT}/main\\.py" 2>/dev/null || true)
+
+  rm -f "$LOCK"
+}
+
+_main() {
+  if [[ ! -f "$ROOT/main.py" ]]; then
+    echo "error: main.py not found in $ROOT" >&2
+    exit 1
+  fi
+
+  local py
+  py="$(_pick_python)"
+  if [[ -z "$py" ]]; then
+    echo "error: python3/python not found on PATH" >&2
+    exit 1
+  fi
+
+  if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    echo "warning: no DISPLAY/WAYLAND_DISPLAY — GUI may fail" >&2
+  fi
+
+  _stop_existing
+
+  cd "$ROOT"
+  # Detach so the calling terminal stays usable; logs go to cache.
+  nohup "$py" main.py >>"$LOG" 2>&1 &
+  local new_pid=$!
+  disown "$new_pid" 2>/dev/null || true
+
+  # Brief smoke check: process still alive + lock acquired.
+  sleep 0.4
+  if ! kill -0 "$new_pid" 2>/dev/null; then
+    echo "error: Nago exited immediately — see $LOG" >&2
+    tail -n 40 "$LOG" >&2 || true
+    exit 1
+  fi
+
+  echo "Nago started (pid $new_pid)"
+  echo "log: $LOG"
+}
+
+_main "$@"
