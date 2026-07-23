@@ -65,7 +65,7 @@ func TestDecodeAcceptanceGateNarrativeString(t *testing.T) {
 		"requirements":"# R","design":"# D",
 		"understanding":{"summary":"S","confirmed":false},
 		"assumptions":{"items":[]},"decide":{"items":[]},
-		"acceptance":{"confirmed":false,"gate":"需要可验证的登录验收"},
+		"acceptance":{"confirmed":false,"gate":"requires verifiable login acceptance"},
 		"fallback":{"confirmed":false}
 	}`
 	out, err := decodeClarifyJSON(raw)
@@ -145,12 +145,12 @@ func TestClarifierTurnToleratesObjectAssumptions(t *testing.T) {
 }
 
 func TestDecodeClarifyJSONBalancedObjectIgnoresTrailingProse(t *testing.T) {
-	raw := "```json\n{\"understanding\":{\"summary\":\"你好\",\"confirmed\":false},\"assumptions\":{\"items\":[]},\"decide\":{\"items\":[]},\"acceptance\":{\"confirmed\":false,\"gate\":{\"commands\":[]}},\"fallback\":{\"confirmed\":false}}\n```\n说明：以上为卡片。"
+	raw := "```json\n{\"understanding\":{\"summary\":\"Hello\",\"confirmed\":false},\"assumptions\":{\"items\":[]},\"decide\":{\"items\":[]},\"acceptance\":{\"confirmed\":false,\"gate\":{\"commands\":[]}},\"fallback\":{\"confirmed\":false}}\n```\nNote: cards above."
 	out, err := decodeClarifyJSON(raw)
 	if err != nil {
 		t.Fatalf("decodeClarifyJSON() error = %v", err)
 	}
-	if out.Understanding.Summary != "你好" {
+	if out.Understanding.Summary != "Hello" {
 		t.Fatalf("summary = %q", out.Understanding.Summary)
 	}
 }
@@ -166,12 +166,12 @@ func TestDecodeClarifyJSONTrailingCommaAndPeekFallback(t *testing.T) {
 	}
 
 	// Deliberately corrupt JSON (dirty characters inserted after value), you should peek summary instead of hard failure
-	broken := `{"understanding":{"summary":"仍可见","confirmed":false}è,"assumptions":{"items":[]}}`
+	broken := `{"understanding":{"summary":"still visible","confirmed":false}è,"assumptions":{"items":[]}}`
 	out, err = decodeClarifyJSON(broken)
 	if err != nil {
 		t.Fatalf("peek fallback should avoid hard error: %v", err)
 	}
-	if out.Understanding.Summary != "仍可见" {
+	if out.Understanding.Summary != "still visible" {
 		t.Fatalf("peek summary = %q", out.Understanding.Summary)
 	}
 }

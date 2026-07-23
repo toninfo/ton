@@ -37,8 +37,8 @@ func TestValidateRejectsRemovedAgentActions(t *testing.T) {
 
 func TestLooksLikeSmalltalk(t *testing.T) {
 	smalltalk := []string{
-		"你好", "你好！", "你好呀", "  hi  ", "Hello", "nihao", "Ni Hao",
-		"在吗？", "那你倒是引导啊", "嗯", "继续", "谢谢", "", "   ",
+		"hi", "hi!", "hello", "  hi  ", "Hello",
+		"are you there?", "guide me", "okay", "continue", "thanks", "", "   ",
 	}
 	for _, s := range smalltalk {
 		if !control.LooksLikeSmalltalk(s) {
@@ -46,8 +46,8 @@ func TestLooksLikeSmalltalk(t *testing.T) {
 		}
 	}
 	tasks := []string{
-		"登录页", "做一个静态登录页面", "帮我改一下代码", "读一下仓库整理需求",
-		"实现一个 TODO 应用", "fix the login bug",
+		"login page", "build a static login page", "change this code", "read the repository and draft requirements",
+		"implement a TODO application", "fix the login bug",
 	}
 	for _, s := range tasks {
 		if control.LooksLikeSmalltalk(s) {

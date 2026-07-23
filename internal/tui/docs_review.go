@@ -48,7 +48,7 @@ func (c *SessionController) ReviewDocs(mode string) (string, error) {
 		}
 	}
 	if !hasReq && !hasDes {
-		return "需求/设计还没写好。先说清目标，起草后再 /docs。", nil
+		return "The requirements and design are not drafted yet. State the goal first, then use /docs.", nil
 	}
 
 	openTarget := sessionDir
@@ -61,7 +61,7 @@ func (c *SessionController) ReviewDocs(mode string) (string, error) {
 
 	var b strings.Builder
 	if mode == "preview" {
-		b.WriteString("草案摘要：\n")
+		b.WriteString("Draft summary:\n")
 		if hasReq {
 			b.WriteString(previewSection("requirements.md", state.Requirements))
 		}
@@ -71,26 +71,26 @@ func (c *SessionController) ReviewDocs(mode string) (string, error) {
 			}
 			b.WriteString(previewSection("design.md", state.Design))
 		}
-		b.WriteString("\n完整正文：输入 /docs 打开目录。")
+		b.WriteString("\nFull text: use /docs to open the directory.")
 		return strings.TrimSpace(b.String()), nil
 	}
 
 	if err := openWithSystem(openTarget); err != nil {
-		b.WriteString("未能自动打开，请手动打开：\n  " + openTarget)
+		b.WriteString("Could not open automatically. Open it manually:\n  " + openTarget)
 	} else if openTarget == sessionDir {
-		b.WriteString("已打开文档目录。请查看 requirements.md / design.md。")
+		b.WriteString("Document directory opened. Review requirements.md and design.md.")
 	} else {
-		b.WriteString("已打开：\n  " + openTarget)
+		b.WriteString("Opened:\n  " + openTarget)
 	}
-	b.WriteString("\n路径：\n  " + reqPath + "\n  " + desPath)
-	b.WriteString("\n看完后同意回「对」，要改直接说；齐了再 /start。")
+	b.WriteString("\nPaths:\n  " + reqPath + "\n  " + desPath)
+	b.WriteString("\nAfter reviewing, approve it or describe changes; then use /start.")
 	return strings.TrimSpace(b.String()), nil
 }
 
 func previewSection(title, body string) string {
 	body = strings.TrimSpace(body)
 	if body == "" {
-		return "[" + title + "] (空)\n"
+		return "[" + title + "] (empty)\n"
 	}
 	const maxRunes = 280
 	if utf8.RuneCountInString(body) > maxRunes {

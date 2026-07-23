@@ -39,32 +39,32 @@ func TestApplyAutomationDefaultsConfirmsFallbackAndGitCommit(t *testing.T) {
 }
 
 func TestDisplaySummaryStripsMetaNotes(t *testing.T) {
-	in := "你好！有什么需要我帮你做的？\n你好！有什么需要我帮你做的？\n(用户打招呼，处于 clarifying 阶段，需要引导用户描述具体目标。)\n\nLong design dump here."
+	in := "Hello! What can I help you build?\nHello! What can I help you build?\n(The user greeted us during clarification and needs guidance.)\n\n" + strings.Repeat("Long design dump. ", 20)
 	got := DisplaySummary(in)
-	if strings.Contains(got, "clarifying") || strings.Contains(got, "用户") {
+	if strings.Contains(got, "clarifying") || strings.Contains(got, "user") {
 		t.Fatalf("meta leaked: %q", got)
 	}
 	if strings.Contains(got, "Long design") {
 		t.Fatalf("english dump should be dropped: %q", got)
 	}
-	if strings.Count(got, "你好") != 1 {
+	if strings.Count(got, "Hello") != 1 {
 		t.Fatalf("want single greeting, got %q", got)
 	}
 }
 
 func TestBreakNumberedListInsertsNewlines(t *testing.T) {
-	in := "需要确认几个产品细节：1) Web 还是 TUI？ 2) 登录成功跳哪？ 3) 要记住我吗？"
+	in := "Confirm product details: 1) Web or TUI? 2) Where should login redirect? 3) Should it remember the user?"
 	got := BreakNumberedList(in)
-	if !strings.Contains(got, "：\n1)") {
+	if !strings.Contains(got, ":\n1)") {
 		t.Fatalf("want break after colon, got %q", got)
 	}
-	if !strings.Contains(got, "？\n2)") || !strings.Contains(got, "？\n3)") {
+	if !strings.Contains(got, "?\n2)") || !strings.Contains(got, "?\n3)") {
 		t.Fatalf("want each item on its own line, got %q", got)
 	}
 }
 
 func TestDisplaySummaryKeepsNumberedQuestions(t *testing.T) {
-	in := "目标：做一个苹果风登录页。需要确认：1) Web 还是 TUI？ 2) 成功后跳哪？"
+	in := "Goal: build an Apple-style login page. Confirm: 1) Web or TUI? 2) Where should it redirect after success?"
 	got := DisplaySummary(in)
 	if !strings.Contains(got, "\n1)") || !strings.Contains(got, "\n2)") {
 		t.Fatalf("numbered questions must wrap, got %q", got)

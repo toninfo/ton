@@ -65,7 +65,7 @@ func TestApplyUserAffirmationDoesNotReadyOnThinDocs(t *testing.T) {
 	state := &ReqState{
 		Requirements: "login page",
 		Design:       "static html",
-		Understanding: Understanding{Summary: "做一个计时器", Confirmed: false},
+		Understanding: Understanding{Summary: "Build a timer", Confirmed: false},
 		Fallback: Fallback{
 			Confirmed:      true,
 			PermissionMode: "dontAsk",
@@ -77,7 +77,7 @@ func TestApplyUserAffirmationDoesNotReadyOnThinDocs(t *testing.T) {
 		}},
 	}
 	ApplyAutomationDefaults(state, AutomationDefaults{PermissionMode: "dontAsk", GitBranch: "main"})
-	ApplyUserAffirmation(state, "好的")
+	ApplyUserAffirmation(state, "yes")
 	if ReadyForStart(state) {
 		t.Fatalf("thin docs must not become ready after affirmation; missing=%v", ReadyMissing(state))
 	}
@@ -91,7 +91,7 @@ func TestApplyUserAffirmationReachesReadyWithAdequateDocs(t *testing.T) {
 	state := &ReqState{
 		Requirements: req,
 		Design:       des,
-		Understanding: Understanding{Summary: "C# WPF 计时器草案已就绪", Confirmed: false},
+		Understanding: Understanding{Summary: "The C# WPF timer draft is ready", Confirmed: false},
 		Fallback: Fallback{
 			Confirmed:      true,
 			PermissionMode: "dontAsk",
@@ -109,7 +109,7 @@ func TestApplyUserAffirmationReachesReadyWithAdequateDocs(t *testing.T) {
 		}},
 	}
 	ApplyAutomationDefaults(state, AutomationDefaults{PermissionMode: "dontAsk", GitBranch: "main"})
-	ApplyUserAffirmation(state, "对")
+	ApplyUserAffirmation(state, "yes")
 	if !ReadyForStart(state) {
 		t.Fatalf("want ready after affirm with adequate docs, missing=%v", ReadyMissing(state))
 	}
@@ -133,7 +133,7 @@ func TestProgressReplyShowsDocPathsWhenReady(t *testing.T) {
 			},
 		},
 	}
-	got := ProgressReply(state, "对", "", `D:\ws\.ton\sessions\abc`)
+	got := ProgressReply(state, "yes", "", `D:\ws\.ton\sessions\abc`)
 	if !strings.Contains(got, "/docs") {
 		t.Fatalf("want /docs review hint, got %q", got)
 	}

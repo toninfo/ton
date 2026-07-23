@@ -86,9 +86,9 @@ func TestClarifyNeverRunsCodingAgent(t *testing.T) {
 	}
 
 	turns := []string{
-		"你好",
-		"做一个静态登录页面，HTML+CSS，放在 examples/login",
-		"对，对齐你的默认方案",
+		"hello",
+		"Build a static HTML and CSS login page in examples/login",
+		"yes, use your proposed defaults",
 	}
 	for _, in := range turns {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -166,10 +166,10 @@ func mockClarifyLLM(sys, user string) string {
 	if strings.Contains(sys, "planning conductor") {
 		return `{"min_steps":1,"max_steps":3,"must_cover":["login page"],"forbidden":[],"notes":"static","acceptance_hint":"allow_no_gate"}`
 	}
-	if strings.Contains(sys, "session conductor") || strings.Contains(sys, "流程指挥") {
+	if strings.Contains(sys, "session conductor") {
 		return `{"next":"update_cards","rationale":"LLM clarify docs","agent_brief":"keep steps small"}`
 	}
-	if strings.Contains(sys, "ton planner") || strings.Contains(sys, "规划器") {
+	if strings.Contains(sys, "ton planner") {
 		return `{"items":[{"id":"s1","title":"Create login page","prompt":"Create examples/login/index.html with username, password, submit.","acceptance":"file exists","step_verify":""}]}`
 	}
 	req, des := mockAdequateDocs()
@@ -177,7 +177,7 @@ func mockClarifyLLM(sys, user string) string {
 		"requirements": req,
 		"design":       des,
 		"understanding": map[string]any{
-			"summary":   "静态登录页放在 examples/login，默认 HTML+CSS。同意后可 /docs 查看，再 /start。",
+			"summary":   "Create a static HTML and CSS login page in examples/login. Review it with /docs, then use /start.",
 			"confirmed": true,
 		},
 		"assumptions": map[string]any{"items": []string{"No backend", "Static assets only"}},
@@ -199,9 +199,9 @@ func mockClarifyLLM(sys, user string) string {
 		userInput = user[i+len("\nUser input:\n"):]
 	}
 	userInput = strings.TrimSpace(userInput)
-	if userInput == "你好" || strings.EqualFold(userInput, "hello") || strings.EqualFold(userInput, "hi") {
+	if strings.EqualFold(userInput, "hello") || strings.EqualFold(userInput, "hi") {
 		out["understanding"] = map[string]any{
-			"summary":   "你好！想做什么？例如静态登录页、小工具。",
+			"summary":   "Hello! What would you like to build? For example, a static login page or a small utility.",
 			"confirmed": false,
 		}
 		out["requirements"] = ""

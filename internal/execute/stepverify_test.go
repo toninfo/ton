@@ -20,37 +20,37 @@ func TestEffectiveStepVerifyOverlay(t *testing.T) {
 		want           bool
 	}{
 		{
-			name:           "todo true 强制开启，忽略 acceptance.enabled=false",
+			name:           "todo true forces enabled despite acceptance.enabled=false",
 			todoStepVerify: execute.StepVerifyTrue,
 			acceptance:     acceptanceDisabled,
 			want:           true,
 		},
 		{
-			name:           "todo false 强制关闭，忽略 acceptance.enabled=true",
+			name:           "todo false forces disabled despite acceptance.enabled=true",
 			todoStepVerify: execute.StepVerifyFalse,
 			acceptance:     acceptanceEnabled,
 			want:           false,
 		},
 		{
-			name:           "inherit 继承 acceptance.enabled=true",
+			name:           "inherit uses acceptance.enabled=true",
 			todoStepVerify: execute.StepVerifyInherit,
 			acceptance:     acceptanceEnabled,
 			want:           true,
 		},
 		{
-			name:           "inherit 继承 acceptance.enabled=false",
+			name:           "inherit uses acceptance.enabled=false",
 			todoStepVerify: execute.StepVerifyInherit,
 			acceptance:     acceptanceDisabled,
 			want:           false,
 		},
 		{
-			name:           "空值按 inherit 处理",
+			name:           "empty value uses inherit",
 			todoStepVerify: "",
 			acceptance:     acceptanceEnabled,
 			want:           true,
 		},
 		{
-			name:           "未知值按 inherit 处理",
+			name:           "unknown value uses inherit",
 			todoStepVerify: "maybe",
 			acceptance:     acceptanceDisabled,
 			want:           false,
@@ -79,7 +79,7 @@ func TestResolveStepVerify(t *testing.T) {
 		wantErr     error
 	}{
 		{
-			name: "todo false 跳过验收且不报错",
+			name: "todo false skips acceptance without error",
 			step: domain.TodoItem{ID: "t1", StepVerify: execute.StepVerifyFalse},
 			acceptance: execute.AcceptanceStepVerify{
 				Enabled:  true,
@@ -88,7 +88,7 @@ func TestResolveStepVerify(t *testing.T) {
 			wantRun: false,
 		},
 		{
-			name: "inherit + disabled 跳过验收",
+			name: "inherit plus disabled skips acceptance",
 			step: domain.TodoItem{ID: "t2", StepVerify: execute.StepVerifyInherit},
 			acceptance: execute.AcceptanceStepVerify{
 				Enabled: false,
@@ -96,7 +96,7 @@ func TestResolveStepVerify(t *testing.T) {
 			wantRun: false,
 		},
 		{
-			name: "inherit + enabled 使用 acceptance 命令",
+			name: "inherit plus enabled uses acceptance commands",
 			step: domain.TodoItem{ID: "t3", StepVerify: execute.StepVerifyInherit},
 			acceptance: execute.AcceptanceStepVerify{
 				Enabled:  true,
@@ -106,7 +106,7 @@ func TestResolveStepVerify(t *testing.T) {
 			wantCmdLen: 1,
 		},
 		{
-			name: "todo true 使用 acceptance 命令",
+			name: "todo true uses acceptance commands",
 			step: domain.TodoItem{ID: "t4", StepVerify: execute.StepVerifyTrue},
 			acceptance: execute.AcceptanceStepVerify{
 				Enabled:  false,
@@ -116,7 +116,7 @@ func TestResolveStepVerify(t *testing.T) {
 			wantCmdLen: 1,
 		},
 		{
-			name: "todo true + 空命令返回 config_error",
+			name: "todo true plus empty command returns config_error",
 			step: domain.TodoItem{ID: "t5", StepVerify: execute.StepVerifyTrue},
 			acceptance: execute.AcceptanceStepVerify{
 				Enabled:  true,
@@ -125,7 +125,7 @@ func TestResolveStepVerify(t *testing.T) {
 			wantErr: execute.ErrStepVerifyConfig,
 		},
 		{
-			name: "inherit + enabled + 空命令返回 config_error",
+			name: "inherit plus enabled plus empty command returns config_error",
 			step: domain.TodoItem{ID: "t6", StepVerify: execute.StepVerifyInherit},
 			acceptance: execute.AcceptanceStepVerify{
 				Enabled:  true,
@@ -134,7 +134,7 @@ func TestResolveStepVerify(t *testing.T) {
 			wantErr: execute.ErrStepVerifyConfig,
 		},
 		{
-			name: "inherit + enabled + 全空白命令返回 config_error",
+			name: "inherit plus enabled plus whitespace command returns config_error",
 			step: domain.TodoItem{ID: "t7", StepVerify: execute.StepVerifyInherit},
 			acceptance: execute.AcceptanceStepVerify{
 				Enabled: true,

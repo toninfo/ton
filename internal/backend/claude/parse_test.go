@@ -48,7 +48,7 @@ func TestParseStreamJSONExtractsSessionIDFromInitAndResult(t *testing.T) {
 func TestBuildRunArgsUsesStreamJSONAndResume(t *testing.T) {
 	request := backend.AgentRunRequest{
 		BackendSessionID: "claude-session-17",
-		Prompt:           "- 修复解析器",
+		Prompt:           "- Fix the parser",
 	}
 
 	got := BuildRunArgs(request, "dontAsk")
@@ -59,7 +59,7 @@ func TestBuildRunArgsUsesStreamJSONAndResume(t *testing.T) {
 		"--permission-mode", "dontAsk",
 		"--resume", "claude-session-17",
 		"--",
-		"- 修复解析器",
+		"- Fix the parser",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("argv = %#v, want %#v", got, want)
@@ -67,8 +67,8 @@ func TestBuildRunArgsUsesStreamJSONAndResume(t *testing.T) {
 }
 
 func TestBuildRunArgsOmitsResumeForNewSession(t *testing.T) {
-	got := BuildRunArgs(backend.AgentRunRequest{Prompt: "开始新会话"}, "")
-	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--", "开始新会话"}
+	got := BuildRunArgs(backend.AgentRunRequest{Prompt: "Start a new session"}, "")
+	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--", "Start a new session"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("argv = %#v, want %#v", got, want)
 	}
@@ -85,7 +85,7 @@ func TestRunUsesWorkspaceAsChildProcessDirectory(t *testing.T) {
 	events, err := adapter.Run(context.Background(), backend.AgentRunRequest{
 		Workspace:        "/work/project",
 		BackendSessionID: "claude-session-17",
-		Prompt:           "继续实现",
+		Prompt:           "Continue implementation",
 	})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)

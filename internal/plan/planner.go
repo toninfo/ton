@@ -80,12 +80,7 @@ func systemPrompt(options Options) string {
 	return fmt.Sprintf(`You are the ton planner. Return JSON only, without Markdown fences.
 Return {"items":[...]} with each item containing id, title, prompt, acceptance, and step_verify.
 Create %d to %d independently executable steps in array execution order. Every title and prompt must be non-empty.
-Do not return depends_on or any dependency field.
-
-中文对照：你是 ton 规划器。仅返回 JSON，不要使用 Markdown 代码块。
-返回 {"items":[...]}；每项包含 id、title、prompt、acceptance 和 step_verify。
-按数组顺序生成 %d 到 %d 个可独立执行步骤；每个 title 和 prompt 均不能为空。
-不得返回 depends_on 或任何依赖字段。`, options.MinSteps, options.MaxSteps, options.MinSteps, options.MaxSteps)
+Do not return depends_on or any dependency field.`, options.MinSteps, options.MaxSteps)
 }
 
 func planRequest(requirements, design string) string {

@@ -64,7 +64,7 @@ func (c Conductor) Decide(ctx context.Context, in Input) (Decision, error) {
 	return Validate(in.Phase, d), nil
 }
 
-const conductorSystemPrompt = `You are the ton session conductor (流程指挥). Respond with JSON only.
+const conductorSystemPrompt = `You are the ton session conductor. Respond with JSON only.
 
 Decide the next orchestration action. You do NOT edit files yourself.
 During clarifying: ONLY ask_user | update_cards | ready_check | plan.
@@ -87,9 +87,4 @@ JSON schema:
   "user_prompt": "optional question for the user",
   "agent_brief": "optional brief for /start planning agent (not used in clarifying)",
   "rationale": "short English reason shown in UI"
-}
-
-中文对照：你是 ton 会话指挥。只返回 JSON。
-磨合期只有 LLM 编排（update_cards / ask_user / ready_check / plan），不派 coding agent。
-coding agent 仅用于 /start 后的长任务。文档充实且缺口清空才 ready_check。
-验收/步耗尽在 fallback 内选型。`
+}`

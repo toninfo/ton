@@ -8,8 +8,8 @@ llm:
   model: "gpt-4.1-mini"
 
 driver:
-  # 留空或 auto：扫描 PATH 上的 opencode/claude/agent，缓存后自主抉择。
-  # 显式值则钉死：opencode | claude | cursor | fake
+  # Empty or auto: scan PATH for opencode/claude/agent and cache the selected driver.
+  # Explicit values pin the driver: opencode | claude | cursor | fake
   # default: auto
   discover_ttl_hours: 24
   opencode:
@@ -60,9 +60,9 @@ budget:
   on_exceeded: abort_session
 
 ui:
-  show_todos: false      # 启动即展开 todo 面板（已生效）
-  locale: en             # 预留：TUI 本地化尚未接线
-  milestones_only: true  # 预留：当前 UI 恒为里程碑优先
+  show_todos: false      # Expand the todo panel at startup.
+  locale: en             # Reserved: TUI localization is not wired yet.
+  milestones_only: true  # Reserved: the current UI always prioritizes milestones.
 
 orchestrate:
   conduct_clarify: true     # clarify: LLM conductor + Clarifier (no coding agent)
@@ -75,7 +75,7 @@ orchestrate:
   ready_preflight: true
   inject_repo_context: true
 
-# 默认 full permissions（enabled: false）。要收紧再打开：
+# Full permissions are the default (enabled: false). Enable this to restrict them:
 sandbox:
   enabled: false
   # enabled: true
@@ -83,4 +83,4 @@ sandbox:
   # deny_home_dot_config: true
 
 log:
-  level: info  # 预留：结构化日志器尚未实现，暂不消费
+  level: info  # Reserved: structured logging is not implemented yet.

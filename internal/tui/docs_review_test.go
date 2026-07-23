@@ -24,8 +24,8 @@ func TestReviewDocsPreviewIsShort(t *testing.T) {
 			Phase:     domain.PhaseClarifying,
 		},
 		state: clarify.ReqState{
-			Requirements:    strings.Repeat("需求正文。", 80),
-			Design:          strings.Repeat("设计正文。", 80),
+			Requirements:    strings.Repeat("Requirements body. ", 80),
+			Design:          strings.Repeat("Design body. ", 80),
 			TargetWorkspace: ws,
 		},
 	}
@@ -54,7 +54,7 @@ func TestReviewDocsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "还没写好") {
+	if !strings.Contains(got, "not drafted yet") {
 		t.Fatalf("got %q", got)
 	}
 }

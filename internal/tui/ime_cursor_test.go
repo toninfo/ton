@@ -13,16 +13,16 @@ import (
 
 func TestImeCursorPosColumnUsesDisplayWidth(t *testing.T) {
 	// "> " + "Hello" → display width 2+4=6, 1-based column should be 7; two rows view → row=2
-	row, col := imeCursorPos("header\n> 你好", "> ", "你好", 0)
+	row, col := imeCursorPos("header\n> あい", "> ", "あい", 0)
 	if row != 2 || col != 7 {
 		t.Fatalf("row,col = %d,%d; want 2,7 for CJK display width", row, col)
 	}
 }
 
 func TestImeCursorPosMixedASCIIAndCJK(t *testing.T) {
-	_, col := imeCursorPos("> ab打开代码", "> ", "ab打开代码", 0)
-	if col != 13 {
-		t.Fatalf("col = %d, want 13", col)
+	_, col := imeCursorPos("> abあいう", "> ", "abあいう", 0)
+	if col != 11 {
+		t.Fatalf("col = %d, want 11", col)
 	}
 }
 
@@ -131,10 +131,10 @@ func TestIMEFixWriterSatisfiesTermFile(t *testing.T) {
 
 func TestInputValueBeforeCursor(t *testing.T) {
 	in := textinput.New()
-	in.SetValue("ab你好")
+	in.SetValue("abあい")
 	in.SetCursor(4)
 	m := Model{input: in, session: domain.Session{}}
-	if got := m.inputValueBeforeCursor(); got != "ab你好" {
+	if got := m.inputValueBeforeCursor(); got != "abあい" {
 		t.Fatalf("before cursor = %q", got)
 	}
 	in.SetCursor(2)

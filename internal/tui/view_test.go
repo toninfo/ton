@@ -24,52 +24,52 @@ func TestDisplayMilestoneHidesConductor(t *testing.T) {
 func TestAssistantReplyHidesThinkingDump(t *testing.T) {
 	got := clarify.ProgressReply(&clarify.ReqState{
 		Understanding: clarify.Understanding{
-			Summary: "用户使用中文打招呼，尚未提出具体功能需求，需要引导用户描述目标。",
+			Summary: "The user greeted us but has not stated a feature, so ask for the goal.",
 		},
-	}, "你好", "", "")
-	if strings.Contains(got, "用户") || strings.Contains(got, "需要引导") {
+	}, "hello", "", "")
+	if strings.Contains(got, "user") || strings.Contains(got, "guidance") {
 		t.Fatalf("thinking leaked: %q", got)
 	}
-	if !strings.Contains(got, "想做什么") && !strings.Contains(got, "你好") {
+	if !strings.Contains(got, "What would you like") && !strings.Contains(got, "Hello") {
 		t.Fatalf("want real reply, got %q", got)
 	}
 }
 
 func TestChatKeepsPriorReplies(t *testing.T) {
 	m := Model{}
-	m.rememberUserTurn("你好")
-	m.chat[0].Reply = "你好，想做什么？"
-	m.rememberUserTurn("啥意思")
-	m.chat[1].Reply = "请具体说说目标。"
+	m.rememberUserTurn("hello")
+	m.chat[0].Reply = "Hello, what would you like to build?"
+	m.rememberUserTurn("what do you mean")
+	m.chat[1].Reply = "Please describe the goal."
 	got := m.chatView()
-	if !strings.Contains(got, "你好，想做什么？") || !strings.Contains(got, "请具体说说目标。") {
+	if !strings.Contains(got, "Hello, what would you like to build?") || !strings.Contains(got, "Please describe the goal.") {
 		t.Fatalf("prior replies lost: %q", got)
 	}
 }
 
 func TestApplyChatReplyMatchesByIDNotLast(t *testing.T) {
 	m := Model{}
-	idA := m.rememberUserTurn("先发这条")
-	idB := m.rememberUserTurn("后发这条")
+	idA := m.rememberUserTurn("send this first")
+	idB := m.rememberUserTurn("send this second")
 	// Simulate a slow request and return first: it must be written back to A and cannot be written to B.
-	if !m.applyChatReply(idA, "这是对先发的回复") {
+	if !m.applyChatReply(idA, "reply to the first message") {
 		t.Fatal("apply idA failed")
 	}
-	if m.chat[0].Reply != "这是对先发的回复" {
+	if m.chat[0].Reply != "reply to the first message" {
 		t.Fatalf("turn A reply = %q", m.chat[0].Reply)
 	}
 	if m.chat[1].Reply != "" {
 		t.Fatalf("turn B should still be empty, got %q", m.chat[1].Reply)
 	}
-	if !m.applyChatReply(idB, "这是对后发的回复") {
+	if !m.applyChatReply(idB, "reply to the second message") {
 		t.Fatal("apply idB failed")
 	}
 	got := m.chatView()
 	// Sequence: you A → ton A → you B → ton B
-	idxAUser := strings.Index(got, "先发这条")
-	idxAReply := strings.Index(got, "这是对先发的回复")
-	idxBUser := strings.Index(got, "后发这条")
-	idxBReply := strings.Index(got, "这是对后发的回复")
+	idxAUser := strings.Index(got, "send this first")
+	idxAReply := strings.Index(got, "reply to the first message")
+	idxBUser := strings.Index(got, "send this second")
+	idxBReply := strings.Index(got, "reply to the second message")
 	if !(idxAUser < idxAReply && idxAReply < idxBUser && idxBUser < idxBReply) {
 		t.Fatalf("chat order broken:\n%s", got)
 	}
@@ -77,8 +77,8 @@ func TestApplyChatReplyMatchesByIDNotLast(t *testing.T) {
 
 func TestApplyChatReplyIgnoresUnknownID(t *testing.T) {
 	m := Model{}
-	m.rememberUserTurn("仅一条")
-	if m.applyChatReply(999, "幽灵回复") {
+	m.rememberUserTurn("only one message")
+	if m.applyChatReply(999, "ghost reply") {
 		t.Fatal("unknown id should not apply")
 	}
 	if m.chat[0].Reply != "" {
@@ -92,7 +92,7 @@ func TestMainContentHidesStaleDecideWhileBusy(t *testing.T) {
 		session: domain.Session{Phase: domain.PhaseClarifying},
 		clarify: clarify.ReqState{
 			Decide: clarify.Decide{Items: []clarify.Decision{
-				{Question: "网站类型是什么？", Blocking: true},
+				{Question: "What kind of website is it?", Blocking: true},
 			}},
 		},
 	}
@@ -100,7 +100,7 @@ func TestMainContentHidesStaleDecideWhileBusy(t *testing.T) {
 		t.Fatalf("busy clarify should hide stale decide card, got %q", got)
 	}
 	m.busy = false
-	if got := m.mainContent(); !strings.Contains(got, "网站类型是什么？") {
+	if got := m.mainContent(); !strings.Contains(got, "What kind of website is it?") {
 		t.Fatalf("idle should show decide, got %q", got)
 	}
 }
@@ -185,7 +185,7 @@ func TestStartFinishReplyIncludesArtifacts(t *testing.T) {
 	if strings.Contains(got, "Progress:") || strings.Contains(got, "Artifacts:") || strings.Contains(got, "Resume:") {
 		t.Fatalf("done reply should stay short (no progress/resume wall), got %q", got)
 	}
-	if !strings.Contains(got, "本轮完成") && !strings.Contains(got, "/start") {
+	if !strings.Contains(got, "Session completed") && !strings.Contains(got, "/start") {
 		t.Fatalf("want short done follow-up, got %q", got)
 	}
 	if strings.Contains(got, "Verify passed") {
@@ -199,11 +199,11 @@ func TestStartFinishReplyAbortedPromptsRestart(t *testing.T) {
 		{ID: "2", Status: domain.TodoPending},
 		{ID: "3", Status: domain.TodoPending},
 	}}
-	got := startFinishReply("本轮已中止。", nil, domain.Session{
+	got := startFinishReply("Session aborted.", nil, domain.Session{
 		ID:             "ses-9",
 		TerminalStatus: domain.TerminalAborted,
 	}, todos)
-	if !strings.Contains(got, "/start") || !strings.Contains(got, "2 步") {
+	if !strings.Contains(got, "/start") || !strings.Contains(got, "2 steps") {
 		t.Fatalf("want continue hint with pending count, got %q", got)
 	}
 	if strings.Contains(got, "Resume:") || strings.Contains(got, "Artifacts:") {
@@ -213,23 +213,23 @@ func TestStartFinishReplyAbortedPromptsRestart(t *testing.T) {
 
 func TestTerminalFollowUpHint(t *testing.T) {
 	got := terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseDone}, 0)
-	if !strings.Contains(got, "已经结束") || !strings.Contains(got, "/start") {
+	if !strings.Contains(got, "has ended") || !strings.Contains(got, "/start") {
 		t.Fatalf("want warm done hint, got %q", got)
 	}
 	if strings.Contains(got, "Artifacts:") {
 		t.Fatalf("follow-up hint should not dump artifacts wall, got %q", got)
 	}
 	got = terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseAborted}, 3)
-	if !strings.Contains(got, "3 步") || !strings.Contains(got, "/start") {
+	if !strings.Contains(got, "3 steps") || !strings.Contains(got, "/start") {
 		t.Fatalf("want aborted pending hint, got %q", got)
 	}
 }
 
 func TestLooksLikeFollowUpChange(t *testing.T) {
-	if looksLikeFollowUpChange("结束了？") {
+	if looksLikeFollowUpChange("is it finished?") {
 		t.Fatal("chitchat should not reopen clarify")
 	}
-	if !looksLikeFollowUpChange("把小人颜色再淡一点") {
+	if !looksLikeFollowUpChange("make the stick figure color lighter") {
 		t.Fatal("change request should reopen clarify")
 	}
 }
@@ -237,7 +237,7 @@ func TestLooksLikeFollowUpChange(t *testing.T) {
 func TestTodoSidebarUsesWindowNotFullList(t *testing.T) {
 	items := make([]domain.TodoItem, 40)
 	for i := range items {
-		items[i] = domain.TodoItem{Title: fmt.Sprintf("step-%02d-很长的标题用来测试截断", i+1), Status: domain.TodoPending}
+		items[i] = domain.TodoItem{Title: fmt.Sprintf("step-%02d-a-long-title-used-to-test-truncation", i+1), Status: domain.TodoPending}
 	}
 	for i := 0; i < 7; i++ {
 		items[i].Status = domain.TodoDone

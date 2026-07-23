@@ -38,13 +38,13 @@ func TestRenderPreview(t *testing.T) {
 	// 1) Clarification in progress, including a conversation history
 	clar := base(domain.PhaseClarifying)
 	clar.chat = []chatTurn{
-		{User: "你好", Reply: "你好！想做什么？直接说功能即可，例如：做一个登录页、写个小工具、改仓库里某处。"},
-		{User: "我想做一个静态登录页面，放在 examples/login 目录", Reply: "可以，在 examples/login 做静态登录页。HTML + CSS，不需要后端。"},
+		{User: "hello", Reply: "Hello! What would you like to build? For example, a login page, a small utility, or a repository change."},
+		{User: "Build a static login page in examples/login", Reply: "Okay, create a static HTML and CSS login page in examples/login with no backend."},
 	}
 
 	// 2) Ready
 	ready := base(domain.PhaseReadyToStart)
-	ready.chat = []chatTurn{{User: "对", Reply: "需求已齐，输入 /start 开始。"}}
+	ready.chat = []chatTurn{{User: "yes", Reply: "Requirements are complete. Use /start to begin."}}
 
 	// 3) Executing (circle + stage + todos)
 	exec := base(domain.PhaseExecuting)
@@ -52,16 +52,16 @@ func TestRenderPreview(t *testing.T) {
 	exec.busy = true
 	exec.spinnerFrame = 1
 	exec.todos = domain.TodoList{Items: []domain.TodoItem{
-		{Title: "examples/login/index.html: 登录页骨架", Status: domain.TodoDone},
-		{Title: "examples/login/styles.css: 卡片样式", Status: domain.TodoRunning},
-		{Title: "examples/login/README.md: 使用说明", Status: domain.TodoPending},
+		{Title: "examples/login/index.html: login page skeleton", Status: domain.TodoDone},
+		{Title: "examples/login/styles.css: card styles", Status: domain.TodoRunning},
+		{Title: "examples/login/README.md: usage instructions", Status: domain.TodoPending},
 	}}
 	exec.showTodos = true
 
 	// 4) Product issues that require users’ decision-making
 	block := base(domain.PhaseClarifying)
 	block.clarify = clarify.ReqState{Decide: clarify.Decide{Items: []clarify.Decision{
-		{Question: "登录成功后跳转到哪个页面？", Blocking: true},
+		{Question: "Which page should open after successful login?", Blocking: true},
 	}}}
 
 	// 5) Complete
@@ -138,14 +138,14 @@ func TestLiveClarifyAndStart(t *testing.T) {
 	}
 
 	turns := []string{
-		"你好",
-		"在当前工作区做一个静态登录页，目录 examples/login，不要放到别的盘",
-		"浅色主题；只要用户名、密码、登录按钮；纯 HTML+CSS；不要后端",
-		"验收明确允许无门禁 allow_no_gate；fallback 用默认即可",
-		"需求设计文档按你草案即可，我确认",
-		"对",
-		"确认验收允许无门禁，可以 Ready",
-		"对",
+		"hello",
+		"Build a static login page in the current workspace under examples/login",
+		"Use a light theme with username, password, and login button; HTML and CSS only, no backend",
+		"Explicitly allow allow_no_gate for acceptance; use fallback defaults",
+		"I approve your requirements and design drafts",
+		"yes",
+		"Acceptance may use allow_no_gate; the session can be Ready",
+		"yes",
 	}
 	for _, in := range turns {
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -168,7 +168,7 @@ func TestLiveClarifyAndStart(t *testing.T) {
 				t.Fatalf("coding agent ran during clarify (RunCount=%d step=%q) — must be LLM-only", n, fb.LastStepID())
 			}
 		}
-		for _, bad := range []string{"用户似乎", "该用户", "用户的情绪", "需要引导", "催促", "似乎对"} {
+		for _, bad := range []string{"the user appears", "user emotion", "needs guidance", "is urging"} {
 			if strings.Contains(reply, bad) {
 				t.Errorf("reply leaked thinking narration %q in: %q", bad, reply)
 			}

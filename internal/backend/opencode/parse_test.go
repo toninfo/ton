@@ -27,7 +27,7 @@ func TestParseNDJSONNormalizesOpenCodeEvents(t *testing.T) {
 	if got, want := events[0].Type, domain.EventStatus; got != want {
 		t.Errorf("start type = %q, want %q", got, want)
 	}
-	if got, want := events[1].Payload["text"], "正在实现 OpenCode 适配器。"; got != want {
+	if got, want := events[1].Payload["text"], "Implementing the OpenCode adapter."; got != want {
 		t.Errorf("text payload = %#v, want %q", got, want)
 	}
 	if got, want := events[2].Type, domain.EventTool; got != want {

@@ -17,7 +17,7 @@ func TestApplyOnExhaustedMatrix(t *testing.T) {
 		wantTerminalHint  domain.TerminalStatus
 	}{
 		{
-			name:              "abort_session 标记失败并中止会话",
+			name:              "abort_session marks failure and aborts session",
 			policy:            "abort_session",
 			wantStepStatus:    domain.TodoFailed,
 			wantContinue:      false,
@@ -25,7 +25,7 @@ func TestApplyOnExhaustedMatrix(t *testing.T) {
 			wantTerminalHint:  domain.TerminalAborted,
 		},
 		{
-			name:              "skip_step 标记跳过并仍然验收会话",
+			name:              "skip_step marks skipped and still verifies session",
 			policy:            "skip_step",
 			wantStepStatus:    domain.TodoSkipped,
 			wantContinue:      true,
@@ -33,7 +33,7 @@ func TestApplyOnExhaustedMatrix(t *testing.T) {
 			wantTerminalHint:  "",
 		},
 		{
-			name:              "continue_best_effort 保留失败并提示带失败步骤完成",
+			name:              "continue_best_effort retains failure and reports failed steps",
 			policy:            "continue_best_effort",
 			wantStepStatus:    domain.TodoFailed,
 			wantContinue:      true,

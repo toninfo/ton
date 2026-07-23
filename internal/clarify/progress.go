@@ -22,14 +22,12 @@ func BreakNumberedList(s string) string {
 // IsAffirmation identifies the user's clear affirmation of the current goal (advancing to Ready, rather than rereading the abstract).
 func IsAffirmation(text string) bool {
 	s := strings.TrimSpace(strings.ToLower(text))
-	s = strings.TrimRight(s, "。.!！?？~～")
+	s = strings.TrimRight(s, ".!?~")
 	if s == "" {
 		return false
 	}
 	affirm := []string{
-		"对", "好", "好的", "可以", "行", "嗯", "是", "是的", "没问题", "就这样",
-		"确认", "同意", "开始", "开始吧", "开搞", "干吧", "上吧",
-		"ok", "okay", "yes", "y", "lgtm", "sure", "go",
+		"ok", "okay", "yes", "y", "lgtm", "sure", "go", "confirmed", "approved",
 	}
 	for _, a := range affirm {
 		if s == a {
@@ -79,59 +77,59 @@ func ApplyUserAffirmation(state *ReqState, userText string) {
 func ProgressReply(state *ReqState, userText, previousSummary, sessionDir string) string {
 	_ = previousSummary
 	if state == nil {
-		return "你好！直接说你想做的功能就行。"
+		return "Hello! Tell me what you want to build."
 	}
 	reqPath, desPath := DocPaths(sessionDir)
 	_ = reqPath
 	_ = desPath
 	wsHint := ""
 	if tw := strings.TrimSpace(state.TargetWorkspace); tw != "" {
-		wsHint = " 项目：" + tw
+		wsHint = " Project: " + tw
 	} else if tp := strings.TrimSpace(state.TargetParent); tp != "" {
-		wsHint = " 将建在：" + tp
+		wsHint = " It will be created in: " + tp
 	}
 
 	if ReadyForStart(state) {
-		return "文档已确认。" + strings.TrimSpace(wsHint) + " 输入 /docs 查看，确认后 /start。"
+		return "The documents are confirmed." + strings.TrimSpace(wsHint) + " Use /docs to review them, then /start."
 	}
 	if IsAffirmation(userText) {
 		if !DocsAdequate(state) {
-			return "好的，方向记下了。我会继续完善需求/设计，并给出默认方案请你确认；同意回「对」。"
+			return "Got it—the direction is recorded. I will refine the requirements and design, then propose defaults for you to approve."
 		}
 		if missing := ReadyMissing(state); len(missing) > 0 {
-			return "好的。" + strings.TrimSpace(wsHint) + " 还差：" + strings.Join(missing, "；") + " 可用 /docs 查看草案。"
+			return "Thanks." + strings.TrimSpace(wsHint) + " Still needed: " + strings.Join(missing, "; ") + ". Use /docs to review the draft."
 		}
-		return "好的。" + strings.TrimSpace(wsHint) + " 输入 /docs 查看，然后 /start。"
+		return "Thanks." + strings.TrimSpace(wsHint) + " Use /docs to review, then /start."
 	}
 
 	u := strings.TrimSpace(userText)
 	switch {
 	case isGreeting(u):
-		return "你好！想做什么？直接说功能即可。我们会先把需求/设计文档沟通清楚，再进入长周期开发。"
+		return "Hello! What would you like to build? State the feature, and we will clarify the requirements and design before long-running development."
 	case wantsGuidance(u):
-		return "可以。你回下面任一方向即可：\n1) 静态网页（如登录页）\n2) 桌面/命令行小工具\n3) 改这个仓库里的现有功能\n说清目标后，我会起草文档并逐项确认细节（主题、功能等），你同意默认方案即可。"
+		return "Choose a direction:\n1) A static web page (such as a login page)\n2) A desktop or command-line utility\n3) A change to this repository\nAfter you state the goal, I will draft the documents and confirm details such as theme and features. You can approve the proposed defaults."
 	case isFrustrated(u):
-		return "抱歉，刚才说岔了。请直接告诉我：你想做/改什么？我们先把需求文档聊清楚。"
+		return "Sorry for the confusion. Please tell me what you want to build or change; we will clarify the requirements first."
 	}
 
 	// Display only if the summary is a second-person short sentence spoken to the user; otherwise give action guidance.
 	summary := scrubMoji(DisplaySummary(state.Understanding.Summary))
 	if isUserFacingReply(summary) {
 		if DocsAdequate(state) && !ReadyForStart(state) {
-			return summary + "\n可用 /docs 查看草案；同意回「对」，要改直接说。"
+			return summary + "\nUse /docs to review the draft. Approve it or tell me what to change."
 		}
 		return summary
 	}
 	if DocsAdequate(state) {
-		return "需求/设计草案已写好。" + strings.TrimSpace(wsHint) + " 输入 /docs 查看；同意回「对」。"
+		return "The requirements and design drafts are ready." + strings.TrimSpace(wsHint) + " Use /docs to review, then approve or request changes."
 	}
 	if hasDocBodies(state) {
-		return "草案还在完善。可先 /docs 看一眼，再继续补充细节。"
+		return "The draft is still being refined. You can use /docs to review it and then provide more details."
 	}
 	if hasGoalDraft(state) {
-		return "已记下方向。我会继续完善文档，并就主题/功能等给出默认方案请你确认。"
+		return "The direction is recorded. I will refine the documents and propose defaults for details such as theme and features."
 	}
-	return "请用一句话说你想做的功能；我们先把文档沟通清楚，再长周期开发。"
+	return "Describe the feature you want in one sentence; we will clarify the documents before long-running development."
 }
 
 func hasGoalDraft(state *ReqState) bool {
@@ -147,11 +145,9 @@ func hasDocBodies(state *ReqState) bool {
 
 func isGreeting(s string) bool {
 	s = strings.TrimSpace(strings.ToLower(s))
-	s = strings.TrimRight(s, "。.!！?？~～")
+	s = strings.TrimRight(s, ".!?~")
 	greetings := []string{
-		"你好", "您好", "嗨", "hi", "hello", "hey", "哈喽",
-		"nihao", "ni hao", "你好呀", "你好啊", "您好呀",
-		"早", "早上好", "晚上好",
+		"hi", "hello", "hey", "good morning", "good afternoon", "good evening",
 	}
 	for _, g := range greetings {
 		if s == g || strings.HasPrefix(s, g) && len([]rune(s)) <= 6 {
@@ -162,21 +158,17 @@ func isGreeting(s string) bool {
 }
 
 func wantsGuidance(s string) bool {
-	return strings.Contains(s, "引导") ||
-		strings.Contains(s, "倒是") ||
-		strings.Contains(s, "你先说") ||
-		strings.Contains(s, "怎么办") ||
-		strings.Contains(s, "怎么弄") ||
-		strings.Contains(s, "给个方向")
+	s = strings.ToLower(s)
+	return strings.Contains(s, "guide me") ||
+		strings.Contains(s, "what should i do") ||
+		strings.Contains(s, "suggest a direction")
 }
 
 func isFrustrated(s string) bool {
-	return strings.Contains(s, "疯") ||
-		strings.Contains(s, "傻") ||
-		strings.Contains(s, "靠") ||
-		strings.Contains(s, "智障") ||
-		strings.Contains(s, "扯") ||
-		strings.Contains(s, "瞎说") ||
+	s = strings.ToLower(s)
+	return strings.Contains(s, "nonsense") ||
+		strings.Contains(s, "stupid") ||
+		strings.Contains(s, "wrong") ||
 		strings.EqualFold(strings.TrimSpace(s), "???") ||
 		strings.TrimSpace(s) == "??" ||
 		strings.TrimSpace(s) == "?"
@@ -208,19 +200,7 @@ func isThinkingNarration(s string) bool {
 		return false
 	}
 	low := strings.ToLower(s)
-	if strings.HasPrefix(s, "用户") ||
-		strings.Contains(s, "需要引导") ||
-		strings.Contains(s, "尚未提出") ||
-		strings.Contains(s, "催促") ||
-		strings.Contains(s, "情绪") ||
-		strings.Contains(s, "说明 ta") ||
-		strings.Contains(s, "说明他") ||
-		strings.Contains(s, "说明她") ||
-		strings.Contains(s, "似乎对") ||
-		strings.Contains(s, "进一步解释") ||
-		strings.Contains(s, "重新引导") ||
-		strings.Contains(s, "需求澄清") ||
-		strings.HasPrefix(low, "this feature") ||
+	if strings.HasPrefix(low, "this feature") ||
 		strings.Contains(low, "localization") ||
 		strings.Contains(low, "the user ") {
 		return true

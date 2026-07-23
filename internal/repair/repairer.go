@@ -77,7 +77,7 @@ func BuildPrompt(failure domain.VerifyResult, round int, extraInputs ...string) 
 	}
 	for _, input := range extraInputs {
 		if strings.TrimSpace(input) != "" {
-			fmt.Fprintf(&prompt, "User input / 用户补充: %s\n", input)
+			fmt.Fprintf(&prompt, "User input: %s\n", input)
 		}
 	}
 	prompt.WriteString("\nInspect the listed log, make the smallest correct code change, and leave the gate definition unchanged.")

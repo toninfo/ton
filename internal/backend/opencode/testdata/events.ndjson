@@ -1,4 +1,4 @@
 {"type":"step_start","timestamp":1721203200000,"sessionID":"ses_demo","part":{"id":"prt-start","type":"step-start","snapshot":"abc123"}}
-{"type":"text","timestamp":1721203201000,"sessionID":"ses_demo","part":{"id":"prt-text","type":"text","text":"正在实现 OpenCode 适配器。"}}
+{"type":"text","timestamp":1721203201000,"sessionID":"ses_demo","part":{"id":"prt-text","type":"text","text":"Implementing the OpenCode adapter."}}
 {"type":"tool_use","timestamp":1721203202000,"sessionID":"ses_demo","part":{"id":"prt-tool","type":"tool","callID":"call_1","tool":"bash","state":{"status":"completed","input":{"command":"go test ./..."},"output":"ok","title":"Run tests"}}}
 {"type":"step_finish","timestamp":1721203203000,"sessionID":"ses_demo","part":{"id":"prt-finish","type":"step-finish","reason":"stop","cost":0.012,"tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":20,"write":5}}}}

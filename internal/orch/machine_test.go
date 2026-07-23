@@ -15,34 +15,34 @@ func TestMachineTransitions(t *testing.T) {
 		wantErrAt int
 	}{
 		{
-			name:      "完整成功流程",
+			name:      "complete successful workflow",
 			events:    []Event{EvBeginClarify, EvClarifyDone, EvStart, EvPlanDone, EvStepDone, EvAllStepsDone, EvVerifyOK, EvSummarizeDone},
 			wantPhase: domain.PhaseDone,
 			wantErrAt: -1,
 		},
 		{
-			name:      "未 Start 不能进入执行",
+			name:      "cannot execute before Start",
 			initial:   domain.PhaseReadyToStart,
 			events:    []Event{EvPlanDone},
 			wantPhase: domain.PhaseReadyToStart,
 			wantErrAt: 0,
 		},
 		{
-			name:      "所有步骤终态前不能 Verify",
+			name:      "cannot verify before all steps reach terminal state",
 			initial:   domain.PhaseExecuting,
 			events:    []Event{EvVerifyOK},
 			wantPhase: domain.PhaseExecuting,
 			wantErrAt: 0,
 		},
 		{
-			name:      "验收失败经修复后重新验收",
+			name:      "reverify after repairing acceptance failure",
 			initial:   domain.PhaseVerifying,
 			events:    []Event{EvVerifyFail, EvRepairDone, EvVerifyOK, EvSummarizeDone},
 			wantPhase: domain.PhaseDone,
 			wantErrAt: -1,
 		},
 		{
-			name:      "终态不可继续迁移",
+			name:      "terminal state cannot transition further",
 			initial:   domain.PhaseDone,
 			events:    []Event{EvAbort},
 			wantPhase: domain.PhaseDone,

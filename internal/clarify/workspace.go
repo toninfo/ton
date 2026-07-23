@@ -9,8 +9,8 @@ import (
 
 // winAbsPath matches the absolute path of the Windows drive letter (forward slashes/backslashes are acceptable).
 var (
-	reWinAbs  = regexp.MustCompile(`(?i)\b([a-z]:[\\/][^\s"'，。；;！!？?）)]*)`)
-	reUnixAbs = regexp.MustCompile(`(?:^|[\s"'「])(/[^\s"'，。；;！!？?）)]+)`)
+	reWinAbs  = regexp.MustCompile(`(?i)\b([a-z]:[\\/][^\s"';!?)]*)`)
+	reUnixAbs = regexp.MustCompile(`(?:^|[\s"'])(/[^\s"';!?)]*)`)
 )
 
 // EffectiveWorkspace Returns the project root directory that should be used for this session.
@@ -76,9 +76,9 @@ func ExtractPathHint(text string) string {
 
 func trimPathJunk(p string) string {
 	p = strings.TrimSpace(p)
-	p = strings.TrimRight(p, "，。；;！!？?）)」\"'")
-	// "D:/tmp/directory" → remove the Chinese "directory" suffix
-	for _, suf := range []string{"目录", "文件夹", "下", "下面", "里头", "里面"} {
+	p = strings.TrimRight(p, ";!? )\"'")
+	// Remove English directory suffixes that may accompany a pasted path.
+	for _, suf := range []string{"directory", "folder"} {
 		if strings.HasSuffix(p, suf) {
 			p = strings.TrimSuffix(p, suf)
 			p = strings.TrimRight(p, `\/`)
@@ -90,9 +90,8 @@ func trimPathJunk(p string) string {
 // looksLikeParentDir: The user said "put it under X/directory" or the path itself is too shallow (such as D:\tmp).
 func looksLikeParentDir(abs, userText string) bool {
 	low := strings.ToLower(userText)
-	if strings.Contains(low, "下面") || strings.Contains(low, "底下") ||
-		strings.Contains(low, "目录") || strings.Contains(low, "文件夹里") ||
-		strings.Contains(low, "放到") && !strings.Contains(low, "项目") {
+	if strings.Contains(low, "under ") || strings.Contains(low, "in ") ||
+		strings.Contains(low, "directory") || strings.Contains(low, "folder") {
 		// "Put it in d:/tmp/" is almost always the parent directory intention
 		base := strings.ToLower(filepath.Base(abs))
 		if base == "tmp" || base == "temp" || base == "projects" || base == "code" || base == "src" || base == "work" {
@@ -146,10 +145,10 @@ func guessSlug(text string) string {
 			return sanitizeSlug(name)
 		}
 	}
-	if strings.Contains(text, "计时器") && (strings.Contains(low, "wpf") || strings.Contains(low, "c#") || strings.Contains(text, "C#")) {
+	if strings.Contains(low, "timer") && (strings.Contains(low, "wpf") || strings.Contains(low, "c#")) {
 		return "WpfTimer"
 	}
-	if strings.Contains(text, "登录") {
+	if strings.Contains(low, "login") {
 		return "LoginPage"
 	}
 	return ""

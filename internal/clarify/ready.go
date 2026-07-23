@@ -133,21 +133,21 @@ func ReadyMissing(state *ReqState) []string {
 	}
 	var missing []string
 	if !DocsAdequate(state) {
-		missing = append(missing, "完善需求/设计文档（requirements.md + design.md）")
+		missing = append(missing, "complete the requirements and design documents (requirements.md + design.md)")
 	}
 	if !state.RequirementsConfirmed {
-		missing = append(missing, "确认终版需求与设计文档")
+		missing = append(missing, "confirm the final requirements and design documents")
 	}
 	if !state.Acceptance.Confirmed {
-		missing = append(missing, "确认如何验收成功")
+		missing = append(missing, "confirm the acceptance criteria")
 	}
 	for _, decision := range state.Decide.Items {
 		if decision.Blocking && !IsOpsTopic(decision.Question) {
-			missing = append(missing, "确认："+trimQuestion(decision.Question))
+			missing = append(missing, "confirm: "+trimQuestion(decision.Question))
 		}
 	}
 	if !state.Acceptance.AllowNoGate && !hasRunnableAcceptanceCommand(state.Acceptance.Gate) {
-		missing = append(missing, "补充可执行验收命令，或明确允许无门禁")
+		missing = append(missing, "add an executable acceptance command or explicitly allow no gate")
 	}
 	// fallback / permission / git is filled in by ApplyAutomationDefaults; if it is still missing, it will be silently not counted as user to-do.
 	_ = state.Fallback

@@ -14,12 +14,12 @@ func TestPlanResume(t *testing.T) {
 		want    ResumeAction
 	}{
 		{
-			name:    "磨合阶段恢复 UI",
+			name:    "resume UI during clarification",
 			session: domain.Session{Phase: domain.PhaseClarifying},
 			want:    ResumeAction{Kind: ResumeRestoreUI},
 		},
 		{
-			name:    "规划中丢弃不完整 todo 并重新规划",
+			name:    "discard incomplete todos and replan during planning",
 			session: domain.Session{Phase: domain.PhasePlanning, Subphase: "planning"},
 			todos:   domain.TodoList{Items: []domain.TodoItem{{ID: "partial", Status: domain.TodoPending}}},
 			want: ResumeAction{
@@ -28,7 +28,7 @@ func TestPlanResume(t *testing.T) {
 			},
 		},
 		{
-			name: "运行中标记当前步骤失败并交给修复策略",
+			name: "mark current step failed and hand off to repair while running",
 			session: domain.Session{
 				Phase:         domain.PhaseExecuting,
 				Subphase:      "step_running",
@@ -47,7 +47,7 @@ func TestPlanResume(t *testing.T) {
 			},
 		},
 		{
-			name: "会话级门禁修复崩溃不标记步骤失败",
+			name: "session gate repair crash does not mark step failed",
 			session: domain.Session{
 				Phase:       domain.PhaseRepairing,
 				VerifyRound: 2,
@@ -62,7 +62,7 @@ func TestPlanResume(t *testing.T) {
 			},
 		},
 		{
-			name: "步骤级 repairing 仍标记当前步骤失败",
+			name: "step-level repair still marks current step failed",
 			session: domain.Session{
 				Phase:         domain.PhaseExecuting,
 				Subphase:      "repairing",
@@ -80,7 +80,7 @@ func TestPlanResume(t *testing.T) {
 			},
 		},
 		{
-			name: "命令验收中重跑同一批门禁",
+			name: "rerun the same gate commands during acceptance",
 			session: domain.Session{
 				Phase:       domain.PhaseVerifying,
 				Subphase:    "verifying",
@@ -92,7 +92,7 @@ func TestPlanResume(t *testing.T) {
 			},
 		},
 		{
-			name: "步骤级验收中重跑同一批命令",
+			name: "rerun the same commands during step acceptance",
 			session: domain.Session{
 				Phase:         domain.PhaseExecuting,
 				Subphase:      "step_verify",
@@ -104,7 +104,7 @@ func TestPlanResume(t *testing.T) {
 			},
 		},
 		{
-			name: "步骤间继续下一个待执行步骤",
+			name: "continue with the next pending step between steps",
 			session: domain.Session{
 				Phase:      domain.PhaseExecuting,
 				Subphase:   "between_steps",
@@ -121,7 +121,7 @@ func TestPlanResume(t *testing.T) {
 			},
 		},
 		{
-			name:    "汇总阶段重写报告",
+			name:    "rewrite report during summary phase",
 			session: domain.Session{Phase: domain.PhaseSummarizing},
 			want:    ResumeAction{Kind: ResumeRewriteReport},
 		},

@@ -149,7 +149,8 @@ func looksLikeEnglishDump(s string) bool {
 		return false
 	}
 	// Single-line English dumping: letters account for a high proportion and have a certain length.
-	return letters >= 16 && letters*100/n > 70
+	// English product questions are naturally letter-dense; reject only genuinely long monologues.
+	return letters >= 160 && letters*100/n > 70
 }
 
 func stripMetaParens(s, open, close string) string {
@@ -176,7 +177,7 @@ func looksLikeMetaNote(inner string) bool {
 	l := strings.ToLower(inner)
 	keys := []string{
 		"update_cards", "conductor", "clarifying", "phase",
-		"用户", "澄清", "打招呼", "阶段", "引导用户", "处于",
+		"user", "clarification", "greeting", "stage", "guidance",
 	}
 	for _, k := range keys {
 		if strings.Contains(l, k) || strings.Contains(inner, k) {

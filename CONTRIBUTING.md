@@ -4,7 +4,7 @@
 
 - Keep the TUI **milestone-first and low-noise**. Full agent transcripts belong
   on disk under `.ton/`, not in the default UI.
-- UI copy stays **English**. LLM scaffolding may remain bilingual (EN + 中文).
+- All ton core copy and LLM prompts are **English-only**. Chinese is allowed only in `examples/nago` and `examples/web`.
 - Do not commit secrets, API keys, or workspace `.ton/` session data.
 - Prefer focused PRs over kitchen-sink refactors.
 

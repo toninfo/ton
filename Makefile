@@ -1,7 +1,7 @@
-# 常用本地入口：与 CI 保持同一组检查。
+# Common local entry points; use the same checks as CI.
 .PHONY: check test vet build tidy snapshot
 
-# 版本信息与 GoReleaser 对齐（-X main.*）；无 git 时回退到 dev 默认值。
+# Version information follows GoReleaser (-X main.*); without Git, fall back to dev defaults.
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)

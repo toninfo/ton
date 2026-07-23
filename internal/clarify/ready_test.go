@@ -85,8 +85,8 @@ func TestClarifierTurnUpdatesReqStateFromLLMCard(t *testing.T) {
 	if len(client.messages) != 2 || client.messages[0].Role != "system" {
 		t.Fatalf("messages = %#v, want system and user messages", client.messages)
 	}
-	if !strings.Contains(client.messages[0].Content, "中文") {
-		t.Fatalf("system prompt must include Chinese translation: %q", client.messages[0].Content)
+	if strings.Contains(client.messages[0].Content, "Chinese") {
+		t.Fatalf("system prompt must be English-only: %q", client.messages[0].Content)
 	}
 }
 
@@ -94,14 +94,14 @@ func TestClarifierTurnRejectsConfirmedOnThinDocs(t *testing.T) {
 	client := &stubChatClient{response: `{
 		"requirements": "# Req\nTimer.",
 		"design": "# Design\nWPF.",
-		"understanding": {"summary": "做一个计时器。", "confirmed": true},
+		"understanding": {"summary": "Build a timer.", "confirmed": true},
 		"assumptions": {"items": []},
 		"decide": {"items": []},
 		"acceptance": {"confirmed": true, "allow_no_gate": true},
 		"fallback": {"confirmed": true, "permission_mode": "dontAsk"}
 	}`}
 	state := ReqState{}
-	if _, err := (Clarifier{Client: client}).Turn(context.Background(), UserInput{Text: "好的"}, &state, 0); err != nil {
+	if _, err := (Clarifier{Client: client}).Turn(context.Background(), UserInput{Text: "yes"}, &state, 0); err != nil {
 		t.Fatal(err)
 	}
 	if state.RequirementsConfirmed || state.Understanding.Confirmed {

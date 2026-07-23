@@ -30,7 +30,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// Clarification/It is forbidden to send continuously while local asynchronous is in progress: otherwise, if multiple Clarify messages are sent concurrently, the reply will be in the wrong turn.
 			if m.busy && !queuesInput(m.session.Phase) {
-				m.setNotice("还在处理上一条，稍等片刻再发。", false)
+				m.setNotice("Still processing the previous message. Please wait a moment.", false)
 				return m, nil
 			}
 			m.input.SetValue("")
@@ -92,7 +92,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.toChat {
 				m.setNotice("", false)
 				if reply == "" {
-					reply = "已记下。"
+					reply = "Noted."
 				}
 				_ = m.applyChatReply(msg.chatID, reply)
 			} else {
@@ -163,15 +163,14 @@ func looksLikeFollowUpChange(input string) bool {
 	}
 	// Pure confirmation/closing chat: no forced clarification
 	chitchat := []string{
-		"结束了", "结束了？", "结束了?", "完了", "完了吗", "好了", "好了吗",
-		"结束了就不搭理我了", "结束了就不搭理我了？", "在吗", "你好",
+		"is it finished", "is it done", "done", "are you there", "hello", "hi",
 	}
 	for _, c := range chitchat {
 		if s == c || strings.TrimRight(s, "？?！!") == c {
 			return false
 		}
 	}
-	keys := []string{"改", "优化", "修", "加", "不要", "换成", "调整", "重新", "bug", "fix", "change", "add"}
+	keys := []string{"change", "improve", "fix", "add", "remove", "replace", "adjust", "redo", "bug"}
 	for _, k := range keys {
 		if strings.Contains(s, k) {
 			return true
@@ -183,9 +182,9 @@ func looksLikeFollowUpChange(input string) bool {
 
 func terminalFollowUpHint(session domain.Session, pending int) string {
 	if session.Phase == domain.PhaseAborted && pending > 0 {
-		return fmt.Sprintf("还有 %d 步没跑完，直接 /start 继续；要改需求也可以说。", pending)
+		return fmt.Sprintf("%d steps remain. Use /start to continue, or describe a requirement change.", pending)
 	}
-	return "本轮已经结束啦。要改/优化直接说；确认后再 /start。(/docs 看文档)"
+	return "This session has ended. Describe any change or improvement, then use /start after confirmation. Use /docs to review documents."
 }
 
 func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
@@ -276,13 +275,13 @@ func (m Model) beginBusy(work tea.Cmd) (tea.Model, tea.Cmd) {
 func finishNotice(status domain.TerminalStatus) string {
 	switch status {
 	case domain.TerminalDoneWithFailedSteps:
-		return "本轮结束（有步骤失败）。"
+		return "Session finished with failed steps."
 	case domain.TerminalFailed:
-		return "本轮失败。"
+		return "Session failed."
 	case domain.TerminalAborted:
-		return "本轮已中止。"
+		return "Session aborted."
 	default:
-		return "本轮完成。"
+		return "Session completed."
 	}
 }
 
@@ -302,23 +301,23 @@ func startFinishReply(notice string, log []string, session domain.Session, todos
 	_ = log // Milestones are left to Progress at the bottom and do not enter the dialogue.
 	pending := countPendingTodos(todos)
 	aborted := session.TerminalStatus == domain.TerminalAborted ||
-		strings.Contains(notice, "中止") || strings.HasPrefix(strings.TrimSpace(notice), "Session aborted")
+		strings.HasPrefix(strings.TrimSpace(notice), "Session aborted")
 	failed := session.TerminalStatus == domain.TerminalFailed ||
 		session.TerminalStatus == domain.TerminalDoneWithFailedSteps ||
-		strings.Contains(notice, "失败")
+		strings.Contains(strings.ToLower(notice), "failed")
 	base := strings.TrimSpace(notice)
 	if base == "" || strings.HasPrefix(base, "Session finished") {
 		base = finishNotice(session.TerminalStatus)
 	}
 	switch {
 	case aborted && pending > 0:
-		return fmt.Sprintf("%s还有 %d 步，直接 /start 继续；要改需求也可以说。", ensureSentence(base), pending)
+		return fmt.Sprintf("%s %d steps remain. Use /start to continue, or describe a requirement change.", ensureSentence(base), pending)
 	case aborted:
-		return ensureSentence(base) + "要改需求直接说，确认后再 /start。"
+		return ensureSentence(base) + " Describe any requirement change, then use /start after confirmation."
 	case failed:
-		return ensureSentence(base) + "可以说要怎么改，或 /docs 看产物后再 /start。"
+		return ensureSentence(base) + " Describe how to change it, or review artifacts with /docs before using /start."
 	default:
-		return ensureSentence(base) + "要改/优化直接说；确认后再 /start 会重新规划。(/docs 看文档)"
+		return ensureSentence(base) + " Describe any change or improvement; use /start after confirmation to replan. Use /docs to review documents."
 	}
 }
 
@@ -327,10 +326,10 @@ func ensureSentence(s string) string {
 	if s == "" {
 		return ""
 	}
-	if strings.HasSuffix(s, "。") || strings.HasSuffix(s, ".") || strings.HasSuffix(s, "！") || strings.HasSuffix(s, "!") {
+	if strings.HasSuffix(s, ".") || strings.HasSuffix(s, "!") {
 		return s
 	}
-	return s + "。"
+	return s + "."
 }
 
 // friendlyError condenses the underlying decoding noise into a sentence that users can understand.
@@ -342,10 +341,10 @@ func friendlyError(err error) string {
 	low := strings.ToLower(msg)
 	switch {
 	case strings.Contains(low, "invalid card json") || strings.Contains(low, "decode llm card json") || strings.Contains(low, "invalid character"):
-		return "模型返回格式异常，再说一次或换个说法试试。"
+		return "The model returned an invalid format. Try again with different wording."
 	case strings.Contains(low, "api key") || strings.Contains(low, "unauthorized") || strings.Contains(low, "401"):
-		return "LLM 密钥无效，请用 /key 重新设置。"
+		return "The LLM API key is invalid. Set it again with /key."
 	default:
-		return "出错了：" + wrapNotice(msg, 72)
+		return "Error: " + wrapNotice(msg, 72)
 	}
 }

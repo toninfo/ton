@@ -8,14 +8,14 @@ import (
 )
 
 func TestExtractPathHintWindows(t *testing.T) {
-	got := ExtractPathHint("放在d:/tmp/目录")
+	got := ExtractPathHint("put it in d:/tmp/directory")
 	if got == "" {
 		t.Fatal("expected path hint")
 	}
 	if !strings.Contains(strings.ToLower(filepath.ToSlash(got)), "tmp") {
 		t.Fatalf("got %q", got)
 	}
-	got = ExtractPathHint(`项目放 D:\tmp\WpfTimer`)
+	got = ExtractPathHint(`put the project in D:\tmp\WpfTimer`)
 	if !strings.Contains(strings.ToLower(filepath.ToSlash(got)), "wpftimer") {
 		t.Fatalf("got %q", got)
 	}
@@ -23,13 +23,13 @@ func TestExtractPathHintWindows(t *testing.T) {
 
 func TestApplyWorkspaceHintComposesParentAndSlug(t *testing.T) {
 	state := &ReqState{
-		Understanding: Understanding{Summary: "做一个 C# WPF 桌面计时器应用"},
+		Understanding: Understanding{Summary: "Build a C# WPF desktop timer application"},
 	}
 	var user, launch string
 	if runtime.GOOS == "windows" {
-		user, launch = "放在d:/tmp/目录", `D:\Working\github\ton`
+		user, launch = "put it in d:/tmp/directory", `D:\Working\github\ton`
 	} else {
-		user, launch = "放在 /tmp/projects 目录", "/home/dev/ton"
+		user, launch = "put it in /tmp/projects directory", "/home/dev/ton"
 	}
 	ApplyWorkspaceHint(state, user, launch)
 	if state.TargetParent == "" {

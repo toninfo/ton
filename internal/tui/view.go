@@ -335,10 +335,7 @@ func looksLikeThinkingDump(s string) bool {
 		strings.HasPrefix(low, "the feature") ||
 		strings.HasPrefix(low, "this change") ||
 		strings.Contains(low, "automatically detecting") ||
-		strings.Contains(low, "localization") ||
-		strings.Contains(s, "用户正在") ||
-		strings.Contains(s, "似乎对") ||
-		strings.Contains(s, "需要进一步") {
+		strings.Contains(low, "localization") {
 		return true
 	}
 	// English monologues that are too long should also be dumped

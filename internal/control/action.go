@@ -127,7 +127,7 @@ func allowedForPhase(phase string) map[Action]bool {
 // Conservative strategy: Only judge the truth of a greeting word "the whole sentence is equal to", and never accidentally damage short task names such as "Login Page".
 func LooksLikeSmalltalk(text string) bool {
 	s := strings.TrimSpace(strings.ToLower(text))
-	s = strings.TrimRight(s, "。.!！?？~～,，、… ")
+	s = strings.TrimRight(s, ".!?~, ")
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return true
@@ -136,15 +136,9 @@ func LooksLikeSmalltalk(text string) bool {
 		return false
 	}
 	greetings := []string{
-		"你好", "您好", "哈喽", "嗨", "hi", "hello", "hey", "yo",
-		"nihao", "ni hao", "你好呀", "你好啊", "您好呀",
-		"在", "在吗", "在么", "在不在", "有人吗",
-		"早", "早上好", "中午好", "下午好", "晚上好", "早安", "晚安",
-		"谢谢", "多谢", "thanks", "thank you", "thx",
-		"那你倒是引导啊", "引导", "引导一下", "引导我", "你引导我", "你倒是说啊",
-		"然后呢", "接着呢", "你说呢", "继续", "接着", "快点", "快",
-		"嗯", "哦", "噢", "喔", "额", "呃", "啊", "哈", "哈哈",
-		"随便", "都行", "都可以", "看你", "你决定", "你看着办",
+		"hi", "hello", "hey", "yo", "good morning", "good afternoon", "good evening",
+		"thanks", "thank you", "thx", "guide me", "what next", "continue", "are you there",
+		"okay", "ok", "sure", "whatever", "your choice",
 	}
 	for _, g := range greetings {
 		if s == g {
@@ -158,17 +152,16 @@ func LooksLikeSmalltalk(text string) bool {
 func hasTaskSignal(text string) bool {
 	t := strings.ToLower(text)
 	keys := []string{
-		"环境变量", "env ", "export ", "setenv", ".env",
-		"改配置", "修改配置", "config", "yaml", "toml", "json 配置",
-		"安装依赖", "npm install", "go get", "pip install",
-		"创建文件", "写个脚本", "改一下代码", "帮我改",
-		"chmod", "mkdir", "写到", "落到磁盘",
-		"读一下仓库", "看一下代码", "分析仓库", "读仓", "整理需求", "写设计",
-		"根据代码", "基于仓库", "摸清现状", "调研一下",
+		"env ", "export ", "setenv", ".env",
+		"config", "yaml", "toml", "json",
+		"npm install", "go get", "pip install",
+		"create file", "write a script", "change code",
+		"chmod", "mkdir", "write to disk",
 		"analyze the repo", "read the codebase", "draft requirements", "draft design",
 		"based on the code", "from the repository",
-		"做一个", "实现", "开发", "构建", "登录页", "计时器", "应用",
-		"build", "implement", "create", "fix", "todo",
+		"analyze the repo", "read the codebase", "draft requirements", "draft design",
+		"based on the code", "from the repository",
+		"build", "implement", "create", "fix", "todo", "login page", "timer", "application",
 	}
 	for _, k := range keys {
 		if strings.Contains(t, k) {

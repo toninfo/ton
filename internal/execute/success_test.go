@@ -15,31 +15,31 @@ func TestStepSucceeded(t *testing.T) {
 		want         bool
 	}{
 		{
-			name:         "正常退出且步骤验收通过",
+			name:         "successful exit and step acceptance",
 			outcome:      execute.RunOutcome{ExitCode: 0},
 			stepVerifyOK: true,
 			want:         true,
 		},
 		{
-			name:         "步骤验收失败",
+			name:         "step acceptance failure",
 			outcome:      execute.RunOutcome{ExitCode: 0},
 			stepVerifyOK: false,
 			want:         false,
 		},
 		{
-			name:         "非零退出",
+			name:         "non-zero exit",
 			outcome:      execute.RunOutcome{ExitCode: 1},
 			stepVerifyOK: true,
 			want:         false,
 		},
 		{
-			name:         "超时",
+			name:         "timeout",
 			outcome:      execute.RunOutcome{ExitCode: 0, TimedOut: true},
 			stepVerifyOK: true,
 			want:         false,
 		},
 		{
-			name:         "运行错误",
+			name:         "runtime error",
 			outcome:      execute.RunOutcome{ExitCode: 0, Err: errors.New("interrupted")},
 			stepVerifyOK: true,
 			want:         false,

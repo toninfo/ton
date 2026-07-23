@@ -25,7 +25,7 @@ func TestRunBuildsOpenCodeSessionCommandAndNormalizesOutput(t *testing.T) {
 		Workspace:        "/work/project",
 		BackendSessionID: "ses_existing",
 		StepID:           "step-9",
-		Prompt:           "实现 ServeManager",
+		Prompt:           "Implement ServeManager",
 	})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -38,7 +38,7 @@ func TestRunBuildsOpenCodeSessionCommandAndNormalizesOutput(t *testing.T) {
 	if got, want := runner.command, "opencode"; got != want {
 		t.Errorf("command = %q, want %q", got, want)
 	}
-	wantArgs := []string{"run", "--session", "ses_existing", "--dir", "/work/project", "--format", "json", "--attach", "http://127.0.0.1:4096", "实现 ServeManager"}
+	wantArgs := []string{"run", "--session", "ses_existing", "--dir", "/work/project", "--format", "json", "--attach", "http://127.0.0.1:4096", "Implement ServeManager"}
 	if got := runner.args; !reflect.DeepEqual(got, wantArgs) {
 		t.Errorf("argv = %#v, want %#v", got, wantArgs)
 	}
@@ -56,9 +56,9 @@ func TestRunBuildsOpenCodeSessionCommandAndNormalizesOutput(t *testing.T) {
 func TestBuildRunArgsOmitsSessionForNewOpenCodeSession(t *testing.T) {
 	got := BuildRunArgs(backend.AgentRunRequest{
 		Workspace: "/work/project",
-		Prompt:    "开始新会话",
+		Prompt:    "Start a new session",
 	}, "http://127.0.0.1:4096")
-	want := []string{"run", "--dir", "/work/project", "--format", "json", "--attach", "http://127.0.0.1:4096", "开始新会话"}
+	want := []string{"run", "--dir", "/work/project", "--format", "json", "--attach", "http://127.0.0.1:4096", "Start a new session"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("argv = %#v, want %#v", got, want)
 	}
