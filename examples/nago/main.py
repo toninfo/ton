@@ -42,11 +42,14 @@ from control import (
     filter_sticky_color,
     get_capabilities_for_context,
     params_snapshot,
+    strip_speech_for_ambient,
     with_display_color,
 )
 from memory import LongTermMemory
 from nago_config import get_runtime_settings
 from session import SessionMemory
+from talk_flow import TalkPhase, TalkTurnController
+from talk_dialog import TalkComposer
 from PySide6.QtCore import (
     QEasingCurve, QObject, QPoint, QPropertyAnimation, Property, QRect, QRectF, Qt, QThread, QTimer, Signal,
 )
@@ -55,7 +58,7 @@ from PySide6.QtGui import (
     QPixmap, QRadialGradient,
 )
 from PySide6.QtWidgets import (
-    QApplication, QInputDialog, QLineEdit, QMenu, QSystemTrayIcon, QWidget,
+    QApplication, QMenu, QSystemTrayIcon, QWidget,
 )
 from stickman import StickmanParams
 
@@ -906,13 +909,23 @@ class NagoWindow(QWidget):
         self._color_transition_anim.setEasingCurve(QEasingCurve.Type.Linear)
         self._color_transition_anim.setDuration(200)
 
-        # --- AI worker (QThread, prevents concurrent requests) ---
+        # --- AI worker (single HTTP pipe; two logical routes share it) ---
         self._ai_worker: AIWorker | None = None
-        self._pending_ai_flush: bool = False
-        self._pending_flush_reason: str = "queued"
+        self._ai_route: str | None = None  # "talk" | "ambient" while running
+        # Talk route queue (never overwritten by heartbeat).
+        self._talk_pending: bool = False
+        # Ambient route queue (heartbeat / hover / click / …).
+        self._ambient_pending: bool = False
+        self._ambient_reason: str = "heartbeat"
         self._capabilities_full_sent: bool = False
         self._last_play: str | None = None
         self._event_flush_reason: str = "event"
+        self._last_ai_route: str | None = None
+        # Spontaneous speech cooldown (seconds); ambient cannot chatter every few ticks.
+        self._last_speech_at: float = 0.0
+        self._min_speech_gap_sec: float = float(
+            os.environ.get("NAGO_MIN_SPEECH_GAP_SEC", "90")
+        )
 
         runtime = get_runtime_settings()
 
@@ -922,6 +935,8 @@ class NagoWindow(QWidget):
             keep_recent_chars=runtime.session_keep_recent_chars,
         )
         self._long_memory = LongTermMemory(max_facts=runtime.memory_max_facts)
+        # Conversation turn state machine (see talk_flow.py).
+        self._talk = TalkTurnController(timeout_sec=45.0)
 
         # --- Step 32: action queue for sequential multi-action execution ---
         self._action_queue: list[dict] = []
@@ -929,9 +944,9 @@ class NagoWindow(QWidget):
         self._queue_timer.timeout.connect(self._process_action_queue)
         self._queue_timer.setInterval(400)
 
-        # --- AI triggers: slow heartbeat plus event debounce ---
+        # --- AI triggers: ambient route (slow heartbeat + event debounce) ---
         self._heartbeat_timer = QTimer(self)
-        self._heartbeat_timer.timeout.connect(lambda: self._request_ai("heartbeat"))
+        self._heartbeat_timer.timeout.connect(lambda: self._request_ambient("heartbeat"))
         self._heartbeat_timer.start(runtime.heartbeat_ms)
 
         self._event_flush_timer = QTimer(self)
@@ -1081,7 +1096,7 @@ class NagoWindow(QWidget):
         self._event_flush_timer.start(ms)
 
     def _on_event_flush_timer(self) -> None:
-        self._request_ai(self._event_flush_reason)
+        self._request_ambient(self._event_flush_reason)
 
     def _reset_observation_accumulators(self) -> None:
         """Clear incremental counters after packaging this round's observations."""
@@ -1090,39 +1105,136 @@ class NagoWindow(QWidget):
         self._wheel_this_second = (0, 0)
         self._swipe_this_second = None
 
-    def _start_ai_worker(self, context: dict, reason: str) -> None:
+    def _ai_busy(self) -> bool:
+        return self._ai_worker is not None and self._ai_worker.isRunning()
+
+    def _start_ai_worker(self, context: dict, route: str, reason: str) -> None:
         obs = context.get("observations", {})
         logger.info(
-            "Flush context → AI [%s] (hover=%s, clicks=%d, fg=%r, cap_full=%s)",
+            "AI [%s/%s] hover=%s clicks=%d fg=%r user=%r",
+            route,
             reason,
             obs.get("hover"),
             len(obs.get("clicks") or []),
             obs.get("foreground_window"),
-            not self._capabilities_full_sent,
+            bool(obs.get("user_message")),
         )
-        # Consume pending input only after the request starts, avoiding loss while busy or under test.
-        if obs.get("user_message"):
+        # Consume pending talk text only when the talk request actually starts.
+        if route == "talk" and obs.get("user_message"):
             self._session.consume_pending_user()
-        self._ai_worker = AIWorker(context, _STICKMAN_SYSTEM_PROMPT, parent=self)
+        self._ai_route = route
+        # parent=None: avoid "QThread destroyed while still running" on window teardown.
+        self._ai_worker = AIWorker(context, _STICKMAN_SYSTEM_PROMPT, parent=None)
         self._ai_worker.result_ready.connect(self._on_ai_worker_done)
         self._ai_worker.finished.connect(self._ai_worker.deleteLater)
         self._ai_worker.start()
         if not self._capabilities_full_sent:
             self._capabilities_full_sent = True
 
-    def _request_ai(self, reason: str = "heartbeat") -> None:
-        """Send observations to the AI, queueing a latest-round retry while busy."""
-        self._update_foreground_info()
+    def _prepare_shutdown(self) -> None:
+        """Stop timers and wait for the AI worker before Qt tears down threads."""
+        self._talk_pending = False
+        self._ambient_pending = False
+        for t in (
+            self._heartbeat_timer,
+            self._event_flush_timer,
+            self._queue_timer,
+            self._speech_bubble_timer,
+            self._blink_timer,
+            self._locomotor_timer,
+            self._play_timer,
+        ):
+            t.stop()
+        worker = self._ai_worker
+        self._ai_worker = None
+        self._ai_route = None
+        if worker is not None and worker.isRunning():
+            logger.info("Waiting for AI worker to finish before exit…")
+            if not worker.wait(5000):
+                logger.warning("AI worker still running after 5s — continuing quit")
+        self._talk.cancel()
 
-        if self._ai_worker is not None and self._ai_worker.isRunning():
-            self._pending_ai_flush = True
-            self._pending_flush_reason = reason
-            logger.debug("AI busy — queued flush (%s)", reason)
+    def _dispatch_next_ai(self) -> None:
+        """After a round finishes: talk route first, then ambient."""
+        if self._ai_busy():
             return
+        if self._talk_pending or self._session.peek_pending_user():
+            self._talk_pending = False
+            self._run_talk_request()
+            return
+        if self._ambient_pending:
+            reason = self._ambient_reason
+            self._ambient_pending = False
+            self._run_ambient_request(reason)
 
+    def _run_talk_request(self) -> None:
+        """Talk route: conversational turn with user_message in context."""
+        self._talk.mark_thinking()
+        self._update_foreground_info()
         context = self._build_context()
         self._reset_observation_accumulators()
-        self._start_ai_worker(context, reason)
+        self._start_ai_worker(context, "talk", "user_message")
+
+    def _run_ambient_request(self, reason: str) -> None:
+        """Ambient route: heartbeat / sensors — never steals a talk utterance."""
+        if self._talk.should_skip_heartbeat() or self._session.peek_pending_user():
+            self._ambient_pending = True
+            self._ambient_reason = reason
+            logger.debug("Defer ambient [%s] — talk route owns the turn", reason)
+            return
+        self._update_foreground_info()
+        context = self._build_context()
+        # If a user utterance somehow sits in pending, hand it to talk route.
+        if context.get("observations", {}).get("user_message"):
+            self._talk_pending = True
+            self._dispatch_next_ai()
+            return
+        self._reset_observation_accumulators()
+        self._start_ai_worker(context, "ambient", reason)
+
+    def _request_talk(self) -> None:
+        """Talk route entry — independent queue from ambient."""
+        if self._ai_busy():
+            self._talk_pending = True
+            self._talk.mark_thinking()
+            logger.info("Talk route queued (AI pipe busy)")
+            return
+        self._run_talk_request()
+
+    def _request_ambient(self, reason: str = "heartbeat") -> None:
+        """Ambient route entry — heartbeat & events never overwrite talk queue."""
+        if self._talk.active or self._talk_pending or self._session.peek_pending_user():
+            if reason != "heartbeat":
+                self._ambient_pending = True
+                self._ambient_reason = reason
+            logger.debug("Ambient [%s] skipped — talk route active/pending", reason)
+            return
+        if self._ai_busy():
+            self._ambient_pending = True
+            self._ambient_reason = reason
+            logger.debug("Ambient route queued (%s)", reason)
+            return
+        self._run_ambient_request(reason)
+
+    def _request_ai(self, reason: str = "heartbeat") -> None:
+        """Legacy shim: split by reason onto talk vs ambient lanes."""
+        if reason == "user_message":
+            self._request_talk()
+        else:
+            self._request_ambient(reason)
+
+    def _show_listening_feedback(self) -> None:
+        """Instant local ACK while waiting for the AI reply (UI only)."""
+        before = self._stickman_params.speech_bubble
+        self._stickman_params.speech_bubble = "…"
+        self._stickman_params.cheek_blush = True
+        self._stickman_params.eye_size = max(self._stickman_params.eye_size, 1.2)
+        self._stickman_params.mouth_angle = 8.0
+        self._sync_speech_bubble_auto_dismiss(before, "…")
+        # Keep the ellipsis visible a bit longer than a normal bubble while thinking.
+        self._speech_bubble_timer.start(max(get_runtime_settings().speech_bubble_ms, 6000))
+        self._sync_render_params()
+        self.update()
 
     def _on_speech_bubble_dismiss(self) -> None:
         """Locally clear the speech bubble after its display duration."""
@@ -1263,23 +1375,26 @@ class NagoWindow(QWidget):
         menu.exec(event.globalPos())
 
     def _prompt_user_message(self) -> None:
-        """Prompt for a user message, save it to the session, and request AI immediately."""
-        text, ok = QInputDialog.getText(
-            self,
-            "跟 Nago 说话",
-            "说一句：",
-            QLineEdit.EchoMode.Normal,
-            "",
-        )
+        """Run one talk turn: capture → listen ACK → priority AI request."""
+        self._talk.begin_capture()
+        text, ok = TalkComposer.ask(anchor=self)
         if not ok:
+            self._talk.cancel()
+            return
+        text = (text or "").strip()
+        if not text:
+            self._talk.cancel()
             return
         if not self._session.queue_user_message(text):
+            self._talk.cancel()
             return
-        # Explicit memory signals promote the message to the long-term layer.
+
+        self._talk.accept_text(text)
         self._long_memory.maybe_promote_from_user(text)
         logger.info("User message queued: %r", text[:80])
+        self._show_listening_feedback()
         self._maybe_compress_session()
-        self._request_ai("user_message")
+        self._request_talk()
 
     def _maybe_compress_session(self) -> None:
         """Compress older session entries above the threshold, preferring AI summarization."""
@@ -1295,6 +1410,7 @@ class NagoWindow(QWidget):
     def closeEvent(self, event) -> None:
         """Exit the application immediately when the window closes."""
         logger.info("Nago shutting down")
+        self._prepare_shutdown()
         event.accept()
         QApplication.quit()
 
@@ -1454,6 +1570,7 @@ class NagoWindow(QWidget):
                 "approach_mouse_active": self._approach_mouse_active,
                 "last_play": self._last_play,
                 "queue_length": len(self._action_queue),
+                "talk_phase": self._talk.phase.value,
             },
             "capabilities": get_capabilities_for_context(not self._capabilities_full_sent),
         }
@@ -1463,8 +1580,11 @@ class NagoWindow(QWidget):
         self._request_ai("manual")
 
     def _on_ai_worker_done(self, result: object) -> None:
-        """Slot: receive QThread result, route to success or fade handler."""
+        """Slot: receive QThread result, then drain talk/ambient queues."""
+        finished_route = self._ai_route
         self._ai_worker = None
+        self._ai_route = None
+        self._last_ai_route = finished_route
 
         actions = result
         debug: dict = {}
@@ -1484,17 +1604,25 @@ class NagoWindow(QWidget):
             self.update()
 
         if isinstance(actions, list) and actions:
+            if finished_route == "talk" or self._talk.active:
+                self._talk.mark_speaking()
             self._ai_result_ready.emit(actions)
         else:
-            logger.warning("AI request returned no valid actions → triggering fade")
+            logger.warning(
+                "AI [%s] returned no valid actions → fade",
+                finished_route or "?",
+            )
+            if self._stickman_params.speech_bubble == "…":
+                self._stickman_params.speech_bubble = None
+                self._speech_bubble_timer.stop()
+                self._sync_render_params()
+                self.update()
+            if self._talk.active:
+                self._talk.finish()
             self._ai_fade_start.emit()
 
-        if self._pending_ai_flush:
-            reason = self._pending_flush_reason
-            self._pending_ai_flush = False
-            self._pending_flush_reason = "queued"
-            logger.info("Running queued AI flush (%s)", reason)
-            self._request_ai(reason)
+        # Dual-route drain: talk first, then ambient.
+        self._dispatch_next_ai()
 
     # ------------------------------------------------------------------
     # AI result → parameter update
@@ -1543,6 +1671,8 @@ class NagoWindow(QWidget):
 
         self._session.append_nago_actions(actions)
         self._maybe_compress_session()
+        if self._talk.active:
+            self._talk.finish()
 
         self._fade_opacity_anim.stop()
         self._fade_color_anim.stop()
@@ -1565,6 +1695,27 @@ class NagoWindow(QWidget):
             n = self._long_memory.apply_forget_payload(motion["memory_forget"])
             if n:
                 logger.info("AI forgot %d long-term fact(s)", n)
+
+    def _sanitize_speech_params(self, raw_params: dict) -> dict:
+        """Silence ambient chatter and throttle spontaneous bubbles client-side."""
+        params = filter_generic_speech(raw_params)
+        route = self._last_ai_route
+        if route == "ambient":
+            params = strip_speech_for_ambient(params)
+        elif route != "talk":
+            # Unknown / legacy path: still respect cooldown for new bubbles.
+            bubble = params.get("speech_bubble")
+            if isinstance(bubble, str) and bubble.strip() and bubble.strip() != "…":
+                now = _time.time()
+                if now - self._last_speech_at < self._min_speech_gap_sec:
+                    params = dict(params)
+                    params["speech_bubble"] = None
+        # Talk route: allow speech; record timestamp when a real bubble lands.
+        return params
+
+    def _note_speech_if_any(self, bubble: str | None) -> None:
+        if isinstance(bubble, str) and bubble.strip() and bubble.strip() != "…":
+            self._last_speech_at = _time.time()
 
     def _process_action_queue(self) -> None:
         """Execute the next control command as a pure patch without action-name side effects."""
@@ -1589,11 +1740,12 @@ class NagoWindow(QWidget):
         raw_params, self._last_emotion = filter_sticky_color(
             raw_params, self._stickman_params, self._last_emotion,
         )
-        raw_params = filter_generic_speech(raw_params)
+        raw_params = self._sanitize_speech_params(raw_params)
 
         before_bubble = self._stickman_params.speech_bubble
         updated, motion = apply_control_patch(raw_params, self._stickman_params)
         self._stickman_params = updated
+        self._note_speech_if_any(updated.speech_bubble)
         self._sync_speech_bubble_auto_dismiss(before_bubble, updated.speech_bubble)
 
         # Transition color only when the patch explicitly changes it.
@@ -1705,9 +1857,13 @@ class NagoWindow(QWidget):
             params, self._stickman_params, self._last_emotion,
         )
         params = filter_generic_speech(params)
+        # Prefer silence helpers used by the live action queue.
+        if self._last_ai_route == "ambient":
+            params = strip_speech_for_ambient(params)
         before_bubble = self._stickman_params.speech_bubble
         updated, motion = apply_control_patch(params, self._stickman_params)
         self._stickman_params = updated
+        self._note_speech_if_any(updated.speech_bubble)
         self._sync_speech_bubble_auto_dismiss(before_bubble, updated.speech_bubble)
         if "color" in params or "line_color" in params:
             self._last_color = updated.line_color
@@ -1998,7 +2154,8 @@ def main() -> None:
         tray_icon.show()
         logger.info("System tray icon active")
 
-    # Keep lock_fh alive until the process exits.
+    # Keep lock_fh alive until the process exits; drain AI thread on quit.
+    app.aboutToQuit.connect(window._prepare_shutdown)
     app.aboutToQuit.connect(lock_fh.close)
     sys.exit(app.exec())
 

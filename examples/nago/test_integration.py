@@ -304,11 +304,20 @@ class TestControlPlane(unittest.TestCase):
         out = filter_generic_speech({"speech_bubble": "加油！", "mouth_angle": 20})
         self.assertIsNone(out.get("speech_bubble"))
         self.assertEqual(out["mouth_angle"], 20)
+        # Character voice is not banned by catchphrase lists.
+        kept = filter_generic_speech({"speech_bubble": "忙啥呢"})
+        self.assertEqual(kept.get("speech_bubble"), "忙啥呢")
 
     def test_specific_speech_kept(self) -> None:
         from control import filter_generic_speech
-        out = filter_generic_speech({"speech_bubble": "点到了"})
-        self.assertEqual(out["speech_bubble"], "点到了")
+        out = filter_generic_speech({"speech_bubble": "好的老板"})
+        self.assertEqual(out["speech_bubble"], "好的老板")
+
+    def test_ambient_speech_stripped(self) -> None:
+        from control import strip_speech_for_ambient
+        out = strip_speech_for_ambient({"speech_bubble": "你好呀", "mouth_angle": 10})
+        self.assertIsNone(out.get("speech_bubble"))
+        self.assertEqual(out.get("mouth_angle"), 10)
 
     def test_bubble_layout_avoids_head(self) -> None:
         from main import _compute_bubble_layout, _bubble_intersects_head
@@ -473,11 +482,11 @@ class TestSessionMemory(unittest.TestCase):
     def test_nago_summary(self) -> None:
         from session import summarize_actions
         s = summarize_actions([
-            {"action": "punch", "params": {"play": "punch", "speech_bubble": "又点我?"}},
+            {"action": "punch", "params": {"play": "punch", "speech_bubble": "好的老板"}},
         ])
         self.assertIn("punch", s)
-        self.assertIn("又点我?", s)
-        self.assertIn('says "又点我?"', s)
+        self.assertIn("好的老板", s)
+        self.assertIn('says "好的老板"', s)
 
     def test_fallback_compression_uses_english_archival_labels(self) -> None:
         for i in range(80):
@@ -937,11 +946,67 @@ class TestNagoWindow(unittest.TestCase):
     def test_speech_bubble_auto_dismiss(self) -> None:
         """The local timer clears the bubble after several seconds without another AI null."""
         self.window._speech_bubble_timer.stop()
-        self.window._apply_action_params({"speech_bubble": "又点我?"})
-        self.assertEqual(self.window._stickman_params.speech_bubble, "又点我?")
+        self.window._apply_action_params({"speech_bubble": "好的老板"})
+        self.assertEqual(self.window._stickman_params.speech_bubble, "好的老板")
         self.window._on_speech_bubble_dismiss()
         self.assertIsNone(self.window._stickman_params.speech_bubble)
         self.assertFalse(self.window._speech_bubble_timer.isActive())
+
+    def test_listening_feedback_instant(self) -> None:
+        """Talking to Nago must show local ACK before the AI round-trip."""
+        self.window._show_listening_feedback()
+        self.assertEqual(self.window._stickman_params.speech_bubble, "…")
+        self.assertTrue(self.window._speech_bubble_timer.isActive())
+
+    def test_heartbeat_yields_to_pending_user(self) -> None:
+        self.window._session.queue_user_message("在吗")
+        class _Busy:
+            def isRunning(self) -> bool:
+                return True
+        self.window._ai_worker = _Busy()  # type: ignore[assignment]
+        self.window._talk.accept_text("在吗")
+        self.window._talk_pending = True
+        self.window._request_ambient("heartbeat")
+        self.assertTrue(self.window._talk_pending)
+        self.assertTrue(self.window._talk.active)
+        self.window._ai_worker = None
+        self.window._session.consume_pending_user()
+        self.window._talk_pending = False
+        self.window._talk.finish()
+
+    def test_dual_routes_independent_queues(self) -> None:
+        class _Busy:
+            def isRunning(self) -> bool:
+                return True
+        self.window._ai_worker = _Busy()  # type: ignore[assignment]
+        self.window._request_ambient("heartbeat")
+        self.assertTrue(self.window._ambient_pending)
+        self.window._session.queue_user_message("嘿")
+        self.window._talk.accept_text("嘿")
+        self.window._request_talk()
+        self.assertTrue(self.window._talk_pending)
+        self.window._request_ambient("hover_enter")
+        self.assertTrue(self.window._talk_pending)
+        self.window._ai_worker = None
+        self.window._talk_pending = False
+        self.window._ambient_pending = False
+        self.window._session.consume_pending_user()
+        self.window._talk.finish()
+
+    def test_talk_flow_phases(self) -> None:
+        from talk_flow import TalkPhase, TalkTurnController
+        t = TalkTurnController(timeout_sec=30)
+        self.assertEqual(t.phase, TalkPhase.IDLE)
+        t.begin_capture()
+        t.accept_text("你好")
+        self.assertEqual(t.phase, TalkPhase.LISTENING)
+        self.assertTrue(t.should_skip_heartbeat())
+        t.mark_thinking()
+        self.assertEqual(t.phase, TalkPhase.THINKING)
+        t.mark_speaking()
+        t.finish()
+        self.assertEqual(t.phase, TalkPhase.IDLE)
+        self.assertFalse(t.should_skip_heartbeat())
 
     def test_apply_play_punch(self) -> None:
         self.window._apply_action_params({"play": "punch"})
