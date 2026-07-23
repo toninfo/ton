@@ -1,4 +1,4 @@
-// Package secrets 管理本机 LLM API key 落盘（不进 yaml、不进仓库）。
+// Package secrets manage the local LLM API key placement (without entering yaml or warehouse).
 package secrets
 
 import (
@@ -13,20 +13,20 @@ import (
 
 const envFileName = "llm.env"
 
-// ConfigDirEnv 配置目录覆盖变量（TON_CONFIG_DIR）；测试可设此隔离。
+// ConfigDirEnv configuration directory coverage variable (TON_CONFIG_DIR); testing can set this isolation.
 const ConfigDirEnv = "TON_CONFIG_DIR"
 
-// Dir 返回配置目录（含 llm.env / config.yaml）。
+// Dir returns the configuration directory (including llm.env / config.yaml).
 func Dir() string {
 	return brand.ResolveConfigDir()
 }
 
-// FilePath 返回密钥文件路径：<config dir>/llm.env
+// FilePath returns the key file path: <config dir>/llm.env
 func FilePath() string {
 	return filepath.Join(Dir(), envFileName)
 }
 
-// LoadAPIKey 从密钥文件读取 TON_LLM_API_KEY。
+// LoadAPIKey reads TON_LLM_API_KEY from a key file.
 func LoadAPIKey() (string, error) {
 	path := FilePath()
 	f, err := os.Open(path)
@@ -51,7 +51,7 @@ func LoadAPIKey() (string, error) {
 	return "", sc.Err()
 }
 
-// SaveAPIKey 写入密钥文件并 chmod 600；同时 Setenv 到当前进程。
+// SaveAPIKey writes the key file and chmod 600; also Setenv to the current process.
 func SaveAPIKey(key string) error {
 	key = strings.TrimSpace(key)
 	if key == "" {

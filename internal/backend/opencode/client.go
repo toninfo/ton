@@ -7,18 +7,18 @@ import (
 	"os/exec"
 )
 
-// CommandRunner 启动 OpenCode CLI，并返回 JSON 输出流与完成等待函数。
+// CommandRunner starts the OpenCode CLI and returns a JSON output stream with a completion wait function.
 type CommandRunner interface {
 	Start(ctx context.Context, command string, args ...string) (io.ReadCloser, func() error, error)
 }
 
-// Client 是后端适配器使用的窄 OpenCode CLI 边界。
+// Client is a narrow OpenCode CLI boundary used by backend adapters.
 type Client struct {
 	command string
 	runner  CommandRunner
 }
 
-// NewClient 创建 CLI 客户端；默认 runner 启动真实子进程。
+// NewClient creates a CLI client; the default runner starts the real child process.
 func NewClient(command string, runner CommandRunner) *Client {
 	if command == "" {
 		command = "opencode"

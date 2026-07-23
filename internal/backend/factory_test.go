@@ -31,7 +31,7 @@ func TestFactoryFromConfigBuildsEachDriver(t *testing.T) {
 		{"claude", "claude"},
 		{"cursor", "cursor"},
 		{"opencode", "opencode"},
-		{"  OpenCode  ", "opencode"}, // 大小写 + 空白归一
+		{"  OpenCode  ", "opencode"}, // Case + whitespace normalization
 	} {
 		agent, err := backend.FactoryFromConfig(cfg, tc.name, "")
 		if err != nil {

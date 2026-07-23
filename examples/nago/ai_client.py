@@ -101,7 +101,7 @@ class AIClient:
 from control import build_system_prompt
 from nago_config import ai_configured, get_ai_settings
 
-# 与 main 共用同一套 prompt，避免漂移
+# Share the prompt source with main.py to prevent configuration drift.
 _SYSTEM_PROMPT = build_system_prompt()
 
 
@@ -236,16 +236,16 @@ async def get_ai_action(
         logger.warning("AI response missing choices/content: %s", exc)
         return None
 
-    # Strip markdown code fences if the model wraps the JSON in ```json ... ```
+    # Strip Markdown code fences if the model wraps JSON in ```json ... ```.
     content = raw_content.strip()
     if content.startswith("```"):
-        # drop opening fence line ("```json" or "```")
+        # Drop the opening fence line ("```json" or "```").
         newline_idx = content.find("\n")
         if newline_idx != -1:
             content = content[newline_idx + 1:]
         else:
             content = content[3:]
-        # drop trailing fence
+        # Drop the trailing fence.
         if content.rstrip().endswith("```"):
             content = content[:content.rfind("```")]
 
@@ -408,7 +408,7 @@ def get_ai_action_sync(
     if debug_out is not None:
         debug_out["raw"] = raw_content
 
-    # Strip markdown code fences if the model wraps the JSON in ```json ... ```
+    # Strip Markdown code fences if the model wraps JSON in ```json ... ```.
     content = raw_content.strip()
     if content.startswith("```"):
         newline_idx = content.find("\n")
@@ -439,4 +439,60 @@ def get_ai_action_sync(
         )
         if debug_out is not None:
             debug_out["error"] = f"action json: {exc}"
+        return None
+
+
+def compress_session_text(old_log: str) -> str | None:
+    """Compress an oversized session segment into a concise Chinese summary.
+
+    Return ``None`` on failure so the caller can use its local fallback.
+    """
+    if not ai_configured():
+        return None
+    text = (old_log or "").strip()
+    if not text:
+        return None
+    if len(text) > 12000:
+        text = text[:12000] + "\n…"
+
+    settings = get_ai_settings()
+    system = (
+        "You are a session compressor. Summarize the prior conversation log "
+        "between the desktop stickman companion Nago and the user. Write the "
+        "summary in Simplified Chinese, using no more than 400 Chinese "
+        "characters. Preserve user preferences, unresolved topics, emotional "
+        "tone, and important agreements. Output only the summary body: no JSON "
+        "and no heading."
+    )
+    body = {
+        "model": settings.model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": text},
+        ],
+        "stream": False,
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.api_key}",
+    }
+    try:
+        with httpx.Client(timeout=min(settings.timeout, 30.0)) as client:
+            response = client.post(settings.endpoint, json=body, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        content = data["choices"][0]["message"]["content"]
+        if not isinstance(content, str):
+            return None
+        content = content.strip()
+        if content.startswith("```"):
+            newline_idx = content.find("\n")
+            if newline_idx != -1:
+                content = content[newline_idx + 1 :]
+            if content.rstrip().endswith("```"):
+                content = content[: content.rfind("```")]
+        content = content.strip()
+        return content or None
+    except Exception as exc:
+        logger.warning("compress_session_text failed: %s", exc)
         return None

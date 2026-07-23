@@ -1,4 +1,4 @@
-// Package serve 管理工作区级别的 OpenCode serve 进程。
+// Package serve manages the OpenCode serve process at the workspace level.
 package serve
 
 import (
@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// Config 标识要管理的工作区及其 OpenCode serve 端点。
+// Config identifies the workspace to be managed and its OpenCode serve endpoint.
 type Config struct {
 	Workspace string
 	Command   string
@@ -20,33 +20,33 @@ type Config struct {
 	Port      int
 }
 
-// ProcessInfo 是避免误杀无关进程所需的最小进程状态。
+// ProcessInfo is the minimum process state required to avoid accidentally killing unrelated processes.
 type ProcessInfo struct {
 	Running bool
 	Args    []string
 }
 
-// Runner 隔离进程操作，使生命周期测试可确定地运行。
+// Runner isolates process operations so lifecycle tests can run deterministically.
 type Runner interface {
 	Start(ctx context.Context, command string, args ...string) (int, error)
 	Inspect(ctx context.Context, pid int) (ProcessInfo, error)
 	Stop(ctx context.Context, pid int) error
 }
 
-// Status 描述该工作区 PID 文件当前指向的进程。
+// Status describes the process that this workspace PID file currently points to.
 type Status struct {
 	Running    bool
 	Registered bool
 	PID        int
 }
 
-// Manager 为每个工作区管理一个 OpenCode serve 进程。
+// The Manager manages one OpenCode serve process per workspace.
 type Manager struct {
 	config Config
 	runner Runner
 }
 
-// NewManager 创建工作区级的 serve 管理器。
+// NewManager creates a workspace-level serve manager.
 func NewManager(config Config, runner Runner) *Manager {
 	if config.Command == "" {
 		config.Command = "opencode"
@@ -63,7 +63,7 @@ func NewManager(config Config, runner Runner) *Manager {
 	return &Manager{config: config, runner: runner}
 }
 
-// EnsureRunning 先清理陈旧记录，仅在不存在已登记的 serve 时启动 OpenCode。
+// EnsureRunning first cleans up stale records and only starts OpenCode when there is no registered serve.
 func (m *Manager) EnsureRunning(ctx context.Context) (Status, error) {
 	if err := m.ReapOrphans(ctx); err != nil {
 		return Status{}, err
@@ -95,7 +95,7 @@ func (m *Manager) EnsureRunning(ctx context.Context) (Status, error) {
 	return Status{Running: true, Registered: true, PID: pid}, nil
 }
 
-// Status 读取 PID 记录，并同时验证进程存活与已登记命令身份。
+// Status reads the PID record and verifies both process survival and registered command identity.
 func (m *Manager) Status(ctx context.Context) (Status, error) {
 	pid, err := m.readPID()
 	if errors.Is(err, os.ErrNotExist) {
@@ -111,7 +111,7 @@ func (m *Manager) Status(ctx context.Context) (Status, error) {
 	return Status{Running: info.Running, Registered: info.Running && m.isRegisteredServe(info.Args), PID: pid}, nil
 }
 
-// Stop 仅终止命令行可确认属于本管理器的 OpenCode serve 进程。
+// Stop Only terminates the OpenCode serve process identified by the command line as belonging to this manager.
 func (m *Manager) Stop(ctx context.Context) error {
 	status, err := m.Status(ctx)
 	if err != nil {
@@ -129,7 +129,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 	return m.removePID()
 }
 
-// ReapOrphans 只清理已死亡的 PID 记录，存活的外部进程绝不触碰。
+// ReapOrphans only cleans dead PID records, and surviving external processes never touch them.
 func (m *Manager) ReapOrphans(ctx context.Context) error {
 	status, err := m.Status(ctx)
 	if err != nil {
@@ -187,8 +187,8 @@ func (systemRunner) Start(ctx context.Context, command string, args ...string) (
 	return cmd.Process.Pid, nil
 }
 
-// Inspect 判定 PID 是否存活。死进程（含 Windows 上已退出的 PID）返回 Running=false
-// 且 err=nil，让上层清理陈旧记录并重启，而不是把「进程不存在」当成硬错误。
+// Inspect determines whether the PID is alive. Dead processes (including exited PIDs on Windows) return Running=false
+// And err=nil, let the upper layer clean up the old records and restart, instead of treating "process does not exist" as a hard error.
 func (systemRunner) Inspect(_ context.Context, pid int) (ProcessInfo, error) {
 	if !processAlive(pid) {
 		return ProcessInfo{Running: false}, nil

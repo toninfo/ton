@@ -51,7 +51,7 @@ func TestApplyChatReplyMatchesByIDNotLast(t *testing.T) {
 	m := Model{}
 	idA := m.rememberUserTurn("先发这条")
 	idB := m.rememberUserTurn("后发这条")
-	// 模拟慢请求先返回：必须写回 A，不能盖到 B。
+	// Simulate a slow request and return first: it must be written back to A and cannot be written to B.
 	if !m.applyChatReply(idA, "这是对先发的回复") {
 		t.Fatal("apply idA failed")
 	}
@@ -65,7 +65,7 @@ func TestApplyChatReplyMatchesByIDNotLast(t *testing.T) {
 		t.Fatal("apply idB failed")
 	}
 	got := m.chatView()
-	// 顺序：you A → ton A → you B → ton B
+	// Sequence: you A → ton A → you B → ton B
 	idxAUser := strings.Index(got, "先发这条")
 	idxAReply := strings.Index(got, "这是对先发的回复")
 	idxBUser := strings.Index(got, "后发这条")
@@ -88,7 +88,7 @@ func TestApplyChatReplyIgnoresUnknownID(t *testing.T) {
 
 func TestMainContentHidesStaleDecideWhileBusy(t *testing.T) {
 	m := Model{
-		busy: true,
+		busy:    true,
 		session: domain.Session{Phase: domain.PhaseClarifying},
 		clarify: clarify.ReqState{
 			Decide: clarify.Decide{Items: []clarify.Decision{
@@ -257,7 +257,7 @@ func TestTodoSidebarUsesWindowNotFullList(t *testing.T) {
 	if !strings.Contains(side, "Todos 7/40") {
 		t.Fatalf("want counts, got %q", side)
 	}
-	// 窗口化：不应把 40 条全打出来
+	// Windowing: All 40 items should not be typed out
 	if strings.Count(side, "\n") > 14 {
 		t.Fatalf("sidebar too tall: %q", side)
 	}

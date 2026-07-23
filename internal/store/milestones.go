@@ -9,7 +9,7 @@ import (
 
 const milestonesFilename = "milestones.log"
 
-// AppendMilestone 将 TUI 消费的粗粒度里程碑追加写入 milestones.log（design §14/§18）。
+// AppendMilestone appends coarse-grained milestones of TUI consumption to milestones.log (design §14/§18).
 func (s *Store) AppendMilestone(sessionID, text string) error {
 	path, err := s.sessionFile(sessionID, milestonesFilename)
 	if err != nil {

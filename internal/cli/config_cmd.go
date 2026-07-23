@@ -14,7 +14,7 @@ func newConfigCmd(cfg config.Config) *cobra.Command {
 		Short: "Show effective config (llm triad visible; secrets redacted)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			redacted := cfg
-			// 密钥从环境变量注入，输出配置时始终遮蔽，避免终端历史泄露。
+			// The key is injected from the environment variable and is always masked when outputting the configuration to avoid leakage of terminal history.
 			redacted.LLM.APIKey = redact(redacted.LLM.APIKey)
 			redacted.Driver.Cursor.APIKey = redact(redacted.Driver.Cursor.APIKey)
 

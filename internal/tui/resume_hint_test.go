@@ -12,7 +12,7 @@ func TestPrintResumeHint(t *testing.T) {
 	var buf bytes.Buffer
 	printResumeHint(&buf, "ses-123")
 	got := buf.String()
-	// 末行单宽 'o'，REN 与上行同列
+	// The last row has a single width of 'o', REN is in the same column as the previous row
 	if !strings.Contains(got, "\\_| o |_| \\_\\ |_____| |_| \\_|") {
 		t.Fatalf("want single-width aligned TON.REN banner, got %q", got)
 	}

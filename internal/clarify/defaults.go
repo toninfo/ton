@@ -4,19 +4,19 @@ import (
 	"strings"
 )
 
-// AutomationDefaults 是产品级无人值守默认值（不询问用户）。
-// driver 自动发现、sandbox 关闭由 config 管；此处固化 fallback / git。
+// AutomationDefaults are product-level unattended defaults (do not ask the user).
+// Driver automatic discovery and sandbox closing are managed by config; fallback/git is solidified here.
 type AutomationDefaults struct {
 	PermissionMode  string
 	OnExhausted     string
 	OnGateExhausted string
 	MaxRepairs      int
 	MaxGateRepairs  int
-	GitBranch       string // 空则用 main
+	GitBranch       string // If empty, use main
 }
 
-// ApplyAutomationDefaults 写入运维默认、自动确认 fallback，并剔除运维类 blocking 决策。
-// 目标：澄清只谈产品需求，不问 driver / sandbox / 自动确认 / git 策略。
+// ApplyAutomationDefaults writes operation and maintenance defaults, automatically confirms fallback, and eliminates operation and maintenance blocking decisions.
+// Goal: Clarify that we only talk about product requirements, not driver / sandbox / automatic confirmation / git strategy.
 func ApplyAutomationDefaults(state *ReqState, d AutomationDefaults) {
 	if state == nil {
 		return
@@ -37,7 +37,7 @@ func ApplyAutomationDefaults(state *ReqState, d AutomationDefaults) {
 	if fb.MaxGateRepairs <= 0 && d.MaxGateRepairs > 0 {
 		fb.MaxGateRepairs = d.MaxGateRepairs
 	}
-	// 大阶段 / 步成功后由 ton 自动 commit；默认不 push。
+	// After a large stage/step is successful, it will be automatically committed by ton; it will not be pushed by default.
 	fb.Git.Commit = true
 	if strings.TrimSpace(fb.Git.Branch) == "" {
 		fb.Git.Branch = firstNonEmpty(d.GitBranch, "main")
@@ -49,7 +49,7 @@ func ApplyAutomationDefaults(state *ReqState, d AutomationDefaults) {
 	state.Understanding.Summary = DisplaySummary(state.Understanding.Summary)
 }
 
-// StripOpsDecisions 去掉（或解除 blocking）运维类问题，避免卡 Ready。
+// StripOpsDecisions removes (or unblocks) operation and maintenance problems to avoid being stuck in Ready.
 func StripOpsDecisions(decide *Decide) {
 	if decide == nil || len(decide.Items) == 0 {
 		return
@@ -64,7 +64,7 @@ func StripOpsDecisions(decide *Decide) {
 	decide.Items = kept
 }
 
-// FilterOpsAssumptions 去掉运维/环境类假设，避免主区刷屏。
+// FilterOpsAssumptions removes operation and maintenance/environment assumptions to avoid screen refresh in the main area.
 func FilterOpsAssumptions(items []string) []string {
 	if len(items) == 0 {
 		return items
@@ -79,7 +79,7 @@ func FilterOpsAssumptions(items []string) []string {
 	return out
 }
 
-// IsOpsTopic 识别不该询问用户的运维话题。
+// IsOpsTopic identifies operational topics that the user should not be asked about.
 func IsOpsTopic(text string) bool {
 	s := strings.ToLower(strings.TrimSpace(text))
 	if s == "" {
@@ -100,17 +100,17 @@ func IsOpsTopic(text string) bool {
 	return false
 }
 
-// DisplaySummary 清洗 understanding 文案：去掉编排旁白、重复行与思考旁白。
-// 保留多行与编号列表（1) 2) …），供 TUI 对话区可读展示。
+// DisplaySummary Cleans understanding copy: removes arrangement narration, repeated lines and thinking narration.
+// Keep multi-line and numbered lists (1) 2) …) for readable display in the TUI dialog area.
 func DisplaySummary(summary string) string {
 	s := strings.TrimSpace(summary)
 	if s == "" {
 		return ""
 	}
-	// 去掉所有编排旁白括号（含全角）。
+	// Remove all arrangement narration brackets (including full-width).
 	s = stripMetaParens(s, "(", ")")
 	s = stripMetaParens(s, "（", "）")
-	// 合并连续重复行（LLM 常把问候贴两遍）。
+	// Merge consecutively repeated lines (LLM often posts greetings twice).
 	lines := strings.Split(s, "\n")
 	deduped := make([]string, 0, len(lines))
 	var prev string
@@ -135,7 +135,7 @@ func DisplaySummary(summary string) string {
 	return s
 }
 
-// looksLikeEnglishDump 过滤过长英文独白（设计倾倒），与 ProgressReply 口径一致。
+// looksLikeEnglishDump filters long English monologues (design dumping), consistent with ProgressReply's caliber.
 func looksLikeEnglishDump(s string) bool {
 	letters := 0
 	runes := []rune(s)
@@ -148,7 +148,7 @@ func looksLikeEnglishDump(s string) bool {
 	if n == 0 {
 		return false
 	}
-	// 单行英文倾倒：字母占比高且有一定长度。
+	// Single-line English dumping: letters account for a high proportion and have a certain length.
 	return letters >= 16 && letters*100/n > 70
 }
 
@@ -164,7 +164,7 @@ func stripMetaParens(s, open, close string) string {
 			s = strings.TrimSpace(s[:start] + s[end+len(close):])
 			continue
 		}
-		// 非 meta 括号保留，继续扫后面
+		// Non-meta brackets are retained, continue to scan after
 		rest := s[end+len(close):]
 		head := s[:end+len(close)]
 		cleanedRest := stripMetaParens(rest, open, close)

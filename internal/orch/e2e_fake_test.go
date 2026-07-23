@@ -124,7 +124,7 @@ func TestSessionRunnerRepairsFailedGateThenPassesWithFakeBackend(t *testing.T) {
 	}
 }
 
-// passCommand 返回一个「必定成功」的门禁命令，随目标 shell（bash / powershell）切换。
+// passCommand returns a "must succeed" access command, switched with the target shell (bash / powershell).
 func passCommand() string {
 	if runtime.GOOS == "windows" {
 		return "exit 0"
@@ -132,7 +132,7 @@ func passCommand() string {
 	return "true"
 }
 
-// fileExistsCommand 返回「文件存在则退出 0，否则退出 1」的门禁命令，跨 shell 适配。
+// fileExistsCommand returns the access control command "Exit 0 if the file exists, otherwise exit 1", cross-shell adaptation.
 func fileExistsCommand(name string) string {
 	if runtime.GOOS == "windows" {
 		return "if (Test-Path " + name + ") { exit 0 } else { exit 1 }"

@@ -12,12 +12,12 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// CommandRunner 是 Cursor CLI 子进程边界，允许测试验证工作目录和 argv。
+// CommandRunner is a Cursor CLI subprocess boundary that allows tests to verify the working directory and argv.
 type CommandRunner interface {
 	Start(ctx context.Context, workspace, command string, args ...string) (io.ReadCloser, func() error, error)
 }
 
-// Backend 将 Cursor CLI 的结构化输出适配为 ton AgentEvent。
+// Backend adapts the Cursor CLI's structured output to ton AgentEvent.
 type Backend struct {
 	command string
 	force   bool
@@ -27,12 +27,12 @@ type Backend struct {
 	cancel context.CancelFunc
 }
 
-// New 创建 Cursor CLI AgentBackend；空命令使用 doctor 默认探测的 agent。
+// New creates Cursor CLI AgentBackend; the empty command uses the agent detected by doctor by default.
 func New(command string, runner CommandRunner) *Backend {
 	return NewConfigured(command, true, runner)
 }
 
-// NewConfigured 允许控制 --force（design §12.3）。
+// NewConfigured allows control of --force (design §12.3).
 func NewConfigured(command string, force bool, runner CommandRunner) *Backend {
 	if command == "" {
 		command = "agent"
@@ -43,18 +43,18 @@ func NewConfigured(command string, force bool, runner CommandRunner) *Backend {
 	return &Backend{command: command, force: force, runner: runner}
 }
 
-// Name 返回写入 AgentEvent 的稳定 driver 名称。
+// Name Returns the stable driver name written to the AgentEvent.
 func (b *Backend) Name() string { return "cursor" }
 
-// EnsureSession 始终返回空会话 ID：此适配器按当前 CLI 兼容策略不使用 resume。
+// EnsureSession always returns a null session ID: This adapter does not use resume per the current CLI compatibility policy.
 //
-// 因此调用方的 prompt pack 必须在每次独立运行时注入续作上下文，包括 requirements
-// 指针和上一步 result 路径；这是保证跨步骤连续性的必要条件。
+// Therefore the caller's prompt pack must inject the continuation context, including requirements, on each standalone run
+// Pointer and previous step result path; this is necessary to ensure continuity across steps.
 func (b *Backend) EnsureSession(_ context.Context, _ string, _ string) (string, error) {
 	return "", nil
 }
 
-// Run 在目标工作区中启动 Cursor CLI，并异步返回生命周期和归一化事件。
+// Run launches the Cursor CLI in the target workspace and returns lifecycle and normalization events asynchronously.
 func (b *Backend) Run(ctx context.Context, request backend.AgentRunRequest) (<-chan domain.AgentEvent, error) {
 	if request.Workspace == "" {
 		return nil, fmt.Errorf("cursor: workspace is required")
@@ -78,7 +78,7 @@ func (b *Backend) Run(ctx context.Context, request backend.AgentRunRequest) (<-c
 	return events, nil
 }
 
-// Interrupt 取消当前正在运行的 Cursor CLI 子进程（如有）。
+// Interrupt Cancels the currently running Cursor CLI child process (if any).
 func (b *Backend) Interrupt(_ context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -88,7 +88,7 @@ func (b *Backend) Interrupt(_ context.Context) error {
 	return nil
 }
 
-// BuildRunArgs 为一个 ton 步骤构造 Cursor CLI 的无人值守 stream-json 调用参数。
+// BuildRunArgs Constructs the Cursor CLI's unattended stream-json call arguments for a ton step.
 func BuildRunArgs(request backend.AgentRunRequest, force bool) []string {
 	args := []string{"-p"}
 	if force {

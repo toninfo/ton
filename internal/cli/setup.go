@@ -11,7 +11,7 @@ import (
 	"github.com/toninfo/ton/internal/secrets"
 )
 
-// setup 不写 yaml：密钥只进 llm.env。
+// Setup does not write yaml: the key is only entered into llm.env.
 
 func newSetupCmd(cfg config.Config) *cobra.Command {
 	var (

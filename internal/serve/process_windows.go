@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// processAlive 用 tasklist 无副作用地探活；Windows 没有 kill(pid, 0)。
+// processAlive uses tasklist to detect side effects without side effects; Windows does not have kill(pid, 0).
 func processAlive(pid int) bool {
 	if pid <= 0 {
 		return false
@@ -20,8 +20,8 @@ func processAlive(pid int) bool {
 	return strings.Contains(string(out), strconv.Itoa(pid))
 }
 
-// processArgs 用 CIM 取命令行并按空白切分，供 isRegisteredServe 校验 serve 身份。
-// 取不到（权限/进程刚退出）时返回 nil，由上层退化处理。
+// processArgs uses CIM to get the command line and splits it by blanks for isRegisteredServe to verify the serve identity.
+// If the permission cannot be obtained (the permission/process has just exited), nil will be returned, which will be handled by the upper layer degradation.
 func processArgs(pid int) []string {
 	script := "(Get-CimInstance Win32_Process -Filter \"ProcessId=" + strconv.Itoa(pid) + "\").CommandLine"
 	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).Output()

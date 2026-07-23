@@ -1,9 +1,11 @@
 """
-Nago 运行配置 — 从环境变量与本地文件加载，密钥勿提交仓库。
+Nago runtime configuration loaded from environment variables and a local file.
+Never commit secrets to the repository.
 
-加载顺序（后者不覆盖已存在的环境变量）：
-1. 进程环境变量
-2. examples/nago/nago.local.env（gitignore，见 nago.local.env.example）
+Sources are consulted in this order, without allowing the latter to replace an
+already-defined environment variable:
+1. Process environment variables.
+2. ``examples/nago/nago.local.env`` (gitignored; see ``nago.local.env.example``).
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ _LOCAL_ENV_FILE = _CONFIG_DIR / "nago.local.env"
 
 
 def _load_local_env_file() -> None:
-    """解析 KEY=VALUE 行写入 os.environ（仅当 key 尚未设置）。"""
+    """Load ``KEY=VALUE`` lines into ``os.environ`` only when the key is unset."""
     if not _LOCAL_ENV_FILE.is_file():
         return
     try:
@@ -40,7 +42,7 @@ _load_local_env_file()
 
 @dataclass(frozen=True)
 class NagoAISettings:
-    """AI 后端连接参数。"""
+    """Connection settings for the AI backend."""
 
     endpoint: str
     api_key: str
@@ -50,15 +52,18 @@ class NagoAISettings:
 
 @dataclass(frozen=True)
 class NagoRuntimeSettings:
-    """轮询与事件触发节奏。"""
+    """Polling and event-trigger timing settings."""
 
     heartbeat_ms: int
     event_debounce_ms: int
     speech_bubble_ms: int
+    session_max_chars: int
+    session_keep_recent_chars: int
+    memory_max_facts: int
 
 
 def get_ai_settings() -> NagoAISettings:
-    """读取 AI 配置；未配置 api_key 时返回空字符串（调用方应 fade）。"""
+    """Read AI settings; an absent API key remains empty for caller-side fading."""
     return NagoAISettings(
         endpoint=os.environ.get(
             "NAGO_AI_ENDPOINT",
@@ -71,15 +76,21 @@ def get_ai_settings() -> NagoAISettings:
 
 
 def get_runtime_settings() -> NagoRuntimeSettings:
-    """心跳间隔 + 事件 debounce。"""
+    """Return heartbeat, event debounce, and session-compression settings."""
     return NagoRuntimeSettings(
         heartbeat_ms=int(os.environ.get("NAGO_HEARTBEAT_MS", "6000")),
         event_debounce_ms=int(os.environ.get("NAGO_EVENT_DEBOUNCE_MS", "400")),
         speech_bubble_ms=int(os.environ.get("NAGO_SPEECH_BUBBLE_MS", "3500")),
+        # Compress older session entries after roughly 10,000 characters.
+        session_max_chars=int(os.environ.get("NAGO_SESSION_MAX_CHARS", "10000")),
+        session_keep_recent_chars=int(
+            os.environ.get("NAGO_SESSION_KEEP_RECENT_CHARS", "2500")
+        ),
+        memory_max_facts=int(os.environ.get("NAGO_MEMORY_MAX_FACTS", "40")),
     )
 
 
 def ai_configured() -> bool:
-    """是否具备最小 AI 调用条件。"""
+    """Return whether the minimum AI invocation requirements are configured."""
     s = get_ai_settings()
     return bool(s.api_key.strip() and s.endpoint.strip())

@@ -11,10 +11,10 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// tonRenBanner 退出大字（纯 ASCII 单宽，Windows / CJK 终端列对齐稳定）。
-// 风格对齐 opencode 收尾：大字 + Session 行 + Continue -s。
+// tonRenBanner Exit large text (pure ASCII single width, Windows/CJK terminal column alignment stable).
+// Style alignment opencode ending: large characters + Session line + Continue -s.
 //
-// 排版：TON / gap(3) / REN 每行同列；R/E/N 各 7 列；末行点号用单宽 'o'。
+// Typesetting: TON / gap(3) / REN Each row is in the same column; R/E/N have 7 columns each; use single-width 'o' for the last row period.
 const tonRenBanner = `
  _____ ___  _   _     ____    _____   _   _ 
 |_   _/ _ \| \ | |   |  _ \  | ____| | \ | |
@@ -28,7 +28,7 @@ var (
 	exitBannerBright = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#111827", Dark: "#F9FAFB"}).Bold(true)
 )
 
-// printExitBanner 在 TUI 退场后打印大字 + 续跑提示（写 stderr）。
+// printExitBanner prints large characters + continuation prompt (write stderr) after TUI exits.
 func printExitBanner(w io.Writer, session domain.Session) {
 	if w == nil {
 		return
@@ -58,7 +58,7 @@ func sessionExitLabel(session domain.Session) string {
 	return ""
 }
 
-// printResumeHint 保留给单测/兼容；正式退出走 printExitBanner。
+// printResumeHint is reserved for single testing/compatibility; officially exit and use printExitBanner.
 func printResumeHint(w io.Writer, sessionID string) {
 	id := strings.TrimSpace(sessionID)
 	if id == "" || w == nil {

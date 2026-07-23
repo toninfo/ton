@@ -9,24 +9,24 @@ import (
 )
 
 const (
-	// StepVerifyInherit 表示步骤级验收继承 acceptance.step_verify.enabled。
+	// StepVerifyInherit represents step-level acceptance inheritance acceptance.step_verify.enabled.
 	StepVerifyInherit = "inherit"
-	// StepVerifyTrue 强制开启步骤级验收。
+	// StepVerifyTrue forces step-level acceptance to be enabled.
 	StepVerifyTrue = "true"
-	// StepVerifyFalse 强制关闭步骤级验收。
+	// StepVerifyFalse forces step-level acceptance to be turned off.
 	StepVerifyFalse = "false"
 )
 
-// ErrStepVerifyConfig 表示 effective_step_verify 为 true 但 acceptance 命令不可运行。
+// ErrStepVerifyConfig means effective_step_verify is true but the acceptance command is not runnable.
 var ErrStepVerifyConfig = errors.New("config_error")
 
-// AcceptanceStepVerify 对应 acceptance.json 中的 step_verify 段。
+// AcceptanceStepVerify corresponds to the step_verify section in acceptance.json.
 type AcceptanceStepVerify struct {
 	Enabled  bool             `json:"enabled"`
 	Commands []verify.Command `json:"commands"`
 }
 
-// EffectiveStepVerify 按设计 §8.4 叠加 todo.step_verify 与 acceptance 默认值。
+// EffectiveStepVerify by design §8.4 overlays todo.step_verify with acceptance defaults.
 func EffectiveStepVerify(todoStepVerify string, acceptance AcceptanceStepVerify) bool {
 	switch todoStepVerify {
 	case StepVerifyTrue:
@@ -34,13 +34,13 @@ func EffectiveStepVerify(todoStepVerify string, acceptance AcceptanceStepVerify)
 	case StepVerifyFalse:
 		return false
 	default:
-		// inherit、空值及未知值均回退到 acceptance 默认开关。
+		// Inherit, null values ​​and unknown values ​​all fall back to the acceptance default switch.
 		return acceptance.Enabled
 	}
 }
 
-// ResolveStepVerify 判定当前步骤是否应运行步骤级验收，并返回应执行的命令集。
-// 当 effective 为 true 但 commands 为空或不可运行时，返回 ErrStepVerifyConfig。
+// ResolveStepVerify determines whether the current step should run step-level acceptance and returns the set of commands that should be executed.
+// ErrStepVerifyConfig is returned when effective is true but commands is empty or not runnable.
 func ResolveStepVerify(step domain.TodoItem, acceptance AcceptanceStepVerify) (run bool, commands []verify.Command, err error) {
 	if !EffectiveStepVerify(step.StepVerify, acceptance) {
 		return false, nil, nil
@@ -51,7 +51,7 @@ func ResolveStepVerify(step domain.TodoItem, acceptance AcceptanceStepVerify) (r
 	return true, acceptance.Commands, nil
 }
 
-// hasRunnableStepVerifyCommands 要求至少有一条非空白 cmd，避免空配置被误当作可验收。
+// hasRunnableStepVerifyCommands requires at least one non-blank cmd to prevent empty configurations from being mistaken for acceptance.
 func hasRunnableStepVerifyCommands(commands []verify.Command) bool {
 	for _, command := range commands {
 		if strings.TrimSpace(command.Cmd) != "" {

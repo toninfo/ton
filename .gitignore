@@ -17,10 +17,12 @@ coverage.html
 ton-stdout.log
 ton-stderr.log
 
-# Local env / session noise（勿提交密钥与会话审计）
+# Local environment and session artifacts (do not commit secrets or session logs).
 .env
 .env.*
 examples/nago/nago.local.env
+examples/nago/nago.session.json
+examples/nago/nago.memory.json
 .superpowers/
 **/.ton/
 

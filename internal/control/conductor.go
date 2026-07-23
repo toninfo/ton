@@ -9,12 +9,12 @@ import (
 	"github.com/toninfo/ton/internal/llm"
 )
 
-// ChatClient 是指挥层所需的最小 LLM 合同。
+// ChatClient is the minimum LLM contract required at the command level.
 type ChatClient interface {
 	Chat(context.Context, []llm.Message) (string, llm.Usage, error)
 }
 
-// Input 是一次指挥决策的上下文。
+// Input is the context of a command decision.
 type Input struct {
 	Phase        string
 	UserText     string
@@ -24,12 +24,12 @@ type Input struct {
 	LastError    string
 }
 
-// Conductor 用 LLM 产出下一步控制信号。
+// Conductor uses LLM to generate the next step control signal.
 type Conductor struct {
 	Client ChatClient
 }
 
-// Decide 返回经阶段白名单校验的 Decision。
+// Decide returns the Decision verified by the stage whitelist.
 func (c Conductor) Decide(ctx context.Context, in Input) (Decision, error) {
 	if c.Client == nil {
 		return Decision{}, fmt.Errorf("control: nil LLM client")

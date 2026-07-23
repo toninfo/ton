@@ -1,4 +1,4 @@
-// Package budget 累计 Agent usage 并在步边界执行会话预算策略（design §16）。
+// Package budget accumulates Agent usage and enforces session budget policies at step boundaries (design §16).
 package budget
 
 import (
@@ -7,24 +7,24 @@ import (
 )
 
 const (
-	// OnExceededAbortSession 超预算时中止会话（默认策略）。
+	// OnExceededAbortSession Aborts the session when budget is exceeded (default policy).
 	OnExceededAbortSession = "abort_session"
 )
 
-// Snapshot 对应 session.json.budget 中持久化的累计用量。
+// Snapshot corresponds to the accumulated usage persisted in session.json.budget.
 type Snapshot struct {
 	TotalTokens int64   `json:"total_tokens"`
 	TotalUSD    float64 `json:"total_usd"`
 }
 
-// Policy 是会话级预算上限与超支动作。
+// Policy is a session-level budget cap and overspend action.
 type Policy struct {
 	MaxUSD     float64
 	MaxTokens  int64
 	OnExceeded string
 }
 
-// BoundaryDecision 描述步边界预算检查的结果。
+// BoundaryDecision Describes the result of the step boundary budget check.
 type BoundaryDecision struct {
 	Exceeded       bool
 	ExceededTokens bool
@@ -33,18 +33,18 @@ type BoundaryDecision struct {
 	TerminalHint   domain.TerminalStatus
 }
 
-// Tracker 从 EventUsage 累加用量，并在步边界评估是否触发 on_exceeded。
+// The Tracker accumulates usage from EventUsage and evaluates at step boundaries whether on_exceeded is triggered.
 type Tracker struct {
 	usage  Snapshot
 	policy Policy
 }
 
-// NewTracker 用已有快照与策略构造追踪器。
+// NewTracker constructs a tracker using existing snapshots and strategies.
 func NewTracker(snapshot Snapshot, policy Policy) Tracker {
 	return Tracker{usage: snapshot, policy: policy.normalized()}
 }
 
-// PolicyFromConfig 将全局配置映射为会话预算策略。
+// PolicyFromConfig maps global configuration to a session budget policy.
 func PolicyFromConfig(cfg config.BudgetConfig) Policy {
 	return Policy{
 		MaxUSD:     cfg.MaxUSD,
@@ -53,12 +53,12 @@ func PolicyFromConfig(cfg config.BudgetConfig) Policy {
 	}.normalized()
 }
 
-// Snapshot 返回当前累计用量，供写入 session.json.budget。
+// Snapshot returns the current accumulated usage for writing to session.json.budget.
 func (t Tracker) Snapshot() Snapshot {
 	return t.usage
 }
 
-// Accumulate 从 usage 事件累加 token/费用；非 usage 事件被忽略。
+// Accumulate accumulates tokens/fees from usage events; non-usage events are ignored.
 func (t *Tracker) Accumulate(event domain.AgentEvent) bool {
 	if event.Type != domain.EventUsage {
 		return false
@@ -78,7 +78,7 @@ func (t *Tracker) Accumulate(event domain.AgentEvent) bool {
 	return true
 }
 
-// CheckAtStepBoundary 在步边界检查 max_usd/max_tokens；>0 且超限时应用 on_exceeded。
+// CheckAtStepBoundary checks max_usd/max_tokens at step boundary; >0 and applies on_exceeded when exceeded.
 func (t Tracker) CheckAtStepBoundary() BoundaryDecision {
 	exceededTokens := t.policy.MaxTokens > 0 && t.usage.TotalTokens > t.policy.MaxTokens
 	exceededUSD := t.policy.MaxUSD > 0 && t.usage.TotalUSD > t.policy.MaxUSD
@@ -99,7 +99,7 @@ func applyExceeded(policy string, exceededTokens, exceededUSD bool) BoundaryDeci
 		decision.ContinueSteps = false
 		decision.TerminalHint = domain.TerminalAborted
 	default:
-		// 未知策略按最保守的 abort_session 处理，避免在未确认配置下继续改动。
+		// Unknown policies are processed according to the most conservative abort_session to avoid further changes without confirming the configuration.
 		decision.ContinueSteps = false
 		decision.TerminalHint = domain.TerminalAborted
 	}

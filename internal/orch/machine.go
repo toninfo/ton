@@ -104,7 +104,7 @@ var transitions = map[domain.Phase]map[Event]domain.Phase{
 		EvVerifyFail: domain.PhaseRepairing,
 	},
 	domain.PhaseRepairing: {
-		// 门禁修复完成只能回到 Verify，不能绕过同一套验收命令。
+		// After the access control repair is completed, you can only return to Verify and cannot bypass the same set of acceptance commands.
 		EvRepairDone: domain.PhaseVerifying,
 	},
 	domain.PhaseSummarizing: {

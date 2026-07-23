@@ -17,10 +17,10 @@ import (
 	"github.com/toninfo/ton/internal/config"
 )
 
-// TestClarifyNeverRunsCodingAgent 用 httptest LLM + fake driver 走完整 Clarify：
-// 断言磨合全程不调用 AgentBackend.Run，且 LLM 写出充实 docs 后可 Ready。
+// TestClarifyNeverRunsCodingAgent uses httptest LLM + fake driver to complete Clarify:
+// It is asserted that AgentBackend.Run will not be called during the whole running-in process, and it will be Ready after LLM writes sufficient docs.
 func TestClarifyNeverRunsCodingAgent(t *testing.T) {
-	t.Setenv("TON_CONFIG_DIR", t.TempDir()) // 隔离本机密钥/配置
+	t.Setenv("TON_CONFIG_DIR", t.TempDir()) // Isolate native keys/configurations
 
 	var chatCalls atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +120,7 @@ func TestClarifyNeverRunsCodingAgent(t *testing.T) {
 			snap.Phase, clarify.ReadyMissing(&state), state.Understanding.Summary)
 	}
 
-	// 落盘文档必须存在且非空（LLM 路径，不是 agent）。
+	// The drop document must exist and be non-empty (LLM path, not agent).
 	reqPath := filepath.Join(workspace, ".ton", "sessions", snap.ID, "requirements.md")
 	desPath := filepath.Join(workspace, ".ton", "sessions", snap.ID, "design.md")
 	for _, p := range []string{reqPath, desPath} {
@@ -137,7 +137,7 @@ func TestClarifyNeverRunsCodingAgent(t *testing.T) {
 		t.Fatalf("clarify RunCount=%d, must stay 0", clarifyRuns)
 	}
 
-	// /start 后才允许 agent Run（AgentPlan 会调 Run；fake 写不出 todos 时回落 LLM planner）。
+	// Agent Run is allowed only after /start (AgentPlan will adjust Run; fake will fall back to LLM planner when it cannot write todos).
 	cfg.Git.AllowDirtyDefault = true
 	c.cfg.Git.AllowDirtyDefault = true
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -146,7 +146,7 @@ func TestClarifyNeverRunsCodingAgent(t *testing.T) {
 		t.Fatalf("Start after LLM clarify: %v", err)
 	}
 	final, _, todos := c.Snapshot()
-	// ensureBackendReady 可能换新的 fake 实例，以当前 backend 为准。
+	// ensureBackendReady may replace the fake instance with a new one, based on the current backend.
 	fbAfter, _ := c.backend.(*fake.Backend)
 	if fbAfter == nil || fbAfter.RunCount() < 1 {
 		runs := -1
@@ -183,7 +183,7 @@ func mockClarifyLLM(sys, user string) string {
 		"assumptions": map[string]any{"items": []string{"No backend", "Static assets only"}},
 		"decide":      map[string]any{"items": []any{}},
 		"acceptance": map[string]any{
-			"confirmed":    true,
+			"confirmed":     true,
 			"allow_no_gate": true,
 		},
 		"fallback": map[string]any{
@@ -193,7 +193,7 @@ func mockClarifyLLM(sys, user string) string {
 		},
 		"target_workspace": "",
 	}
-	// 只看本轮 User input，避免误伤 state JSON 里残留的寒暄摘要。
+	// Only look at this round of User input to avoid accidentally damaging the summary of greetings left in the state JSON.
 	userInput := user
 	if i := strings.LastIndex(user, "\nUser input:\n"); i >= 0 {
 		userInput = user[i+len("\nUser input:\n"):]

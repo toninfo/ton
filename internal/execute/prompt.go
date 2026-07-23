@@ -7,7 +7,7 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// BuildPrompt 组装单步执行提示词；保留中英双语骨架，后续任务可替换为完整模板。
+// BuildPrompt assembles single-step execution prompt words; retains the Chinese and English bilingual skeleton, and subsequent tasks can be replaced with complete templates.
 func BuildPrompt(step domain.TodoItem, inputs []UserInput, repairing bool) string {
 	var builder strings.Builder
 	if repairing {

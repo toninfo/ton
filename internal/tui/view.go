@@ -15,7 +15,7 @@ const (
 	maxVisibleChatTurns = 6
 	maxReplyRunes       = 720
 
-	// 双栏：主会话 | Todos 侧栏（对齐 OpenCode 式侧边信息，避免竖向挤爆）。
+	// Double columns: Main session | Todos sidebar (align OpenCode-style side information to avoid vertical crowding).
 	dualColumnMinWidth = 100
 	sidebarMinWidth    = 28
 	sidebarMaxWidth    = 34
@@ -34,7 +34,7 @@ func (m Model) View() string {
 	var body string
 	if m.useTodoSidebar(width) {
 		sideW := sidebarWidth(width)
-		mainW := width - sideW - 1 // 1 列竖线分隔
+		mainW := width - sideW - 1 // 1 column separated by vertical bars
 		if mainW < 40 {
 			mainW = 40
 			sideW = max(sidebarMinWidth, width-mainW-1)
@@ -65,13 +65,13 @@ func (m Model) View() string {
 	if body != "" {
 		parts = append(parts, body)
 	}
-	// 输入行单独渲染；Windows 用 framePrefix 清屏，避免叠帧。
+	// Input lines are rendered individually; Windows uses framePrefix to clear the screen to avoid overlapping frames.
 	view := framePrefix() + strings.Join(parts, "\n") + "\n" + m.input.View()
-	// 登记插入点；真光标由 imeFixWriter 改写 flush 末尾的行首复位（\r 或 AltScreen CUP）。
+	// Registers the insertion point; the true cursor is overwritten by imeFixWriter and the start of line reset (\r or AltScreen CUP) at the end of flush.
 	return view + imeCursorSuffix(view, m.input.Prompt, m.inputValueBeforeCursor(), m.height)
 }
 
-// renderMainColumn 主会话列：对话 + Progress/Decide + notice/footer。
+// renderMainColumn Main conversation column: conversation + Progress/Decide + notice/footer.
 func (m Model) renderMainColumn(width int) string {
 	var parts []string
 	if transcript := strings.TrimSpace(m.chatViewAt(width)); transcript != "" {
@@ -124,7 +124,7 @@ func sidebarWidth(total int) int {
 	return w
 }
 
-// sidebarHeight 侧栏可用行数：总高减去顶栏/分隔/输入。
+// sidebarHeight The number of rows available for the sidebar: total height minus topbar/separator/input.
 func (m Model) sidebarHeight() int {
 	h := m.height
 	if h <= 0 {
@@ -138,7 +138,7 @@ func (m Model) sidebarHeight() int {
 	return budget
 }
 
-// stackedTodoBudget 窄屏竖排时最多展示的 todo 行数（含标题）。
+// stackedTodoBudget The maximum number of todo lines (including titles) displayed in vertical layout on a narrow screen.
 func (m Model) stackedTodoBudget() int {
 	h := m.sidebarHeight()
 	if h > 14 {
@@ -147,7 +147,7 @@ func (m Model) stackedTodoBudget() int {
 	return max(6, h-2)
 }
 
-// inputValueBeforeCursor 返回光标前的明文（按 rune，供显示宽度计算）。
+// inputValueBeforeCursor Returns the plain text before the cursor (by rune, for display width calculation).
 func (m Model) inputValueBeforeCursor() string {
 	val := []rune(m.input.Value())
 	pos := m.input.Position()
@@ -160,7 +160,7 @@ func (m Model) inputValueBeforeCursor() string {
 	return string(val[:pos])
 }
 
-// footerLine 页脚提示：排队数优先；磨合/就绪且已有文档时提示 /docs。
+// footerLine footer prompt: Queue number priority; prompt /docs when running in/ready and there are existing documents.
 func (m Model) footerLine() string {
 	if foot := footerFor(m.session.Phase, m.busy, m.queueLen); foot != "" {
 		return foot
@@ -178,7 +178,7 @@ func (m Model) footerLine() string {
 	return ""
 }
 
-// viewWidth 返回用于换行的可用宽度（未知尺寸时给个合理默认）。
+// viewWidth returns the available width for wrapping (gives a reasonable default if the size is unknown).
 func (m Model) viewWidth() int {
 	if m.width > 8 {
 		return m.width
@@ -186,7 +186,7 @@ func (m Model) viewWidth() int {
 	return 72
 }
 
-// ruleLine 渲染贯穿可用宽度的细分隔线（上限 96，避免超宽终端把布局撑散）。
+// ruleLine renders subdivided dividers across the available width (upper limit 96, to prevent ultra-wide terminals from spreading the layout).
 func ruleLine(width int) string {
 	if width <= 0 {
 		return ""
@@ -197,16 +197,16 @@ func ruleLine(width int) string {
 	return ruleStyle.Render(strings.Repeat("-", width))
 }
 
-// renderChrome 两行顶栏：第一行品牌/上下文，第二行状态。
-// 绝不把状态徽章右对齐到第一行——窄窗/宽度误判时 "Clarify" 会折成 Clar/ify，
-// 再和分隔线叠成 ifyyyy… 乱纹。
+// renderChrome Two rows of top bars: first row for brand/context, second row for status.
+// Never right-align the status badge to the first line - "Clarify" will be folded into Clar/ify when the narrow window/width is misjudged,
+// Then overlap it with the dividing line to form ifyyyy... random patterns.
 func (m Model) renderChrome() string {
 	info := m.statusInfo()
 	return m.contextSegment() + "\n" + m.badge(info)
 }
 
-// contextSegment 组合「Ton（品牌）· 仓库 · 驱动 · 模型」。
-// 品牌固定为 Ton，仓库/驱动/模型作为次要上下文。
+// The contextSegment combination "Ton (brand) · warehouse · driver · model".
+// Brand is fixed as Ton, repository/driver/model as secondary context.
 func (m Model) contextSegment() string {
 	ctx := ""
 	if base := filepath.Base(m.session.Workspace); strings.TrimSpace(base) != "" && base != "." {
@@ -221,7 +221,7 @@ func (m Model) contextSegment() string {
 	return brandStyle.Render("Ton") + mutedStyle.Render(ctx)
 }
 
-// badge 右侧状态徽章：Ready/工作中(转圈+阶段)/完成/失败/停止/澄清。
+// badge Status badge on the right: Ready/Working (circle + stage)/Complete/Failed/Stop/Clarification.
 func (m Model) badge(info statusInfo) string {
 	switch info.kind {
 	case statusKindReady:
@@ -238,7 +238,7 @@ func (m Model) badge(info statusInfo) string {
 		return dangerStyle.Render("x Stopped")
 	case statusKindWorking:
 		sp := asciiSpinner(m.spinnerFrame)
-		// 真正的执行阶段展示「转圈 + 阶段(+子状态)」；澄清期忙碌只转圈，避免像思考旁白。
+		// The real execution stage shows "circling + stage (+ sub-state)"; during the clarification period, you are busy only turning in circles to avoid thinking about narration.
 		if isWorkingPhase(m.session.Phase) {
 			text := info.label
 			if info.hint != "" {
@@ -252,7 +252,7 @@ func (m Model) badge(info statusInfo) string {
 	}
 }
 
-// joinBar 让 left 靠左、right 靠右，中间用空格撑满到 width。
+// joinBar moves left to the left, right to the right, and fills the middle with spaces to the width.
 func joinBar(left, right string, width int) string {
 	lw := lipgloss.Width(left)
 	rw := lipgloss.Width(right)
@@ -296,16 +296,16 @@ func (m Model) chatViewAt(width int) string {
 		b.WriteString(labeledTurn("you", speakerYouStyle, turn.User, mutedStyle, width))
 		if reply := strings.TrimSpace(turn.Reply); reply != "" {
 			b.WriteByte('\n')
-			// 防御：历史回复若未经过 BreakNumberedList，渲染时再断一次行。
+			// Defense: If the historical reply does not go through BreakNumberedList, the line will be broken again when rendering.
 			b.WriteString(labeledTurn("ton", speakerTonStyle, clarify.BreakNumberedList(truncateRunes(reply, maxReplyRunes)), bodyStyle, width))
 		}
 	}
 	return b.String()
 }
 
-// labeledTurn 渲染「说话人标签 + 正文」，正文换行时保持挂行缩进对齐。
+// labeledTurn renders "speaker label + text", and keeps the indentation alignment of hanging lines when the text wraps.
 func labeledTurn(label string, labelStyle lipgloss.Style, text string, textStyle lipgloss.Style, width int) string {
-	const gutter = 6 // 4 列标签 + 2 列间隔
+	const gutter = 6 // 4 column labels + 2 column spacing
 	wrapW := width - gutter
 	if wrapW < 24 {
 		wrapW = 24
@@ -341,7 +341,7 @@ func looksLikeThinkingDump(s string) bool {
 		strings.Contains(s, "需要进一步") {
 		return true
 	}
-	// 过长英文独白也当倾倒
+	// English monologues that are too long should also be dumped
 	letters := 0
 	runes := []rune(s)
 	for _, r := range runes {
@@ -355,13 +355,13 @@ func looksLikeThinkingDump(s string) bool {
 func (m Model) mainContent() string {
 	phase := m.session.Phase
 	if phase == domain.PhaseClarifying || phase == domain.PhaseIdle || phase == domain.PhaseReadyToStart {
-		// busy 时旧 Decide 卡片尚未随本轮 Clarify 刷新，继续画会像「答了还在问」/顺序错乱。
+		// When busy, the old Decide cards have not been refreshed with this round of Clarify, and continuing to draw will look like "still asking after answering"/the order is out of order.
 		if m.busy {
 			return ""
 		}
 		return clarifyContent(m.clarify, displayMilestone(m.milestone))
 	}
-	// 执行 / 收尾：展示滚动 Progress，而不只覆盖单行 milestone。
+	// Execution/Finishing: Show rolling Progress instead of just covering a single milestone.
 	if progress := m.renderMilestoneLog(); progress != "" {
 		return progress
 	}
@@ -371,7 +371,7 @@ func (m Model) mainContent() string {
 	return bodyStyle.Render(idleMainCopy(m.session.Phase))
 }
 
-// renderMilestoneLog 渲染 /start 关键可见里程碑列表。
+// renderMilestoneLog renders /start a list of key visible milestones.
 func (m Model) renderMilestoneLog() string {
 	if len(m.milestoneLog) == 0 {
 		return ""
@@ -391,7 +391,7 @@ func (m Model) renderMilestoneLog() string {
 	return content.String()
 }
 
-// displayMilestone 过滤编排旁白与 agent 软失败，避免主区变报错墙。
+// displayMilestone filters and arranges narration and agent soft failures to prevent the main area from becoming an error wall.
 func displayMilestone(milestone string) string {
 	m := strings.TrimSpace(milestone)
 	if m == "" {
@@ -408,8 +408,8 @@ func displayMilestone(milestone string) string {
 	return m
 }
 
-// wrapNotice 按「显示宽度」换行：ASCII 优先在空格处断词，CJK 按列宽断行，
-// 避免中文因逐字节计数而过早折行、右侧留白。
+// wrapNotice wraps lines according to the "display width": ASCII breaks words at spaces first, CJK breaks lines according to column width.
+// Avoid premature line breaks and blank spaces on the right side of Chinese text due to byte-by-byte counting.
 func wrapNotice(text string, width int) string {
 	text = strings.TrimSpace(text)
 	if width < 24 {
@@ -469,8 +469,8 @@ func idleMainCopy(phase domain.Phase) string {
 }
 
 func clarifyContent(state clarify.ReqState, fallback string) string {
-	// 不展示 understanding.summary：模型常把「思考/推断」写成长摘要，看起来像思考过程。
-	// 主区只保留真正挡路的产品问题；Ready 由顶部徽章表达，用户原文由对话区呈现。
+	// Do not display understanding.summary: Models often write "thinking/inference" into a long summary, which looks like a thinking process.
+	// The main area only keeps product issues that really stand in the way; Ready is expressed by the top badge, and the user's original text is presented by the conversation area.
 	_ = fallback
 
 	var blocking []clarify.Decision
@@ -494,10 +494,10 @@ func clarifyContent(state clarify.ReqState, fallback string) string {
 }
 
 func (m Model) todosContent() string {
-	return m.todosContentCompact(0) // 0 = 不截断（测试/兼容）
+	return m.todosContentCompact(0) // 0 = no truncation (test/compatibility)
 }
 
-// todosContentCompact 窄屏竖排：窗口化展示，避免 40 条占满整屏。
+// todosContentCompact Narrow screen vertical layout: window display to avoid 40 items occupying the entire screen.
 func (m Model) todosContentCompact(maxLines int) string {
 	if len(m.todos.Items) == 0 {
 		return mutedStyle.Render("No plan has been generated.")
@@ -525,7 +525,7 @@ func (m Model) todosContentCompact(maxLines int) string {
 	return strings.TrimSpace(content.String())
 }
 
-// todosSidebar 宽屏右侧栏：固定宽度、按高度窗口化、标题截断。
+// todosSidebar Widescreen right sidebar: fixed width, windowed by height, title truncated.
 func (m Model) todosSidebar(width, maxHeight int) string {
 	if len(m.todos.Items) == 0 {
 		return mutedStyle.Render("Todos")
@@ -538,7 +538,7 @@ func (m Model) todosSidebar(width, maxHeight int) string {
 	}
 	done, total := todoCounts(m.todos.Items)
 	header := sectionStyle.Render(fmt.Sprintf("Todos %d/%d", done, total))
-	// 标题占 1 行，其余给条目（含省略号行）。
+	// The title takes up 1 line, the rest is for the entry (line with ellipsis).
 	itemBudget := maxHeight - 1
 	indices := windowTodoIndices(m.todos.Items, itemBudget)
 	titleW := max(8, width-2) // marker+space
@@ -571,7 +571,7 @@ func todoCounts(items []domain.TodoItem) (done, total int) {
 	return done, total
 }
 
-// windowTodoIndices 围绕当前 running（或首个 pending）取窗口，保证可见焦点。
+// windowTodoIndices takes the window around the currently running (or first pending) window to ensure visible focus.
 func windowTodoIndices(items []domain.TodoItem, maxLines int) []int {
 	n := len(items)
 	if n == 0 {
@@ -602,7 +602,7 @@ func windowTodoIndices(items []domain.TodoItem, maxLines int) []int {
 			focus = i
 		}
 	}
-	// 多留一点已完成上下文，方便看见进度。
+	// Leave a little more completed context to make it easier to see progress.
 	start := focus - maxLines/3
 	if start < 0 {
 		start = 0
@@ -619,7 +619,7 @@ func windowTodoIndices(items []domain.TodoItem, maxLines int) []int {
 	return out
 }
 
-// truncateToWidth 按终端显示列宽截断（CJK 双宽）。
+// truncateToWidth Truncates column width by terminal display (CJK double width).
 func truncateToWidth(s string, width int) string {
 	s = strings.TrimSpace(s)
 	if width <= 1 || runewidth.StringWidth(s) <= width {

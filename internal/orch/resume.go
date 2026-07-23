@@ -13,11 +13,11 @@ const (
 	ResumeRepairOrExhausted ResumeKind = "repair_or_exhausted"
 	ResumeRerunStepVerify   ResumeKind = "rerun_step_verify"
 	ResumeRerunGate         ResumeKind = "rerun_gate"
-	// ResumeRerunGateRepair：会话级门禁修复（Verify 失败后）崩溃恢复；todo 已终态，不得标记步骤失败。
+	// ResumeRerunGateRepair: Session-level gate repair (after Verify failure) crash recovery; the todo is finalized and the step must not be marked as failed.
 	ResumeRerunGateRepair ResumeKind = "rerun_gate_repair"
-	ResumeNextPendingStep   ResumeKind = "next_pending_step"
-	ResumeRewriteReport     ResumeKind = "rewrite_report"
-	ResumeNoop              ResumeKind = "noop"
+	ResumeNextPendingStep ResumeKind = "next_pending_step"
+	ResumeRewriteReport   ResumeKind = "rewrite_report"
+	ResumeNoop            ResumeKind = "noop"
 )
 
 // ResumeAction is a side-effect-free recovery instruction. The caller persists
@@ -40,15 +40,15 @@ func PlanResume(session domain.Session, todos domain.TodoList) ResumeAction {
 	case session.Phase == domain.PhasePlanning || session.Subphase == "planning":
 		return ResumeAction{Kind: ResumeReplan, DiscardTodos: true}
 	case session.Phase == domain.PhaseRepairing:
-		// 会话级门禁修复：Verify 失败后 agent 修代码；此时 todo 已全部终态，崩溃后只重入 gate repair。
+		// Session-level access control repair: After Verify fails, the agent repairs the code; at this time, all todos have been finalized, and only gate repair will be re-entered after a crash.
 		return ResumeAction{
 			Kind:        ResumeRerunGateRepair,
 			VerifyRound: session.VerifyRound,
 		}
 	case session.Subphase == "step_running" || session.Subphase == "repairing":
 		stepID := currentStepID(session, todos)
-		// 步骤级 agent 崩溃（PhaseExecuting 内）：副作用不可确认，标记当前步 failed 后走 repair/on_exhausted。
-		// 与 PhaseRepairing 的会话级 gate repair 不同——后者 todo 已终态，绝不可 MarkCurrentStepFailed。
+		// Step-level agent crash (within PhaseExecuting): Side effects cannot be confirmed, mark the current step as failed and then go to repair/on_exhausted.
+		// It is different from PhaseRepairing's session-level gate repair - the latter todo is finalized and must not be MarkCurrentStepFailed.
 		return ResumeAction{
 			Kind:                  ResumeRepairOrExhausted,
 			StepID:                stepID,
@@ -58,7 +58,7 @@ func PlanResume(session domain.Session, todos domain.TodoList) ResumeAction {
 	case session.Subphase == "step_verify":
 		return ResumeAction{Kind: ResumeRerunStepVerify, StepID: currentStepID(session, todos)}
 	case session.Phase == domain.PhaseVerifying || session.Subphase == "verifying":
-		// 验收命令可能在崩溃前只运行了一部分，必须整批重跑以保持同一通过语义。
+		// The acceptance command may only be partially run before crashing, and the entire batch must be rerun to maintain the same pass semantics.
 		return ResumeAction{Kind: ResumeRerunGate, VerifyRound: session.VerifyRound}
 	case session.Subphase == "between_steps":
 		cursor, stepID := nextPendingStep(todos)

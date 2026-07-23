@@ -88,8 +88,8 @@ decide 要覆盖主题/样式、核心功能等产品点，并尽量填好默认
 
 const idleLongThresholdMs = 10000
 
-// buildClarifyUserPrompt 组装磨合 user 消息（状态 + 仓库摘要 + 用户输入）。
-// timeSinceLastInputMs 为上次用户输入距今毫秒数；超过 idleLongThresholdMs 时注入 idle_long 标记。
+// buildClarifyUserPrompt assembles the grind user message (status + repository summary + user input).
+// timeSinceLastInputMs is the number of milliseconds since the last user input; when idleLongThresholdMs is exceeded, the idle_long tag is injected.
 func buildClarifyUserPrompt(stateJSON, userText, repoContext string, timeSinceLastInputMs int64) string {
 	var b strings.Builder
 	if timeSinceLastInputMs > idleLongThresholdMs {

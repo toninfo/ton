@@ -6,20 +6,20 @@ import (
 	"unicode"
 )
 
-// BreakNumberedList 在「1) / 2. / 1、」等编号项前强制换行，避免 TUI 把问题挤成一团。
+// BreakNumberedList forces line breaks before numbered items such as "1) / 2. / 1," to prevent the TUI from crowding problems.
 func BreakNumberedList(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return s
 	}
-	// 冒号后紧跟编号：细节：1) → 细节：\n1)
+	// A colon is followed by a number: details: 1) → details:\n1)
 	s = regexp.MustCompile(`([：:;])\s*([1-9]\d*[)）.、]|[（(][1-9]\d*[）)])`).ReplaceAllString(s, "$1\n$2")
-	// 同行内空格分隔的后续编号：…？ 2) → …？\n2)
+	// Space-separated subsequent numbers within a row: …? 2) → …? \n2)
 	s = regexp.MustCompile(`([^\n])[ \t]+([1-9]\d*[)）.、]|[（(][1-9]\d*[）)])`).ReplaceAllString(s, "$1\n$2")
 	return strings.TrimSpace(s)
 }
 
-// IsAffirmation 识别用户对当前目标的明确肯定（推进 Ready，而不是复读摘要）。
+// IsAffirmation identifies the user's clear affirmation of the current goal (advancing to Ready, rather than rereading the abstract).
 func IsAffirmation(text string) bool {
 	s := strings.TrimSpace(strings.ToLower(text))
 	s = strings.TrimRight(s, "。.!！?？~～")
@@ -39,18 +39,18 @@ func IsAffirmation(text string) bool {
 	return false
 }
 
-// ApplyUserAffirmation 用户肯定时的推进规则（故意保守）：
-//   - 目标方向可先记为 confirmed；
-//   - 只有在需求/设计文档已充实，才允许把「文档包」标为已确认；
-//   - 仅解除「已有默认答案」的 blocking 决策（用户同意初始方案）；未作答的仍卡住；
-//   - 绝不在文档薄弱时一把清空决定、伪造 acceptance，从而假 Ready。
+// ApplyUserAffirmation Push rules for user affirmation (intentionally conservative):
+//   - The target direction can be recorded as confirmed first;
+//   - Only when the requirements/design documents have been enriched can the "document package" be marked as confirmed;
+//   - Only the blocking decision of "Already has a default answer" is released (the user agrees to the initial plan); those who have not answered are still stuck;
+//   - Never make a decision or fake acceptance when the documentation is weak, thereby pretending to be Ready.
 func ApplyUserAffirmation(state *ReqState, userText string) {
 	if state == nil || !IsAffirmation(userText) {
 		return
 	}
 	state.Understanding.Confirmed = true
 	if !DocsAdequate(state) {
-		// 文档未齐：肯定只表示「方向对」，继续磨合写文档，不进 Ready。
+		// Documentation is not complete: It definitely only means "the direction is right", continue to write the documentation, and it will not enter Ready.
 		state.RequirementsConfirmed = false
 		return
 	}
@@ -60,22 +60,22 @@ func ApplyUserAffirmation(state *ReqState, userText string) {
 			continue
 		}
 		if strings.TrimSpace(state.Decide.Items[i].Answer) != "" {
-			// 文档里已给出默认方案，用户肯定 = 采纳该默认。
+			// The default solution has been given in the document, and the user must = adopt the default.
 			state.Decide.Items[i].Blocking = false
 		}
-		// 尚无答案的产品问题继续挡住 Ready。
+		// Unanswered product questions continue to stymie Ready.
 	}
 	if !state.Acceptance.Confirmed {
 		if hasRunnableAcceptanceCommand(state.Acceptance.Gate) {
 			state.Acceptance.Confirmed = true
 		}
-		// 无验收门禁时不自动 AllowNoGate：复杂项目必须先有可执行验收。
+		// No automatic AllowNoGate when there is no acceptance gate: Complex projects must have executable acceptance first.
 	}
 }
 
-// ProgressReply 面向用户的本轮话术。
-// sessionDir 非空时，会附上 requirements.md / design.md 路径供用户打开查看。
-// 绝不把「用户正在…/需要引导…」这类第三人称思考当回复；只说对用户说的话。
+// ProgressReply is a user-oriented current round of speech.
+// When sessionDir is not empty, the requirements.md / design.md path will be attached for users to open and view.
+// Never treat third-person thoughts such as "The user is.../needs guidance..." as a reply; only say what you want to say to the user.
 func ProgressReply(state *ReqState, userText, previousSummary, sessionDir string) string {
 	_ = previousSummary
 	if state == nil {
@@ -114,7 +114,7 @@ func ProgressReply(state *ReqState, userText, previousSummary, sessionDir string
 		return "抱歉，刚才说岔了。请直接告诉我：你想做/改什么？我们先把需求文档聊清楚。"
 	}
 
-	// 仅当摘要是对用户说的第二人称短句时才展示；否则给行动指引。
+	// Display only if the summary is a second-person short sentence spoken to the user; otherwise give action guidance.
 	summary := scrubMoji(DisplaySummary(state.Understanding.Summary))
 	if isUserFacingReply(summary) {
 		if DocsAdequate(state) && !ReadyForStart(state) {
@@ -182,13 +182,13 @@ func isFrustrated(s string) bool {
 		strings.TrimSpace(s) == "?"
 }
 
-// isUserFacingReply 必须是对用户说的话，不能是旁白/思考。
+// isUserFacingReply must be words spoken to the user, not narration/thinking.
 func isUserFacingReply(s string) bool {
 	s = strings.TrimSpace(s)
 	if s == "" || isThinkingNarration(s) {
 		return false
 	}
-	// 过长英文独白不要
+	// Don’t do English monologues that are too long
 	letters := 0
 	runes := []rune(s)
 	for _, r := range runes {

@@ -50,7 +50,7 @@ func (p Planner) BuildTodos(ctx context.Context, requirements, design string) (d
 		}
 		lastErr = err
 
-		// 只传递校验错误而不回显模型 JSON，避免把 depends_on 等无效字段带入下一轮。
+		// Only pass validation errors without echoing the model JSON to avoid bringing invalid fields such as depends_on into the next round.
 		messages = []llm.Message{
 			{Role: "system", Content: systemPrompt(options)},
 			{Role: "user", Content: repairRequest(requirements, design, err)},
@@ -64,7 +64,7 @@ func decodeTodos(content string) (domain.TodoList, error) {
 	if err := json.Unmarshal([]byte(content), &todos); err != nil {
 		return todos, fmt.Errorf("plan: decode todo JSON: %w", err)
 	}
-	// encoding/json 忽略未声明字段，因此模型输出的 depends_on 不会写入权威 TodoItem。
+	// encoding/json ignores undeclared fields, so model-outputted depends_on does not write authoritative TodoItems.
 	return todos, nil
 }
 

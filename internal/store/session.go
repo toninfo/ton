@@ -188,7 +188,7 @@ func syncDirectory(dir string) error {
 		return err
 	}
 	defer file.Close()
-	// 目录同步会持久化 rename 的目录项；某些平台不支持时不影响正确性。
+	// Directory synchronization will persist the renamed directory entries; correctness will not be affected if some platforms do not support it.
 	if err := file.Sync(); err != nil {
 		return nil
 	}

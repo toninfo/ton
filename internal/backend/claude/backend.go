@@ -12,12 +12,12 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// CommandRunner 是 Claude Code 子进程边界，允许测试验证工作目录和 argv。
+// CommandRunner is a Claude Code subprocess boundary that allows tests to verify the working directory and argv.
 type CommandRunner interface {
 	Start(ctx context.Context, workspace, command string, args ...string) (io.ReadCloser, func() error, error)
 }
 
-// Backend 将 Claude Code 的 stream-json 输出适配为 ton AgentEvent。
+// Backend adapts Claude Code's stream-json output to ton AgentEvent.
 type Backend struct {
 	command        string
 	permissionMode string
@@ -27,12 +27,12 @@ type Backend struct {
 	cancel context.CancelFunc
 }
 
-// New 创建 Claude Code AgentBackend；空命令使用官方 CLI 名称 claude。
+// New creates Claude Code AgentBackend; the empty command uses the official CLI name claude.
 func New(command string, runner CommandRunner) *Backend {
 	return NewConfigured(command, "", runner)
 }
 
-// NewConfigured 允许注入无人值守 permission mode（design §12.2）。
+// NewConfigured allows injection of unattended permission mode (design §12.2).
 func NewConfigured(command, permissionMode string, runner CommandRunner) *Backend {
 	if command == "" {
 		command = "claude"
@@ -43,15 +43,15 @@ func NewConfigured(command, permissionMode string, runner CommandRunner) *Backen
 	return &Backend{command: command, permissionMode: permissionMode, runner: runner}
 }
 
-// Name 返回写入 AgentEvent 的稳定 driver 名称。
+// Name Returns the stable driver name written to the AgentEvent.
 func (b *Backend) Name() string { return "claude" }
 
-// EnsureSession 原样保留已有会话；新会话 ID 从 stream-json 的 init/result 事件中取得。
+// EnsureSession leaves the existing session intact; the new session ID is obtained from the init/result event of stream-json.
 func (b *Backend) EnsureSession(_ context.Context, _ string, sessionID string) (string, error) {
 	return sessionID, nil
 }
 
-// Run 在目标工作区中启动 Claude Code，并异步返回生命周期与归一化事件。
+// Run starts Claude Code in the target workspace and returns lifecycle and normalized events asynchronously.
 func (b *Backend) Run(ctx context.Context, request backend.AgentRunRequest) (<-chan domain.AgentEvent, error) {
 	if request.Workspace == "" {
 		return nil, fmt.Errorf("claude: workspace is required")
@@ -75,7 +75,7 @@ func (b *Backend) Run(ctx context.Context, request backend.AgentRunRequest) (<-c
 	return events, nil
 }
 
-// Interrupt 取消当前正在运行的 Claude Code 子进程（如有）。
+// Interrupt Cancels the currently running Claude Code child process (if any).
 func (b *Backend) Interrupt(_ context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -85,7 +85,7 @@ func (b *Backend) Interrupt(_ context.Context) error {
 	return nil
 }
 
-// BuildRunArgs 为一个 ton 步骤构造 Claude Code 的非交互式 stream-json 调用参数。
+// BuildRunArgs Constructs Claude Code's non-interactive stream-json call arguments for a ton step.
 func BuildRunArgs(request backend.AgentRunRequest, permissionMode string) []string {
 	args := []string{"-p", "--output-format", "stream-json", "--verbose"}
 	if permissionMode != "" {
@@ -94,7 +94,7 @@ func BuildRunArgs(request backend.AgentRunRequest, permissionMode string) []stri
 	if request.BackendSessionID != "" {
 		args = append(args, "--resume", request.BackendSessionID)
 	}
-	// -- 防止以连字符开头的 prompt 被 Claude CLI 解释为参数。
+	// -- Prevent prompt starting with a hyphen from being interpreted as a parameter by the Claude CLI.
 	return append(args, "--", request.Prompt)
 }
 

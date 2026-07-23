@@ -40,7 +40,7 @@ func TestCheckPathWorkspaceOnlyWhenEnabled(t *testing.T) {
 	if err := p.CheckPath(ws, "subdir/file.go"); err != nil {
 		t.Fatal(err)
 	}
-	// 用一个跨平台都成立的“工作区之外”的绝对路径（POSIX 的 /etc/passwd 在 Windows 上不是绝对路径）。
+	// Use an absolute path "outside the workspace" that holds true across platforms (POSIX's /etc/passwd is not an absolute path on Windows).
 	outside := filepath.Join(t.TempDir(), "outside.txt")
 	if err := p.CheckPath(ws, outside); err == nil {
 		t.Fatal("expected outside workspace denied")

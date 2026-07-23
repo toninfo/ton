@@ -1,4 +1,4 @@
-// Package repocontext 为磨合/指挥层提供轻量仓库快照（不替代 agent 工具环）。
+// Package repocontext provides lightweight repository snapshots for the grinding/command layer (does not replace the agent toolring).
 package repocontext
 
 import (
@@ -8,10 +8,10 @@ import (
 	"strings"
 )
 
-// Options 控制扫描深度与体积。
+// Options control scan depth and volume.
 type Options struct {
-	MaxEntries int
-	MaxDepth   int
+	MaxEntries   int
+	MaxDepth     int
 	MaxFileBytes int
 }
 
@@ -28,7 +28,7 @@ func (o Options) normalized() Options {
 	return o
 }
 
-// Summarize 生成目录树摘要 + README 片段，供 LLM 注入。
+// Summarize generates a directory tree summary + README fragment for LLM injection.
 func Summarize(workspace string, opt Options) string {
 	opt = opt.normalized()
 	workspace = filepath.Clean(workspace)
@@ -91,7 +91,7 @@ func shouldSkip(rel string, d fs.DirEntry) bool {
 		return true
 	}
 	if strings.HasPrefix(base, ".") && d.IsDir() && base != "." {
-		// 允许根下少数点文件，但跳过隐藏目录。
+		// Allow a few files under the root, but skip hidden directories.
 		return true
 	}
 	return false

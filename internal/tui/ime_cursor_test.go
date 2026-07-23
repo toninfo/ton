@@ -12,7 +12,7 @@ import (
 )
 
 func TestImeCursorPosColumnUsesDisplayWidth(t *testing.T) {
-	// "> " + "你好" → 显示宽 2+4=6，1-based 列应为 7；两行 view → row=2
+	// "> " + "Hello" → display width 2+4=6, 1-based column should be 7; two rows view → row=2
 	row, col := imeCursorPos("header\n> 你好", "> ", "你好", 0)
 	if row != 2 || col != 7 {
 		t.Fatalf("row,col = %d,%d; want 2,7 for CJK display width", row, col)
@@ -27,7 +27,7 @@ func TestImeCursorPosMixedASCIIAndCJK(t *testing.T) {
 }
 
 func TestImeCursorPosClampsToTermHeight(t *testing.T) {
-	// 10 行 view，终端只 4 行高 → 裁顶后输入在第 4 行
+	// 10 lines of view, the terminal is only 4 lines high → input is on the 4th line after cropping
 	view := "1\n2\n3\n4\n5\n6\n7\n8\n9\n> x"
 	row, _ := imeCursorPos(view, "> ", "x", 4)
 	if row != 4 {
@@ -62,7 +62,7 @@ func TestIMEFixWriterReplacesAltScreenTrailingCUP(t *testing.T) {
 	t.Cleanup(resetIMECursorPos)
 
 	setIMECursorPos(8, 12)
-	// bubbletea AltScreen flush 末尾：CursorPosition(0, n) → \x1b[n;H（列空=默认 1）
+	// bubbletea AltScreen flush end: CursorPosition(0, n) → \x1b[n;H (column empty = default 1)
 	var buf bytes.Buffer
 	payload := []byte("line-a\r\nline-b\x1b[2;H")
 	if _, err := writeIMEFixed(&buf, payload, nil); err != nil {

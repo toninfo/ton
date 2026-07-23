@@ -74,7 +74,7 @@ func TestApplyResumeRepairOrExhaustedFallsBackToCfgOnExhausted(t *testing.T) {
 			{ID: "t1", Status: domain.TodoRunning, RepairAttempts: 1},
 		}},
 		state: clarify.ReqState{
-			Fallback: clarify.Fallback{MaxRepairs: 0, OnExhausted: ""}, // 回落到 cfg
+			Fallback: clarify.Fallback{MaxRepairs: 0, OnExhausted: ""}, // fall back to cfg
 		},
 	}
 

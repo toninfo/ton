@@ -7,14 +7,14 @@ import (
 	"strings"
 )
 
-// UnmarshalJSON 容忍模型把 gate 写成 string / null / 残缺对象。
+// UnmarshalJSON tolerates models writing gates as string / null / incomplete objects.
 func (g *AcceptanceGate) UnmarshalJSON(data []byte) error {
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
 		*g = AcceptanceGate{}
 		return nil
 	}
-	// 常见翻车： "gate": "go test ./..." 或自然语言描述
+	// Common rollovers: "gate": "go test ./..." or natural language description
 	if data[0] == '"' {
 		var s string
 		if err := json.Unmarshal(data, &s); err != nil {
@@ -25,7 +25,7 @@ func (g *AcceptanceGate) UnmarshalJSON(data []byte) error {
 		if s == "" {
 			return nil
 		}
-		// 看起来像命令则塞进 commands，否则放进 name 作备注
+		// If it looks like a command, put it into commands, otherwise put it into name for remarks.
 		if looksLikeShellCmd(s) {
 			g.Commands = []AcceptanceCommand{{ID: "gate", Cmd: s, TimeoutSec: 60}}
 		} else {
@@ -62,7 +62,7 @@ func (g *AcceptanceGate) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// UnmarshalJSON 容忍 step_verify.commands 形态漂移。
+// UnmarshalJSON tolerates step_verify.commands morphological drift.
 func (s *StepVerifyConfig) UnmarshalJSON(data []byte) error {
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 || bytes.Equal(data, []byte("null")) {

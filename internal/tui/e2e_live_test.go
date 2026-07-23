@@ -21,8 +21,8 @@ var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 func stripANSI(s string) string { return ansiRE.ReplaceAllString(s, "") }
 
-// TestRenderPreview 渲染几种代表性状态的 View，去掉 ANSI 后打印，便于肉眼核对布局。
-// 手动开启：TON_TUI_PREVIEW=1 go test ./internal/tui -run TestRenderPreview -v
+// TestRenderPreview renders Views in several representative states and prints them after removing ANSI, making it easier to check the layout with the naked eye.
+// Manually enable: TON_TUI_PREVIEW=1 go test ./internal/tui -run TestRenderPreview -v
 func TestRenderPreview(t *testing.T) {
 	if os.Getenv("TON_TUI_PREVIEW") == "" {
 		t.Skip("set TON_TUI_PREVIEW=1 to dump rendered layouts")
@@ -35,18 +35,18 @@ func TestRenderPreview(t *testing.T) {
 		return m
 	}
 
-	// 1) 澄清进行中，含一段对话历史
+	// 1) Clarification in progress, including a conversation history
 	clar := base(domain.PhaseClarifying)
 	clar.chat = []chatTurn{
 		{User: "你好", Reply: "你好！想做什么？直接说功能即可，例如：做一个登录页、写个小工具、改仓库里某处。"},
 		{User: "我想做一个静态登录页面，放在 examples/login 目录", Reply: "可以，在 examples/login 做静态登录页。HTML + CSS，不需要后端。"},
 	}
 
-	// 2) 就绪
+	// 2) Ready
 	ready := base(domain.PhaseReadyToStart)
 	ready.chat = []chatTurn{{User: "对", Reply: "需求已齐，输入 /start 开始。"}}
 
-	// 3) 执行中（转圈 + 阶段 + todos）
+	// 3) Executing (circle + stage + todos)
 	exec := base(domain.PhaseExecuting)
 	exec.session.Subphase = "step_running"
 	exec.busy = true
@@ -58,13 +58,13 @@ func TestRenderPreview(t *testing.T) {
 	}}
 	exec.showTodos = true
 
-	// 4) 需要用户拍板的产品问题
+	// 4) Product issues that require users’ decision-making
 	block := base(domain.PhaseClarifying)
 	block.clarify = clarify.ReqState{Decide: clarify.Decide{Items: []clarify.Decision{
 		{Question: "登录成功后跳转到哪个页面？", Blocking: true},
 	}}}
 
-	// 5) 完成
+	// 5) Complete
 	done := base(domain.PhaseDone)
 	done.session.TerminalStatus = domain.TerminalDone
 	done.chat = []chatTurn{{User: "/start", Reply: "Session finished."}}
@@ -83,9 +83,9 @@ func TestRenderPreview(t *testing.T) {
 	}
 }
 
-// TestLiveClarifyAndStart 是一个真实端到端 harness（需 TON_E2E=1 手动开启）。
-// 用真实 LLM 磨合多轮；默认 driver=fake 以断言磨合期绝不 Run coding agent。
-// 设 TON_E2E_DRIVER=opencode|claude|cursor 可改用本机 agent（仅 /start 后才会 Run）。
+// TestLiveClarifyAndStart is a true end-to-end harness (needs TON_E2E=1 to be turned on manually).
+// Run multiple rounds with real LLM; default driver=fake to assert that the coding agent will never run during the running-in period.
+// Set TON_E2E_DRIVER=opencode|claude|cursor to use the native agent instead (it will only run after /start).
 func TestLiveClarifyAndStart(t *testing.T) {
 	if os.Getenv("TON_E2E") == "" {
 		t.Skip("set TON_E2E=1 to run the live end-to-end harness")
@@ -101,13 +101,13 @@ func TestLiveClarifyAndStart(t *testing.T) {
 	if v := os.Getenv("TON_E2E_DRIVER"); v != "" {
 		cfg.Driver.Default = v
 	} else {
-		cfg.Driver.Default = "fake" // 磨合覆盖默认：不依赖本机 agent CLI
+		cfg.Driver.Default = "fake" // Run-in override default: does not rely on native agent CLI
 	}
 	cfg.Orchestrate.ReadyPreflight = false
 	t.Logf("LLM model=%s base=%s driver=%q", cfg.LLM.Model, cfg.LLM.BaseURL, cfg.Driver.Default)
 
-	// 用手动临时目录：Windows 上 opencode/git 子进程可能短暂占用句柄，
-	// t.TempDir 的强制清理会误报失败，这里改成尽力清理。
+	// Use a manual temporary directory: the opencode/git subprocess on Windows may temporarily occupy the handle.
+	// The forced cleanup of t.TempDir will falsely report failure, so here it is changed to best-effort cleanup.
 	workspace, err := os.MkdirTemp("", "ton-e2e-")
 	if err != nil {
 		t.Fatalf("mkdtemp: %v", err)

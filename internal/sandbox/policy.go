@@ -1,5 +1,5 @@
-// Package sandbox 可选约束磨合期 agent 可写范围。
-// 默认关闭（full permissions）；显式 sandbox.enabled=true 才守门。
+// Package sandbox optionally constrains the writable range of agents during the running-in period.
+// Closed by default (full permissions); only explicit sandbox.enabled=true is required to guard the gate.
 package sandbox
 
 import (
@@ -11,24 +11,24 @@ import (
 	"github.com/toninfo/ton/internal/config"
 )
 
-// Policy 描述 agent 允许触碰的路径边界。
+// Policy describes the path boundaries that the agent is allowed to touch.
 type Policy struct {
-	// Enabled 为 false 时全部检查放行、不注入约束文案（默认）。
+	// When Enabled is false, all checks are released and no constraint copy is injected (default).
 	Enabled bool
-	// WorkspaceOnly 为 true 时，禁止写到 workspace 之外。
+	// When WorkspaceOnly is true, writing outside the workspace is prohibited.
 	WorkspaceOnly bool
-	// DenyHomeDotConfig 禁止改用户 SSH / 全局敏感路径。
+	// DenyHomeDotConfig prohibits changing user SSH/global sensitive paths.
 	DenyHomeDotConfig bool
-	// ExtraDeny 额外禁止的路径片段。
+	// ExtraDeny Additional forbidden path fragments.
 	ExtraDeny []string
 }
 
-// Default 返回全开策略（与产品默认一致：不畏首畏尾）。
+// Default returns to the full-on strategy (consistent with the product default: don't be timid).
 func Default() Policy {
 	return Policy{Enabled: false}
 }
 
-// FromConfig 从配置构造策略。
+// FromConfig Constructs a policy from a configuration.
 func FromConfig(cfg config.SandboxConfig) Policy {
 	return Policy{
 		Enabled:           cfg.Enabled,
@@ -38,7 +38,7 @@ func FromConfig(cfg config.SandboxConfig) Policy {
 	}
 }
 
-// CheckBrief 对 agent brief 做粗粒度危险指令拦截；Enabled=false 时直接放行。
+// CheckBrief intercepts coarse-grained dangerous instructions for agent brief; it is directly released when Enabled=false.
 func (p Policy) CheckBrief(workspace, brief string) error {
 	if !p.Enabled {
 		return nil
@@ -74,7 +74,7 @@ func (p Policy) CheckBrief(workspace, brief string) error {
 	return nil
 }
 
-// AgentConstraintsPrompt 注入到 agent brief 前的硬约束说明；未启用时返回空。
+// AgentConstraintsPrompt Hard constraint description before injection into agent brief; returns empty if not enabled.
 func (p Policy) AgentConstraintsPrompt(workspace string) string {
 	if !p.Enabled {
 		return ""
@@ -91,7 +91,7 @@ func (p Policy) AgentConstraintsPrompt(workspace string) string {
 	return b.String()
 }
 
-// CheckPath 判断目标路径是否允许写入；Enabled=false 时放行。
+// CheckPath determines whether the target path is allowed to be written; it is allowed when Enabled=false.
 func (p Policy) CheckPath(workspace, target string) error {
 	if !p.Enabled {
 		return nil
@@ -148,7 +148,7 @@ func (p Policy) CheckPath(workspace, target string) error {
 	return nil
 }
 
-// ScanBriefPaths 从 brief 中抽出疑似绝对路径并做 CheckPath。
+// ScanBriefPaths extracts suspected absolute paths from brief and performs CheckPath.
 func (p Policy) ScanBriefPaths(workspace, brief string) error {
 	if !p.Enabled {
 		return nil
@@ -182,7 +182,7 @@ func looksLikePathToken(tok string) bool {
 	if strings.Contains(tok, "..") {
 		return true
 	}
-	// 归一化分隔符：~/ 展开后在 Windows 上会变成反斜杠，若只匹配正斜杠会漏判。
+	// Normalized delimiter: ~/ will become a backslash on Windows after expansion. If only forward slashes are matched, the result will be missed.
 	lower := strings.ReplaceAll(strings.ToLower(tok), "\\", "/")
 	needles := []string{"/.ssh", "/.config", "/etc/", ".env", ".yaml", ".yml", ".json", ".toml", ".go", ".ts", ".py"}
 	for _, n := range needles {

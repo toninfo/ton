@@ -1,4 +1,4 @@
-// Package artifacts 定义会话产物契约路径（agent 落盘权威，stdout 仅辅证）。
+// Package artifacts define the session product contract path (agent is the authoritative agent, stdout is only auxiliary evidence).
 package artifacts
 
 import (
@@ -22,7 +22,7 @@ const (
 	FileAcceptanceJSON = "acceptance.json"
 )
 
-// SessionDir 返回 workspace/.ton/sessions/<id>。
+// SessionDir returns workspace/.ton/sessions/<id>.
 func SessionDir(workspace, sessionID string) string {
 	return filepath.Join(brand.WorkspaceStateDir(workspace), "sessions", sessionID)
 }
@@ -31,12 +31,12 @@ func path(workspace, sessionID, name string) string {
 	return filepath.Join(SessionDir(workspace, sessionID), name)
 }
 
-// EnsureSessionDir 创建会话目录。
+// EnsureSessionDir creates a session directory.
 func EnsureSessionDir(workspace, sessionID string) error {
 	return os.MkdirAll(SessionDir(workspace, sessionID), 0o755)
 }
 
-// AgentNotesPath / TodosPath 等契约路径。
+// Contract paths such as AgentNotesPath / TodosPath.
 func AgentNotesPath(workspace, sessionID string) string {
 	return path(workspace, sessionID, FileAgentNotes)
 }
@@ -50,7 +50,7 @@ func DesignPath(workspace, sessionID string) string {
 	return path(workspace, sessionID, FileDesign)
 }
 
-// ReadAgentNotes 读取权威笔记；不存在返回 ErrMissing。
+// ReadAgentNotes reads authoritative notes; returns ErrMissing if not present.
 func ReadAgentNotes(workspace, sessionID string) (string, error) {
 	data, err := os.ReadFile(AgentNotesPath(workspace, sessionID))
 	if err != nil {
@@ -62,7 +62,7 @@ func ReadAgentNotes(workspace, sessionID string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// WriteAgentNotes 写入权威笔记（测试 / fake adapter 可用）。
+// WriteAgentNotes writes authoritative notes (test/fake adapter available).
 func WriteAgentNotes(workspace, sessionID, notes string) error {
 	if err := EnsureSessionDir(workspace, sessionID); err != nil {
 		return err
@@ -70,7 +70,7 @@ func WriteAgentNotes(workspace, sessionID, notes string) error {
 	return os.WriteFile(AgentNotesPath(workspace, sessionID), []byte(notes+"\n"), 0o644)
 }
 
-// ReadTodosJSON 读取 agent 写出的 todolist。
+// ReadTodosJSON reads the todolist written by the agent.
 func ReadTodosJSON(workspace, sessionID string) (domain.TodoList, error) {
 	var todos domain.TodoList
 	data, err := os.ReadFile(TodosPath(workspace, sessionID))
@@ -86,7 +86,7 @@ func ReadTodosJSON(workspace, sessionID string) (domain.TodoList, error) {
 	return todos, nil
 }
 
-// WriteTodosJSON 写入 todolist（测试用）。
+// WriteTodosJSON writes todolist (for testing).
 func WriteTodosJSON(workspace, sessionID string, todos domain.TodoList) error {
 	if err := EnsureSessionDir(workspace, sessionID); err != nil {
 		return err
@@ -98,7 +98,7 @@ func WriteTodosJSON(workspace, sessionID string, todos domain.TodoList) error {
 	return os.WriteFile(TodosPath(workspace, sessionID), data, 0o644)
 }
 
-// PlanAgentPrompt 要求 agent 写出 todos.json。
+// PlanAgentPrompt requires the agent to write out todos.json.
 func PlanAgentPrompt(workspace, sessionID, constraints, sandboxBlock string) string {
 	todosPath := TodosPath(workspace, sessionID)
 	return sandboxBlock + "\n\n" +
@@ -110,5 +110,5 @@ func PlanAgentPrompt(workspace, sessionID, constraints, sandboxBlock string) str
 		"PLANNING CONSTRAINTS FROM CONDUCTOR:\n" + constraints
 }
 
-// ErrMissing 表示契约文件未写出。
+// ErrMissing indicates that the contract document has not been written.
 var ErrMissing = fmt.Errorf("artifacts: missing contract file")

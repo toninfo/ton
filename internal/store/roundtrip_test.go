@@ -43,7 +43,7 @@ func TestSessionSaveLoadRoundTrip(t *testing.T) {
 		t.Fatalf("LoadSession() = %+v, want %+v", got, want)
 	}
 
-	// session.json 应真实落盘在工作区内。
+	// session.json should be actually placed in the workspace.
 	if _, err := os.Stat(filepath.Join(workspace, ".ton", "sessions", want.ID, "session.json")); err != nil {
 		t.Fatalf("session.json not written: %v", err)
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/toninfo/ton/internal/config"
 )
 
-// testConfigPath 解析仓库根目录下 testdata/config/ 中的文件（go test 时 CWD 为包目录）。
+// testConfigPath parses the files in testdata/config/ in the root directory of the warehouse (CWD is the package directory when go test).
 func testConfigPath(name string) string {
 	return filepath.Join("..", "..", "testdata", "config", name)
 }
@@ -80,7 +80,7 @@ func TestLoad_ApiKeyNeverFromYaml(t *testing.T) {
 }
 
 func TestLoad_ApiKeyIgnoredInYaml(t *testing.T) {
-	// 隔离本机真实 llm.env，确保断言只反映 yaml/env 行为。
+	// Isolate the native real llm.env to ensure assertions only reflect yaml/env behavior.
 	t.Setenv("TON_CONFIG_DIR", t.TempDir())
 	clearBrandEnv(t, "LLM_API_KEY")
 	yamlWithKey := testConfigPath("with_api_key.yaml")

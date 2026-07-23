@@ -6,15 +6,15 @@ import (
 	"os"
 )
 
-// imeFixWriter 包一层 *os.File（通常是 stdout），干两件事：
+// imeFixWriter wraps a layer of *os.File (usually stdout) and does two things:
 //
-//  1. 实现 term.File（Read/Write/Close/Fd），让 bubbletea 仍能认出 TTY
-//     （Windows VT / 两端窗口尺寸）。纯 io.Writer 包装会让 Fd 断言失败。
-//  2. 改写 flush 末尾的「光标复位」：
-//     - 非 AltScreen：尾 '\r' → 列打回 0
-//     - AltScreen：尾 CSI CUP `\x1b[row;H` → 钉在输入行行首
-//     两种都会让 fcitx/ibus/微软拼音把预编辑画在行首。同一次 Write 里换成
-//     我们的 CUP+ShowCursor，不给 IME 采样窗口。
+//  1. Implement term.File (Read/Write/Close/Fd) so that bubbletea can still recognize TTY
+//     (Windows VT / window size at both ends). The pure io.Writer wrapper will make the Fd assertion fail.
+//  2. Rewrite the "cursor reset" at the end of flush:
+//     - Non-AltScreen: trailing '\r' → column returned to 0
+//     - AltScreen: Tail CSI CUP `\x1b[row;H` → pinned to the beginning of the input line
+//     Both will cause fcitx/ibus/Microsoft Pinyin to draw the pre-edit at the beginning of the line. In the same Write, replace it with
+//     Our CUP+ShowCursor does not give the IME a sampling window.
 type imeFixWriter struct {
 	f *os.File
 }
@@ -41,7 +41,7 @@ func (o *imeFixWriter) afterReposition(row, col int) {
 	syncConsoleCursor(o.f, row, col)
 }
 
-// writeIMEFixed 可单测：吃掉尾部光标复位，换成插入点 CUP。
+// writeIMEFixed can be tested individually: the tail cursor is reset after eating it and replaced with the insertion point CUP.
 func writeIMEFixed(w io.Writer, p []byte, after func(row, col int)) (int, error) {
 	if row, col, ok := loadIMECursorPos(); ok {
 		if body, stripped := stripTrailingCursorReset(p); stripped {
@@ -61,8 +61,8 @@ func writeIMEFixed(w io.Writer, p []byte, after func(row, col int)) (int, error)
 	return w.Write(p)
 }
 
-// stripTrailingCursorReset 去掉 bubbletea flush 末尾的行首复位：
-// '\r'（非 AltScreen）或 CSI CUP `\x1b[n;mH` / `\x1b[n;H` / `\x1b[nH`（AltScreen）。
+// stripTrailingCursorReset removes the head-of-line reset at the end of bubbletea flush:
+// '\r' (not AltScreen) or CSI CUP `\x1b[n;mH` / `\x1b[n;H` / `\x1b[nH` (AltScreen).
 func stripTrailingCursorReset(p []byte) (body []byte, ok bool) {
 	if len(p) == 0 {
 		return p, false
@@ -76,12 +76,12 @@ func stripTrailingCursorReset(p []byte) (body []byte, ok bool) {
 	return p, false
 }
 
-// trailingCUPIndex 若 p 以 CSI CUP 结尾，返回该序列起始下标，否则 -1。
+// trailingCUPIndex If p ends with CSI CUP, return the starting index of the sequence, otherwise -1.
 func trailingCUPIndex(p []byte) int {
 	if len(p) < 3 || p[len(p)-1] != 'H' {
 		return -1
 	}
-	// 从尾部往前找 \x1b[，中间只允许数字和 ';'。
+	// Search \x1b[ from the end forward, only numbers and ';' are allowed in the middle.
 	for i := len(p) - 2; i >= 1; i-- {
 		if len(p)-i > 20 {
 			return -1

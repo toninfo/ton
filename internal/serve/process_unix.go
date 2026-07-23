@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-// processAlive 用 kill(pid, 0) 探活：EPERM 也算存活，ESRCH 才是不存在。
+// Use kill(pid, 0) to test processAlive: EPERM is also considered alive, but ESRCH does not exist.
 func processAlive(pid int) bool {
 	if pid <= 0 {
 		return false
@@ -20,7 +20,7 @@ func processAlive(pid int) bool {
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
-// processArgs 从 /proc/<pid>/cmdline 读取命令行，用于确认 serve 身份。
+// processArgs reads the command line from /proc/<pid>/cmdline and is used to confirm serve identity.
 func processArgs(pid int) []string {
 	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
 	if err != nil {

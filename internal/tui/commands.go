@@ -5,18 +5,18 @@ import "strings"
 type commandKind string
 
 const (
-	commandStart         commandKind = "start"
-	commandTodos         commandKind = "todos"
-	commandStatus        commandKind = "status"
-	commandStop          commandKind = "stop"
-	commandDriver        commandKind = "driver"
-	commandModel         commandKind = "model"
-	commandExport        commandKind = "export"
-	commandKey           commandKind = "key"
-	commandBrief         commandKind = "brief"
-	commandSkip          commandKind = "skip"
-	commandQueue         commandKind = "queue"
-	commandDocs          commandKind = "docs"
+	commandStart  commandKind = "start"
+	commandTodos  commandKind = "todos"
+	commandStatus commandKind = "status"
+	commandStop   commandKind = "stop"
+	commandDriver commandKind = "driver"
+	commandModel  commandKind = "model"
+	commandExport commandKind = "export"
+	commandKey    commandKind = "key"
+	commandBrief  commandKind = "brief"
+	commandSkip   commandKind = "skip"
+	commandQueue  commandKind = "queue"
+	commandDocs   commandKind = "docs"
 )
 
 // command is the validated internal form of a user-entered slash command.
@@ -50,7 +50,7 @@ func parseCommand(input string) (command, bool) {
 	case "/key":
 		return oneArgumentCommand(fields, commandKey)
 	case "/brief":
-		// /brief 后整段作为参数（可含空格）
+		// The entire paragraph after /brief is used as a parameter (can contain spaces)
 		if len(fields) < 2 {
 			return command{}, false
 		}
@@ -60,7 +60,7 @@ func parseCommand(input string) (command, bool) {
 	case "/queue":
 		return noArgumentCommand(fields, commandQueue)
 	case "/docs", "/review":
-		// /docs [open|preview|req|design] — 默认打开目录，不灌屏
+		// /docs [open|preview|req|design] — Open the directory by default and do not fill the screen
 		if len(fields) == 1 {
 			return command{kind: commandDocs, argument: "open"}, true
 		}
@@ -91,7 +91,7 @@ func oneArgumentCommand(fields []string, kind commandKind) (command, bool) {
 	return command{kind: kind, argument: fields[1]}, true
 }
 
-// stopCommand 接受 /stop、/stop soft、/stop hard。
+// stopCommand accepts /stop, /stop soft, /stop hard.
 func stopCommand(fields []string) (command, bool) {
 	switch len(fields) {
 	case 1:

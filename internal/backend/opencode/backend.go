@@ -11,7 +11,7 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// Backend 将 OpenCode CLI 的 NDJSON 流适配为 ton AgentEvent。
+// Backend adapts the OpenCode CLI's NDJSON stream to ton AgentEvent.
 type Backend struct {
 	client    *Client
 	attachURL string
@@ -20,7 +20,7 @@ type Backend struct {
 	cancel context.CancelFunc
 }
 
-// New 创建 OpenCode AgentBackend；attachURL 是工作区共享的 OpenCode serve 端点。
+// New creates an OpenCode AgentBackend; attachURL is the OpenCode serve endpoint shared by the workspace.
 func New(command, attachURL string, runner CommandRunner) *Backend {
 	return &Backend{
 		client:    NewClient(command, runner),
@@ -28,15 +28,15 @@ func New(command, attachURL string, runner CommandRunner) *Backend {
 	}
 }
 
-// Name 返回写入 AgentEvent 的稳定 driver 名称。
+// Name Returns the stable driver name written to the AgentEvent.
 func (b *Backend) Name() string { return "opencode" }
 
-// EnsureSession 保留已知的 OpenCode 会话；新会话 ID 会在 Run 后的流中出现。
+// EnsureSession preserves known OpenCode sessions; new session IDs appear in the flow after Run.
 func (b *Backend) EnsureSession(_ context.Context, _ string, sessionID string) (string, error) {
 	return sessionID, nil
 }
 
-// Run 立即启动 OpenCode，随后异步发出生命周期及归一化 NDJSON 事件。
+// Run starts OpenCode immediately and then emits lifecycle and normalized NDJSON events asynchronously.
 func (b *Backend) Run(ctx context.Context, request backend.AgentRunRequest) (<-chan domain.AgentEvent, error) {
 	if request.Workspace == "" {
 		return nil, fmt.Errorf("opencode: workspace is required")
@@ -60,7 +60,7 @@ func (b *Backend) Run(ctx context.Context, request backend.AgentRunRequest) (<-c
 	return events, nil
 }
 
-// Interrupt 取消当前正在运行的 OpenCode 子进程（如有）。
+// Interrupt Cancels the currently running OpenCode child process (if any).
 func (b *Backend) Interrupt(_ context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -70,7 +70,7 @@ func (b *Backend) Interrupt(_ context.Context) error {
 	return nil
 }
 
-// BuildRunArgs 为一个 ton 步骤构造精确的 OpenCode 非交互式调用参数。
+// BuildRunArgs Constructs exact OpenCode non-interactive call arguments for a ton step.
 func BuildRunArgs(request backend.AgentRunRequest, attachURL string) []string {
 	args := []string{"run"}
 	if request.BackendSessionID != "" {
@@ -137,7 +137,7 @@ func (b *Backend) setCancel(cancel context.CancelFunc) {
 func (b *Backend) clearCancel(cancel context.CancelFunc) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// 函数值不可比较；只在当前运行结束后清空即可。
+	// Function values ​​are not comparable; they are only cleared after the current run ends.
 	b.cancel = nil
 }
 

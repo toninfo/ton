@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// decodeClarifyJSON 从模型输出中抽出 JSON 并解码为卡片集。
-// 兼容 Markdown 代码围栏，以及 assumptions.items 为 string / object 混排。
+// decodeClarifyJSON Extracts JSON from the model output and decodes it into a card set.
+// Compatible with Markdown code fences, and assumptions.items mixed with string / object.
 func decodeClarifyJSON(content string) (ClarifyOut, error) {
 	raw, err := extractJSONObject(content)
 	if err != nil {
@@ -17,7 +17,7 @@ func decodeClarifyJSON(content string) (ClarifyOut, error) {
 	raw = sanitizeLLMJSON(raw)
 	var output ClarifyOut
 	if err := json.Unmarshal(raw, &output); err != nil {
-		// 兜底：至少捞出 summary，避免整轮澄清硬失败只剩解码噪音
+		// Get the bottom of it: at least fish out the summary to avoid a hard failure in the whole round of clarification, leaving only decoding noise.
 		if summary := peekJSONString(raw, "summary"); summary != "" {
 			return ClarifyOut{
 				Understanding: Understanding{Summary: summary},
@@ -28,7 +28,7 @@ func decodeClarifyJSON(content string) (ClarifyOut, error) {
 	return output, nil
 }
 
-// extractJSONObject 去掉 ```json 围栏，并用括号平衡取第一个完整对象。
+// extractJSONObject removes the ```json fence and takes the first complete object balanced by parentheses.
 func extractJSONObject(content string) ([]byte, error) {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
@@ -75,7 +75,7 @@ func extractJSONObject(content string) ([]byte, error) {
 	return nil, fmt.Errorf("unterminated JSON object in LLM response")
 }
 
-// sanitizeLLMJSON 去掉常见尾逗号，降低模型 JSON 翻车率。
+// sanitizeLLMJSON removes common trailing commas to reduce model JSON rollover rate.
 func sanitizeLLMJSON(raw []byte) []byte {
 	var b strings.Builder
 	b.Grow(len(raw))
@@ -103,7 +103,7 @@ func sanitizeLLMJSON(raw []byte) []byte {
 			b.WriteByte(ch)
 			continue
 		}
-		// 尾逗号：,} 或 ,]
+		// Trailing comma: ,} or ,]
 		if ch == ',' {
 			j := i + 1
 			for j < len(raw) && (raw[j] == ' ' || raw[j] == '\n' || raw[j] == '\r' || raw[j] == '\t') {
@@ -118,7 +118,7 @@ func sanitizeLLMJSON(raw []byte) []byte {
 	return []byte(b.String())
 }
 
-// peekJSONString 粗提取顶层/嵌套的 "key":"value"（仅兜底展示用）。
+// peekJSONString roughly extracts the top-level/nested "key":"value" (only for back-up display).
 func peekJSONString(raw []byte, key string) string {
 	needle := `"` + key + `"`
 	s := string(raw)
@@ -162,7 +162,7 @@ func stripMarkdownFence(s string) string {
 	if !strings.HasPrefix(s, "```") {
 		return s
 	}
-	// 丢掉首行围栏（``` 或 ```json）
+	// Drop the first line of fence (``` or ```json)
 	if idx := strings.Index(s, "\n"); idx >= 0 {
 		s = s[idx+1:]
 	} else {
@@ -175,7 +175,7 @@ func stripMarkdownFence(s string) string {
 	return s
 }
 
-// UnmarshalJSON 接受 items 为纯字符串，或常见对象形态（text/assumption/…）。
+// UnmarshalJSON accepts items as pure strings or common objects (text/assumption/…).
 func (a *Assumptions) UnmarshalJSON(data []byte) error {
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
@@ -183,7 +183,7 @@ func (a *Assumptions) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	// 少数模型直接返回 assumptions: ["…"] 而不是 {"items":[…]}
+	// A few models directly return assumptions: ["…"] instead of {"items":[…]}
 	if data[0] == '[' {
 		items, err := decodeStringList(data)
 		if err != nil {
@@ -250,7 +250,7 @@ func coerceAssumptionText(raw json.RawMessage) (string, error) {
 	if err := json.Unmarshal(raw, &obj); err != nil {
 		return "", err
 	}
-	// 按常见字段名兜底抽取可读文本
+	// Extract readable text based on common field names
 	for _, key := range []string{
 		"text", "assumption", "content", "description", "value", "summary", "item", "title",
 	} {

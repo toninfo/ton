@@ -151,7 +151,7 @@ class StickmanParams:
     """
 
     line_color: tuple[int, int, int] = (0, 0, 0)
-    line_width: int = 1  # 小窗口默认细线
+    line_width: int = 1  # Thin default line for the compact window.
     opacity: float = 1.0
     eye_offset: int = 0
     eyelid_offset: int = 0
@@ -159,7 +159,7 @@ class StickmanParams:
     mouth_opening: float = 0.0
     arm_left_angle: float = 30.0
     arm_right_angle: float = -30.0
-    # 腿部角度（相对垂直）；行走时由 locomotor 驱动摆动
+    # Leg angles relative to vertical; the locomotor animates them while walking.
     leg_left_angle: float = 15.0
     leg_right_angle: float = -15.0
     blink: bool = False
@@ -168,36 +168,36 @@ class StickmanParams:
     body_offset_y: float = 0.0
     background_gradient: tuple[tuple[int, int, int], tuple[int, int, int]] | None = None
     speech_bubble: str | None = None  # Text inside a speech bubble; None hides the bubble
-    emoji: str | None = None  # 已废弃：不再渲染
-    # 形状控制（AI 通过控制面设置；默认 1.0 = 原比例）
+    emoji: str | None = None  # Deprecated: no longer rendered.
+    # Shape controls set through the AI control plane; 1.0 retains original proportions.
     head_scale: float = 1.0
     limb_scale: float = 1.0
     body_scale: float = 1.0
     arm_scale: float = 1.0
     leg_scale: float = 1.0
-    # 整体变换
-    rotation: float = 0.0           # 度数，绕中心旋转
+    # Global transforms.
+    rotation: float = 0.0           # Degrees of rotation around the center.
     flip_horizontal: bool = False
-    # 五官扩展
+    # Facial detail extensions.
     eye_size: float = 1.0
-    pupil_offset_y: int = 0         # 眼珠纵向（配合 eye_offset 横向）
-    eyebrow_angle: float = 0.0      # 眉毛倾斜：>0 挑眉，<0 皱眉
+    pupil_offset_y: int = 0         # Vertical pupil offset; eye_offset controls horizontal movement.
+    eyebrow_angle: float = 0.0      # Positive raises brows; negative furrows them.
     mouth_width_scale: float = 1.0
     cheek_blush: bool = False
-    # 头部形态
+    # Head shape.
     head_shape: str = "oval"        # oval | round | wide
-    neck_offset_x: float = 0.0      # 头相对身体左右偏
-    # 肢体弯曲系数（0=直，1=默认弯）
+    neck_offset_x: float = 0.0      # Horizontal head offset relative to the body.
+    # Limb bend factors (0 = straight; 1 = default bend).
     arm_bend_left: float = 0.6
     arm_bend_right: float = 0.6
     leg_bend_left: float = 0.4
     leg_bend_right: float = 0.4
-    stance_spread: float = 0.0      # 额外分腿角度
-    # 填充 / 光晕
+    stance_spread: float = 0.0      # Additional leg-spread angle.
+    # Fill and glow.
     fill_color: tuple[int, int, int] | None = None
     glow_color: tuple[int, int, int] | None = None
     glow_strength: float = 0.0
-    # 线条风格 & 气泡位置
+    # Line style and speech-bubble placement.
     line_style: str = "solid"       # solid | dash | dot
     speech_side: str = "right"      # left | right | top
 

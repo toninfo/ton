@@ -13,10 +13,10 @@ import (
 	"github.com/toninfo/ton/internal/clarify"
 )
 
-// ReviewDocs 磨合期友好审阅入口。
-// 默认打开文档目录（短提示，不灌屏）；preview 才在 notice 里给短摘要。
+// ReviewDocs is a friendly review portal during the running-in period.
+// The document directory is opened by default (short prompt, no screen filling); preview only gives a short summary in notice.
 //
-// mode: ""|"open" 打开目录；"preview" 短预览；"req"|"design" 打开对应文件。
+// mode: ""|"open" opens the directory; "preview" short preview; "req"|"design" opens the corresponding file.
 func (c *SessionController) ReviewDocs(mode string) (string, error) {
 	c.mu.RLock()
 	session := *c.session
@@ -99,7 +99,7 @@ func previewSection(title, body string) string {
 	return "[" + title + "]\n" + body + "\n"
 }
 
-// openWithSystem 用操作系统默认关联打开文件或目录（非阻塞）。
+// openWithSystem opens a file or directory with the operating system's default associations (non-blocking).
 func openWithSystem(path string) error {
 	path = filepath.Clean(strings.TrimSpace(path))
 	if path == "" {

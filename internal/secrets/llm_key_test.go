@@ -9,7 +9,7 @@ import (
 	"github.com/toninfo/ton/internal/brand"
 )
 
-// isolate 把配置目录钉到临时目录，避免污染真实用户配置。
+// isolate pins the configuration directory to a temporary directory to avoid contaminating the real user configuration.
 func isolate(t *testing.T) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "ton-config")

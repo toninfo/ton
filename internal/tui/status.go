@@ -10,19 +10,19 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// 轻量转圈帧：足够表达“工作中”，又不引入额外组件依赖。
+// Lightweight spinning frames: enough to express "work" without introducing additional component dependencies.
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 type tickMsg time.Time
 
-// tickCmd 驱动工作中状态的帧刷新。
+// tickCmd drives the frame refresh of the working state.
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second/12, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
 
-// isWorkingPhase 表示编排侧仍在推进（即使用户此刻没发命令）。
+// isWorkingPhase indicates that the orchestration side is still advancing (even if the user does not issue a command at the moment).
 func isWorkingPhase(phase domain.Phase) bool {
 	switch phase {
 	case domain.PhasePlanning, domain.PhaseExecuting, domain.PhaseVerifying, domain.PhaseRepairing, domain.PhaseSummarizing:
@@ -32,12 +32,12 @@ func isWorkingPhase(phase domain.Phase) bool {
 	}
 }
 
-// isTerminalPhase 表示会话已收尾，输入应退居次要。
+// isTerminalPhase indicates that the session has ended and input should take a back seat.
 func isTerminalPhase(phase domain.Phase) bool {
 	return phase == domain.PhaseDone || phase == domain.PhaseAborted
 }
 
-// queuesInput 时用户输入会进 FIFO，界面需给出可感知的提示。
+// When queuesInput, user input will be entered into FIFO, and the interface needs to give perceivable prompts.
 func queuesInput(phase domain.Phase) bool {
 	switch phase {
 	case domain.PhasePlanning, domain.PhaseExecuting, domain.PhaseVerifying, domain.PhaseRepairing, domain.PhaseSummarizing:
@@ -89,7 +89,7 @@ func (m Model) statusInfo() statusInfo {
 		info.hint = "say changes, or /start"
 	case domain.PhaseAborted:
 		info.kind = statusKindAborted
-		// 仍有 pending 时提示可再 /start 续跑（同会话允许多次启动）。
+		// If there is still pending, you will be prompted to continue running with /start (multiple starts are allowed in the same session).
 		if countPendingTodos(m.todos) > 0 {
 			info.hint = "type /start to continue"
 		} else {
@@ -99,15 +99,15 @@ func (m Model) statusInfo() statusInfo {
 		if m.busy {
 			info.kind = statusKindWorking
 			info.animated = true
-			// 不写 hint「thinking」——转圈本身已表达忙碌，避免双份提示
+			// Do not write the hint "thinking" - turning in circles already expresses busyness, so avoid double reminders.
 		}
 	}
 
-	// Start/Clarify 等异步命令进行中时，即便 phase 尚未切换也要有动效。
+	// When asynchronous commands such as Start/Clarify are in progress, there must be animation even if the phase has not yet switched.
 	if m.busy && !info.animated {
 		info.kind = statusKindWorking
 		info.animated = true
-		// clarify 忙碌不追加 working 文案，只靠转圈
+		// clarify: I don’t add working copywriting when I’m busy, I just rely on spinning around.
 		if m.session.Phase != domain.PhaseClarifying && m.session.Phase != domain.PhaseIdle {
 			if info.hint == "" {
 				info.hint = "working"
@@ -138,7 +138,7 @@ func (m Model) maxGateRepairs() int {
 	return 0
 }
 
-// activityHint 优先展示 subphase，保证 step_running / between_steps / verifying 可区分。
+// activityHint displays subphase first, ensuring that step_running / between_steps / verifying can be distinguished.
 func activityHint(session domain.Session, busy bool) string {
 	switch session.Subphase {
 	case "step_running":
@@ -250,7 +250,7 @@ func statusLabel(session domain.Session, count, maxGateRepairs int) string {
 }
 
 func (m Model) renderStatus() string {
-	// 保留给 /status 等调试路径；主界面只用 renderChrome。
+	// Reserved for debugging paths such as /status; only renderChrome is used for the main interface.
 	return m.renderChrome()
 }
 
@@ -286,14 +286,14 @@ func statusStyleFor(kind statusKind) lipgloss.Style {
 }
 
 func placeholderFor(phase domain.Phase, busy bool) string {
-	// 输入区不放水印/占位文案，避免视觉噪音；阶段提示改由状态条与页脚承担。
+	// No watermark/placeholder copy is placed in the input area to avoid visual noise; the stage prompts are instead handled by the status bar and footer.
 	_ = phase
 	_ = busy
 	return ""
 }
 
 func footerFor(phase domain.Phase, busy bool, queueLen int) string {
-	// 默认无页脚水印；仅在有排队输入时提示，避免输入区下方一长串说明。
+	// There is no footer watermark by default; it is only prompted when there is queued input to avoid a long list of instructions below the input area.
 	_ = busy
 	if queuesInput(phase) && queueLen > 0 {
 		return fmt.Sprintf("%d queued", queueLen)

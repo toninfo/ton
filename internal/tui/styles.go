@@ -2,7 +2,7 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// AdaptiveColor：Windows 深色终端下 #111827 会“隐形”，必须给 Dark 对比色。
+// AdaptiveColor: #111827 will be "invisible" under dark Windows terminals, and Dark contrasting color must be given.
 var (
 	cMuted = lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#9CA3AF"}
 	cBody  = lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E5E7EB"}
@@ -19,7 +19,7 @@ var (
 			Padding(0, 2, 1, 2)
 	headerStyle = lipgloss.NewStyle().
 			Foreground(cMuted)
-	// 顶部状态栏：仓库名作为身份色，分隔线取暗灰，说话人标签区分 you / ton。
+	// Top status bar: The warehouse name is used as the identity color, the dividing line is dark gray, and the speaker label distinguishes you / ton.
 	brandStyle = lipgloss.NewStyle().
 			Foreground(cBlue).
 			Bold(true)
@@ -29,8 +29,8 @@ var (
 			Foreground(cMuted).
 			Bold(true)
 	speakerTonStyle = lipgloss.NewStyle().
-				Foreground(cBlue).
-				Bold(true)
+			Foreground(cBlue).
+			Bold(true)
 	promptStyle = lipgloss.NewStyle().
 			Foreground(cBlue).
 			Bold(true)

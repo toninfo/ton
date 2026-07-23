@@ -7,7 +7,7 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// formatMilestone 将内部事件名映射为设计 §6.5 里程碑文案（英文、简约、可感知）。
+// formatMilestone maps internal event names to design §6.5 Milestone copy (English, simple, perceptible).
 func formatMilestone(name string, session domain.Session, todos domain.TodoList, maxRepairs, maxGateRepairs int) string {
 	switch name {
 	case "planning_complete":

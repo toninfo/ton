@@ -1,4 +1,4 @@
-// Package control 定义 LLM 流程指挥的控制信号（编排权威候选）。
+// Package control defines the control signals of the LLM process director (candidate for orchestration authority).
 package control
 
 import (
@@ -7,31 +7,31 @@ import (
 	"strings"
 )
 
-// Action 是经 ton 白名单校验后可执行的下一步。
+// Action is the next step that can be executed after ton whitelist verification.
 type Action string
 
 const (
-	ActionAskUser      Action = "ask_user"     // 继续向用户追问
-	ActionUpdateCards  Action = "update_cards" // 用 LLM 更新磨合卡片 / 文档（磨合默认）
-	ActionReadyCheck   Action = "ready_check"  // 建议检查 Ready / 预检门禁
-	ActionPlan         Action = "plan"         // 建议进入规划（仍需用户 /start）
-	ActionRepair       Action = "repair"       // 验收失败后建议再修
-	ActionAbort        Action = "abort"        // 建议中止（仍受 fallback 约束）
-	ActionSkipStep     Action = "skip_step"    // 步骤耗尽：跳过当前步（受 on_exhausted 约束）
-	ActionSummarize    Action = "summarize"    // 建议写报告 / finish_with_failure_report
-	ActionFinishReport Action = "finish_report" // 同 summarize，显式失败收束
+	ActionAskUser      Action = "ask_user"      // Continue to ask users
+	ActionUpdateCards  Action = "update_cards"  // Update grinding cards/documents with LLM (grinding default)
+	ActionReadyCheck   Action = "ready_check"   // It is recommended to check Ready/pre-check access control
+	ActionPlan         Action = "plan"          // It is recommended to enter planning (still requires user /start)
+	ActionRepair       Action = "repair"        // It is recommended to repair after failure of acceptance
+	ActionAbort        Action = "abort"         // Recommend abort (still subject to fallback)
+	ActionSkipStep     Action = "skip_step"     // Step exhausted: skip current step (subject to on_exhausted constraint)
+	ActionSummarize    Action = "summarize"     // It is recommended to write a report / finish_with_failure_report
+	ActionFinishReport Action = "finish_report" // Same as summarize, explicit failure to summarize
 )
 
-// Decision 是指挥层一次结构化输出。
+// Decision is a structured output from the command layer.
 type Decision struct {
 	Next       Action `json:"next"`
 	UserPrompt string `json:"user_prompt,omitempty"`
-	AgentBrief string `json:"agent_brief,omitempty"` // /start 后规划约束等；磨合期不派 agent
+	AgentBrief string `json:"agent_brief,omitempty"` // Planning constraints, etc. after /start; no agent will be sent during the running-in period
 	Rationale  string `json:"rationale,omitempty"`
 	Raw        string `json:"-"`
 }
 
-// Decode 从 LLM 文本中解析 Decision（容忍 Markdown 围栏）。
+// Decode parses Decision from LLM text (tolerates Markdown fences).
 func Decode(content string) (Decision, error) {
 	raw := extractJSONObject(content)
 	if raw == "" {
@@ -52,7 +52,7 @@ func Decode(content string) (Decision, error) {
 	return d, nil
 }
 
-// ResolveExhaustPolicy 把指挥决策映射到门禁耗尽策略（不得越权 fallback）。
+// ResolveExhaustPolicy maps command decisions to gate exhaustion policies (no override fallback).
 // allowed: abort_session | finish_with_failure_report
 func ResolveExhaustPolicy(decision Action, configured string) (policy string, rationale string) {
 	configured = strings.TrimSpace(configured)
@@ -72,14 +72,14 @@ func ResolveExhaustPolicy(decision Action, configured string) (policy string, ra
 		// configured is abort_session only — must honor
 		return configured, "conductor wanted report; fallback requires abort_session"
 	case ActionRepair:
-		// 耗尽后再修：仍受 MaxGateRepairs 外层控制；此处仅表达意图，由调用方决定是否额外一轮。
+		// Repair after exhaustion: still controlled by the outer layer of MaxGateRepairs; here only expresses the intention, and the caller decides whether to add another round.
 		return configured, "conductor preferred another repair; applying configured exhaust policy"
 	default:
 		return configured, "using configured exhaust policy"
 	}
 }
 
-// Validate 按阶段白名单过滤非法跳转；非法时降级为 ask_user。
+// Validate filters illegal jumps by stage whitelist; when illegal, it downgrades to ask_user.
 func Validate(phase string, d Decision) Decision {
 	allowed := allowedForPhase(phase)
 	if allowed[d.Next] {
@@ -122,9 +122,9 @@ func allowedForPhase(phase string) map[Action]bool {
 	}
 }
 
-// LooksLikeSmalltalk 识别纯问候/寒暄/催促类低信号输入（不含任何任务意图）。
-// 用途：尚无任务上下文时跳过 conductor，让「你好」秒回。
-// 保守策略：仅对「整句等于」某个寒暄词才判真，绝不误伤「登录页」这类短任务名。
+// LooksLikeSmalltalk recognizes pure greeting/nice/prompt type low-signal input (without any task intention).
+// Purpose: Skip the conductor when there is no task context, so that "Hello" can be replied instantly.
+// Conservative strategy: Only judge the truth of a greeting word "the whole sentence is equal to", and never accidentally damage short task names such as "Login Page".
 func LooksLikeSmalltalk(text string) bool {
 	s := strings.TrimSpace(strings.ToLower(text))
 	s = strings.TrimRight(s, "。.!！?？~～,，、… ")
@@ -154,7 +154,7 @@ func LooksLikeSmalltalk(text string) bool {
 	return false
 }
 
-// hasTaskSignal 粗略识别含任务意图的输入，避免被当成寒暄。
+// hasTaskSignal roughly identifies input with task intent to avoid being treated as pleasantries.
 func hasTaskSignal(text string) bool {
 	t := strings.ToLower(text)
 	keys := []string{
@@ -178,7 +178,7 @@ func hasTaskSignal(text string) bool {
 	return false
 }
 
-// ResolveStepExhaustPolicy 把指挥决策映射到步骤耗尽策略（不得越权 fallback）。
+// ResolveStepExhaustPolicy maps command decisions to step exhaustion policies (no override fallback).
 // allowed: abort_session | skip_step | continue_best_effort
 func ResolveStepExhaustPolicy(decision Action, configured string) (policy string, rationale string) {
 	configured = strings.TrimSpace(configured)

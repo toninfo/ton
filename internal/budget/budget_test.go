@@ -14,7 +14,7 @@ func TestExceedMaxTokensTriggersAbortAtStepBoundary(t *testing.T) {
 		OnExceeded: budget.OnExceededAbortSession,
 	})
 
-	// 模拟 driver 在步骤执行期间上报 usage 事件。
+	// The simulated driver reports usage events during step execution.
 	tracker.Accumulate(usageEvent(80))
 	tracker.Accumulate(usageEvent(30))
 

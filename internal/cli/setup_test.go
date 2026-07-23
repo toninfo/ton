@@ -11,7 +11,7 @@ import (
 
 func TestSetupCmdSavesKey(t *testing.T) {
 	dir := t.TempDir()
-	// TON_CONFIG_DIR 跨平台隔离配置目录（Windows 用 %AppData%，不认 XDG_CONFIG_HOME）。
+	// TON_CONFIG_DIR Cross-platform isolation configuration directory (Windows uses %AppData%, XDG_CONFIG_HOME is not recognized).
 	configDir := filepath.Join(dir, "ton-config")
 	t.Setenv("TON_CONFIG_DIR", configDir)
 

@@ -41,10 +41,10 @@ type AcceptanceGate struct {
 	PassRule string              `json:"pass_rule"`
 }
 
-// StepVerifyConfig 对应 acceptance.json 的 step_verify 段。
+// StepVerifyConfig corresponds to the step_verify section of acceptance.json.
 type StepVerifyConfig struct {
-	Enabled  bool                    `json:"enabled"`
-	Commands []AcceptanceCommand     `json:"commands"`
+	Enabled  bool                `json:"enabled"`
+	Commands []AcceptanceCommand `json:"commands"`
 }
 
 // Acceptance is the English-language acceptance card.
@@ -54,7 +54,7 @@ type Acceptance struct {
 	Gate        AcceptanceGate   `json:"gate"`
 	StepVerify  StepVerifyConfig `json:"step_verify"`
 	Notes       string           `json:"notes"`
-	// DirtyConfirmed 表示用户已确认可在脏工作区启动（§10.5）。
+	// DirtyConfirmed means that the user has confirmed that it can start in a dirty workspace (§10.5).
 	DirtyConfirmed bool `json:"dirty_confirmed"`
 }
 
@@ -88,9 +88,9 @@ type ReqState struct {
 	Decide                Decide        `json:"decide"`
 	Acceptance            Acceptance    `json:"acceptance"`
 	Fallback              Fallback      `json:"fallback"`
-	// TargetWorkspace 是用户确认的项目根目录（绝对路径）。空 = 使用启动时的 cwd。
+	// TargetWorkspace is the user-confirmed project root directory (absolute path). Empty = use the cwd at startup.
 	TargetWorkspace string `json:"target_workspace,omitempty"`
-	// TargetParent 用户只指定了父目录（如 D:\tmp）时暂存，拼上项目名后写入 TargetWorkspace。
+	// TargetParent When the user only specifies the parent directory (such as D:\tmp), it is temporarily saved, spells the project name and writes it to TargetWorkspace.
 	TargetParent string `json:"target_parent,omitempty"`
 }
 
@@ -99,7 +99,7 @@ type ReqState struct {
 // acceptance/fallback gates are confirmed. An empty gate is permitted solely
 // when AllowNoGate is explicitly true.
 //
-// 产品契约：长周期执行前必须先形成可打开查阅的完善文档；一两句闲聊肯定不够。
+// Product contract: A complete document that can be opened and consulted must be formed before long-term execution; one or two small words are definitely not enough.
 func ReadyForStart(state *ReqState) bool {
 	if state == nil || !state.RequirementsConfirmed || !state.Fallback.Confirmed {
 		return false
@@ -126,7 +126,7 @@ func ReadyForStart(state *ReqState) bool {
 	return state.Acceptance.AllowNoGate || hasRunnableAcceptanceCommand(state.Acceptance.Gate)
 }
 
-// ReadyMissing 返回尚未满足 Ready 的简短原因（只暴露产品缺口，不提运维默认项）。
+// ReadyMissing returns a brief reason why Ready has not been met (only product gaps are exposed, and operation and maintenance defaults are not mentioned).
 func ReadyMissing(state *ReqState) []string {
 	if state == nil {
 		return []string{"clarification state missing"}
@@ -149,7 +149,7 @@ func ReadyMissing(state *ReqState) []string {
 	if !state.Acceptance.AllowNoGate && !hasRunnableAcceptanceCommand(state.Acceptance.Gate) {
 		missing = append(missing, "补充可执行验收命令，或明确允许无门禁")
 	}
-	// fallback / permission / git 由 ApplyAutomationDefaults 填齐；若仍缺则静默不算用户待办。
+	// fallback / permission / git is filled in by ApplyAutomationDefaults; if it is still missing, it will be silently not counted as user to-do.
 	_ = state.Fallback
 	return missing
 }

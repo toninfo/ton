@@ -35,7 +35,7 @@ type ClarifyOut struct {
 // Clarifier turns user input into a durable clarification state (LLM-only).
 type Clarifier struct {
 	Client ChatClient
-	// RepoContext 可选仓库摘要，注入 user 消息（由 SessionController 提供）。
+	// RepoContext Optional repository summary, injected with user messages (provided by SessionController).
 	RepoContext string
 }
 
@@ -86,7 +86,7 @@ func applyOutput(state *ReqState, output ClarifyOut) {
 		}
 	}
 	maybeComposeTarget(state)
-	// LLM 的 confirmed 不能单独把薄弱文档抬进 Ready：只有文档充实才采纳。
+	// LLM's confirmation cannot lift weak documents into Ready alone: ​​only the documents that are sufficient will be accepted.
 	if DocsAdequate(state) && output.Understanding.Confirmed {
 		state.RequirementsConfirmed = true
 	} else if !DocsAdequate(state) {

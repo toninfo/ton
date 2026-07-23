@@ -16,11 +16,11 @@ import (
 	"github.com/toninfo/ton/internal/store"
 )
 
-// ensureEffectiveWorkspace 按 B 模型绑定真正的项目根目录：
-//   - TargetWorkspace 非空 → 创建（如需）并切换到该目录
-//   - 为空 → 保持启动时的 cwd（launchWorkspace）
+// ensureEffectiveWorkspace binds the real project root directory according to the B model:
+//   - TargetWorkspace is not empty → create (if necessary) and change to this directory
+//   - is empty → keep cwd at launch (launchWorkspace)
 //
-// 切换时迁移会话产物、重绑 store/锁/index，并在目标仓 EnsureRepo。
+// When switching, migrate session products, rebind store/lock/index, and ensureRepo in the target warehouse.
 func (c *SessionController) ensureEffectiveWorkspace(ctx context.Context) (switched bool, err error) {
 	c.mu.Lock()
 	if c.session == nil {
@@ -62,7 +62,7 @@ func (c *SessionController) ensureEffectiveWorkspace(ctx context.Context) (switc
 		}
 	}
 
-	// 验收 cwd 若写成目标绝对路径，改为相对 "."，避免再次越狱/拼坏。
+	// If the acceptance cwd is written as the absolute path of the target, change it to a relative "." to avoid jailbreaking/breaking it again.
 	if absCWD := strings.TrimSpace(state.Acceptance.Gate.CWD); absCWD != "" && filepath.IsAbs(absCWD) {
 		state.Acceptance.Gate.CWD = "."
 	}
@@ -72,7 +72,7 @@ func (c *SessionController) ensureEffectiveWorkspace(ctx context.Context) (switc
 		_ = oldStore.Unlock(sessionID)
 	}
 	if err := newStore.TryLock(sessionID); err != nil {
-		// 尽量回锁旧仓，避免会话悬空。
+		// Try to lock the old position back to avoid hanging the session.
 		if locked {
 			_ = oldStore.TryLock(sessionID)
 		}
@@ -104,7 +104,7 @@ func (c *SessionController) ensureEffectiveWorkspace(ctx context.Context) (switc
 	}
 
 	c.emit("Workspace → " + eff)
-	// 尽力清理启动目录里的旧会话壳，避免污染 ton 源码仓。
+	// Try your best to clean up old session shells in the startup directory to avoid contaminating the ton source code repository.
 	if !sameWorkspacePath(oldWS, eff) {
 		_ = os.RemoveAll(oldDir)
 	}
@@ -140,7 +140,7 @@ func copyDirContents(src, dst string) error {
 		if rel == "." {
 			return nil
 		}
-		// 不迁移旧锁；目标仓会重新加锁。
+		// Old locks will not be migrated; the target repository will be re-locked.
 		if info.Name() == "lock.json" {
 			return nil
 		}
@@ -170,7 +170,7 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// oldStoreBase 复用原 store 的全局 index 根，避免切换工作区后 sessions 索引分裂。
+// oldStoreBase reuses the global index root of the original store to avoid sessions index splitting after switching workspaces.
 func oldStoreBase(s *store.Store) string {
 	if s == nil {
 		return brand.ResolveDataDir()

@@ -189,7 +189,7 @@ class TestStickmanParams(unittest.TestCase):
 
 
 class TestControlPlane(unittest.TestCase):
-    """控制面：纯 patch，无 action 名副作用 / 无 enrichment。"""
+    """Control plane: pure patching with no action-name side effects or enrichment."""
 
     def test_empty_params_preserves_state(self) -> None:
         from stickman import StickmanParams
@@ -205,7 +205,7 @@ class TestControlPlane(unittest.TestCase):
         from stickman import StickmanParams
         from behavior import execute_action
         p = StickmanParams(line_color=(10, 20, 30))
-        # angry 不再自动变红
+        # ``angry`` no longer automatically changes the line color to red.
         result = execute_action("angry", {}, p)
         self.assertEqual(result.line_color, (10, 20, 30))
 
@@ -411,8 +411,95 @@ class TestAIClient(unittest.TestCase):
         self.assertEqual(build_system_prompt(), _SYSTEM_PROMPT)
 
 
+class TestLongTermMemory(unittest.TestCase):
+    def setUp(self) -> None:
+        import tempfile
+        from pathlib import Path
+        from memory import LongTermMemory
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._path = Path(self._tmpdir.name) / "nago.memory.json"
+        self.mem = LongTermMemory(self._path, max_facts=8)
+
+    def tearDown(self) -> None:
+        self._tmpdir.cleanup()
+
+    def test_upsert_and_dedupe(self) -> None:
+        self.assertTrue(self.mem.upsert("用户叫小明", category="identity", importance=0.9))
+        self.assertTrue(self.mem.upsert("用户叫小明", category="identity", importance=0.95))
+        self.assertEqual(len(self.mem.facts), 1)
+        self.assertGreaterEqual(self.mem.facts[0]["importance"], 0.95)
+
+    def test_promote_explicit_user(self) -> None:
+        self.assertTrue(self.mem.maybe_promote_from_user("记住：我喜欢安静，别老出拳"))
+        self.assertEqual(self.mem.facts[0]["category"], "boundary")
+        self.assertFalse(self.mem.maybe_promote_from_user("今天天气不错"))
+
+    def test_forget(self) -> None:
+        self.mem.upsert("喜欢打拳", category="preference")
+        self.assertEqual(self.mem.forget("打拳"), 1)
+        self.assertEqual(len(self.mem.facts), 0)
+
+    def test_remember_payload(self) -> None:
+        n = self.mem.apply_remember_payload(
+            {"text": "正在写 Nago", "category": "project", "importance": 0.8}
+        )
+        self.assertEqual(n, 1)
+        blob = self.mem.to_context_blob()
+        self.assertEqual(blob["count"], 1)
+        self.assertIn("Nago", blob["facts"][0])
+
+
+class TestSessionMemory(unittest.TestCase):
+    """Session persistence and oversized-log compression."""
+
+    def setUp(self) -> None:
+        import tempfile
+        from pathlib import Path
+        from session import SessionMemory
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._path = Path(self._tmpdir.name) / "nago.session.json"
+        self.mem = SessionMemory(self._path, max_chars=200, keep_recent_chars=60)
+
+    def tearDown(self) -> None:
+        self._tmpdir.cleanup()
+
+    def test_queue_and_persist(self) -> None:
+        self.assertTrue(self.mem.queue_user_message("你好呀"))
+        self.assertEqual(self.mem.peek_pending_user(), "你好呀")
+        self.assertTrue(self._path.is_file())
+        self.mem.consume_pending_user()
+        self.assertIsNone(self.mem.peek_pending_user())
+
+    def test_nago_summary(self) -> None:
+        from session import summarize_actions
+        s = summarize_actions([
+            {"action": "punch", "params": {"play": "punch", "speech_bubble": "又点我?"}},
+        ])
+        self.assertIn("punch", s)
+        self.assertIn("又点我?", s)
+        self.assertIn('says "又点我?"', s)
+
+    def test_fallback_compression_uses_english_archival_labels(self) -> None:
+        for i in range(80):
+            self.mem.append("user", f"message {i:02d} with extra text for compression")
+        self.assertTrue(self.mem.compress())
+        self.assertIn("(auto-compressed) User said:", self.mem.entries[0]["text"])
+        self.assertIn(" | Recent activity:", self.mem.entries[0]["text"])
+
+    def test_compress_over_limit(self) -> None:
+        for i in range(80):
+            self.mem.append("user", f"用户消息编号{i:02d}再补一点字制造长度")
+            self.mem.append("nago", f"nago动作摘要{i:02d}继续拉长一点内容")
+        self.assertGreater(self.mem.char_count(), self.mem.max_chars)
+        self.assertTrue(self.mem.needs_compress())
+        self.assertTrue(self.mem.compress(summarizer=lambda _: "压缩摘要：聊过点击与走路"))
+        self.assertLessEqual(self.mem.char_count(), self.mem.max_chars)
+        self.assertEqual(self.mem.entries[0]["role"], "summary")
+        self.assertIn("压缩摘要", self.mem.entries[0]["text"])
+
+
 class TestNagoConfig(unittest.TestCase):
-    """外置配置：密钥走 env / nago.local.env，不硬编码进仓库。"""
+    """External configuration: use env or nago.local.env, never hard-code secrets."""
 
     def test_default_endpoint_is_local(self) -> None:
         import os
@@ -517,7 +604,7 @@ class TestAILiveConnectivity(unittest.TestCase):
             "idle_long",
         )
         logger.info("idle_long → %s (%d actions)", actions[0]["action"], len(actions))
-        # 模型自由决策；客户端只校验协议合法
+        # The model decides freely; the client validates only protocol correctness.
         self.assertIn("action", actions[0])
 
     def test_click_left_response(self) -> None:
@@ -701,8 +788,12 @@ class TestNagoWindow(unittest.TestCase):
             "clicks", "wheel_delta", "hover", "time_since_last_input_ms",
             "foreground_window", "is_desktop", "screen_resolution",
             "available_geometry", "nago_window", "screen_colors",
+            "user_message", "conversation", "long_term_memory", "memory_layers",
         ):
             self.assertIn(key, obs, f"observations missing: {key}")
+        self.assertIn("lines", obs["conversation"])
+        self.assertIn("chars", obs["conversation"])
+        self.assertIn("facts", obs["long_term_memory"])
         self.assertIn("params", ctx["agent_state"])
         self.assertIn("motion", ctx["agent_state"])
         self.assertTrue(ctx["capabilities"].get("no_local_behavior"))
@@ -765,7 +856,7 @@ class TestNagoWindow(unittest.TestCase):
         self.window._heartbeat_timer.stop()
 
     def test_capabilities_full_then_digest(self) -> None:
-        """首轮 full catalog，之后 digest 瘦身。"""
+        """Send the full catalog first, then use the smaller digest."""
         self.window._capabilities_full_sent = False
         ctx_full = self.window._build_context()
         self.assertIn("param_ranges", ctx_full["capabilities"])
@@ -775,7 +866,7 @@ class TestNagoWindow(unittest.TestCase):
         ctx_digest = self.window._build_context()
         self.assertTrue(ctx_digest["capabilities"].get("digest"))
         self.assertNotIn("param_ranges", ctx_digest["capabilities"])
-        # 恢复，避免污染后续用例
+        # Restore the state to avoid contaminating later test cases.
         self.window._capabilities_full_sent = False
 
     def test_fade_animator_present(self) -> None:
@@ -784,7 +875,7 @@ class TestNagoWindow(unittest.TestCase):
 
     def test_stickman_hit_detection(self) -> None:
         from PySide6.QtCore import QPoint
-        # 100×150 窗口内小人热区中心
+        # Center of the stickman hit area within the 100×150 window.
         self.assertTrue(self.window._is_on_stickman(QPoint(50, 50)))
         # Outside
         self.assertFalse(self.window._is_on_stickman(QPoint(0, 0)))
@@ -797,10 +888,10 @@ class TestNagoWindow(unittest.TestCase):
     # ── Action parameter application ──────────────────────────────────────
 
     def test_apply_color_param(self) -> None:
-        # 无情绪变化时颜色会被剥离
+        # Color is stripped when there is no emotion change.
         self.window._apply_action_params({"color": [255, 0, 0]})
         self.assertEqual(self.window._last_color, (0, 0, 0))
-        # 带 emotion 标签才生效
+        # It takes effect only when an emotion label is supplied.
         self.window._apply_action_params({"emotion": "alert", "color": [255, 0, 0]})
         self.assertEqual(self.window._last_color, (255, 0, 0))
 
@@ -832,13 +923,19 @@ class TestNagoWindow(unittest.TestCase):
         self.window._apply_action_params({"emotion": "dramatic", "invert_colors": True})
         self.assertTrue(self.window._stickman_params.invert_colors)
 
-    def test_apply_speech_bubble_param(self) -> None:
+    def test_apply_remember_param(self) -> None:
+        marker = f"用户讨厌废话气泡-{_time.time_ns()}"
+        self.window._apply_action_params({
+            "remember": {"text": marker, "category": "preference", "importance": 0.9},
+        })
+        texts = [f["text"] for f in self.window._long_memory.facts]
+        self.assertIn(marker, texts)
         self.window._apply_action_params({"speech_bubble": "你好！"})
         self.assertEqual(self.window._stickman_params.speech_bubble, "你好！")
         self.assertTrue(self.window._speech_bubble_timer.isActive())
 
     def test_speech_bubble_auto_dismiss(self) -> None:
-        """气泡数秒后由本地计时器清空，不依赖 AI 再发 null。"""
+        """The local timer clears the bubble after several seconds without another AI null."""
         self.window._speech_bubble_timer.stop()
         self.window._apply_action_params({"speech_bubble": "又点我?"})
         self.assertEqual(self.window._stickman_params.speech_bubble, "又点我?")

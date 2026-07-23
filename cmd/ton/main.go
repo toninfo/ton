@@ -7,7 +7,7 @@ import (
 	"github.com/toninfo/ton/internal/cli"
 )
 
-// GoReleaser 通过 -ldflags -X 注入这些符号。
+// GoReleaser injects these symbols via -ldflags -X.
 var (
 	version = "dev"
 	commit  = "none"

@@ -1,8 +1,9 @@
 """
-Behavior — 薄封装。
+Behavior compatibility wrapper.
 
-历史遗留的 Mood/Action 状态机仍保留给 pygame 路径；
-Qt 生产路径请走 ``control.apply_control_patch``，禁止 enrichment。
+The legacy ``Mood``/``Action`` state machine remains for the Pygame path.
+The production Qt path must use ``control.apply_control_patch`` without local
+enrichment.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ class Action(Enum):
 
 @dataclass
 class Behavior:
-    """遗留状态机（pygame）；Qt 主路径不使用。"""
+    """Legacy Pygame state machine; unused by the primary Qt path."""
 
     mood: Mood = Mood.NEUTRAL
     action: Action = Action.IDLE
@@ -61,9 +62,10 @@ def execute_action(
     params: dict | None,
     current_params: "StickmanParams",
 ) -> "StickmanParams":
-    """兼容旧调用签名：仅做控制面 patch，**不**按 action_name 补全。
+    """Maintain the legacy call signature with control-plane patching only.
 
-    ``action_name`` 被忽略（仅日志语义）；所有变化来自 ``params``。
+    ``action_name`` is ignored except for logging semantics; every change comes
+    from ``params``.
     """
     from control import apply_control_patch
 

@@ -32,17 +32,17 @@ type SessionRunner struct {
 	OnGateExhausted string
 	RepairTimeout   time.Duration
 
-	// SkipExecute 为 true 时跳过步骤循环，直接从会话级 Verify 恢复（§9.3）。
+	// When SkipExecute is true, skip the step loop and resume directly from session-level Verify (§9.3).
 	SkipExecute bool
-	// GateRepairsUsed 恢复时已消耗的门禁修复次数，避免预算被重置。
+	// GateRepairsUsed The number of gate repairs consumed during recovery to prevent the budget from being reset.
 	GateRepairsUsed int
-	// StartVerifyRound 首次 Verify 的轮次号（默认 1）。
+	// StartVerifyRound The round number of the first Verify (default 1).
 	StartVerifyRound int
 
-	// OnVerifyFailed 验收失败且仍有修复预算时询问指挥层（可空）。
-	// 返回 ActionAbort 则立即按耗尽策略收束；ActionSummarize 同理；其它继续 repair。
+	// OnVerifyFailed Asks the command level when the acceptance fails and there is still a repair budget (optional).
+	// If ActionAbort is returned, it will be terminated immediately according to the depletion strategy; ActionSummarize is the same; otherwise, repair will continue.
 	OnVerifyFailed func(ctx context.Context, round int, summary string) control.Action
-	// OnGateExhaust 耗尽前询问指挥层，映射到 abort_session / finish_with_failure_report（可空）。
+	// OnGateExhaust asks the command layer before exhaustion, mapped to abort_session / finish_with_failure_report (nullable).
 	OnGateExhaust func(ctx context.Context, summary string) (policy string, rationale string)
 }
 
@@ -83,7 +83,7 @@ func (r SessionRunner) Run(
 	return r.runVerifyLoop(ctx, session, todos, terminal)
 }
 
-// RunVerifyOnly 从会话级验收恢复（跳过 Execute）。
+// RunVerifyOnly Resume from session-level acceptance (skips Execute).
 func (r SessionRunner) RunVerifyOnly(
 	ctx context.Context,
 	session *domain.Session,
@@ -110,7 +110,7 @@ func (r SessionRunner) runVerifyLoop(
 	}
 
 	for {
-		// Verify 入口边界：消费 soft-stop，避免验收空跑。
+		// Verify entry boundary: consume soft-stop to avoid empty acceptance.
 		if stop, _ := r.consumeBoundary(); stop {
 			r.finish(session, domain.PhaseAborted, domain.TerminalAborted)
 			r.milestone("session_aborted")
@@ -129,7 +129,7 @@ func (r SessionRunner) runVerifyLoop(
 			return domain.TerminalFailed, todos, fmt.Errorf("session runner: verify round %d: %w", round, err)
 		}
 
-		// Verify 出口边界：通过或失败后都先看 soft-stop。
+		// Verify exit boundary: look at soft-stop first after passing or failing.
 		stop, extras := r.consumeBoundary()
 		if stop {
 			r.finish(session, domain.PhaseAborted, domain.TerminalAborted)
@@ -151,7 +151,7 @@ func (r SessionRunner) runVerifyLoop(
 			return r.exhaust(ctx, session, todos, failSummary)
 		}
 
-		// 指挥层可在预算内提前 abort/summarize（仍受 fallback 策略约束）。
+		// Command can abort/summarize early and within budget (still subject to fallback policy).
 		if r.OnVerifyFailed != nil {
 			act := r.OnVerifyFailed(ctx, round, failSummary)
 			switch act {
@@ -203,7 +203,7 @@ func (r SessionRunner) exhaust(
 			r.milestone("conductor_exhaust: " + rationale)
 		}
 	}
-	// 失败分支 rationale：落在里程碑，便于 /status 与审计（策略仍受 fallback 约束）。
+	// Failed branch rationale: falls on the milestone to facilitate /status and auditing (the policy is still subject to fallback).
 	r.milestone("gate_exhausted:" + policy)
 	if policy == OnGateExhaustedAbortSession {
 		r.finish(session, domain.PhaseAborted, domain.TerminalAborted)

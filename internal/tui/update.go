@@ -20,7 +20,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
-			// best-effort：若编排仍在跑则 hard stop，再退出 TUI。
+			// best-effort: If the arrangement is still running, hard stop and then exit TUI.
 			_ = m.controller.Stop(context.Background(), "hard")
 			return m, tea.Quit
 		case tea.KeyEnter:
@@ -28,7 +28,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if value == "" {
 				return m, nil
 			}
-			// 澄清/本地异步进行中禁止连发：否则多条 Clarify 并发，回复会挂错轮次。
+			// Clarification/It is forbidden to send continuously while local asynchronous is in progress: otherwise, if multiple Clarify messages are sent concurrently, the reply will be in the wrong turn.
 			if m.busy && !queuesInput(m.session.Phase) {
 				m.setNotice("还在处理上一条，稍等片刻再发。", false)
 				return m, nil
@@ -62,12 +62,12 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.appendMilestoneLog(raw)
 		wasTicking := m.needsTick()
 		m.refresh()
-		// 执行中默认展开 todos，让关键步骤可见。
+		// Todos are expanded by default during execution to make key steps visible.
 		if isWorkingPhase(m.session.Phase) {
 			m.showTodos = true
 		}
 		cmds := []tea.Cmd{m.controller.NextMilestone()}
-		// 仅在首次进入工作态时启动 tick，避免多条动画链叠加速。
+		// Only start tick when entering the working state for the first time to avoid superimposed speed of multiple animation chains.
 		if m.needsTick() && !wasTicking {
 			cmds = append(cmds, tickCmd())
 		}
@@ -79,7 +79,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.setNotice(friendlyError(msg.err), true)
-			// 按 chatID 回填错误；不再盲写最后一条。
+			// Backfill errors by chatID; no longer blind-write the last entry.
 			if msg.toChat {
 				_ = m.applyChatReply(msg.chatID, friendlyError(msg.err))
 			}
@@ -96,7 +96,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				_ = m.applyChatReply(msg.chatID, reply)
 			} else {
-				// slash / 系统消息：只进 notice，绝不覆盖上一轮 ton 回复（否则像重复/错乱）。
+				// slash / system message: only enter notice, never overwrite the previous round of ton reply (otherwise it will be like duplication/disorder).
 				m.setNotice(reply, false)
 			}
 			if m.needsTick() && !wasTicking {
@@ -120,7 +120,7 @@ func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
 	if parsed, ok := parseCommand(input); ok {
 		return m.runCommand(parsed)
 	}
-	// Done/Aborted：结束后仍可聊。闲聊给收尾说明；要改需求则重开澄清。
+	// Done/Aborted: You can still chat after it's over. Give the final explanation through small talk; if you want to change the requirements, reopen it for clarification.
 	if isTerminalPhase(m.session.Phase) {
 		pending := countPendingTodos(m.todos)
 		hint := terminalFollowUpHint(m.session, pending)
@@ -142,7 +142,7 @@ func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
 			return actionDoneMsg{notice: card, err: err, endsBusy: true, toChat: true, chatID: chatID}
 		})
 	}
-	// 执行期输入只入队，不抢 busy；澄清期才展示 thinking。
+	// During the execution period, input is only added to the queue and busy is not grabbed; thinking is only displayed during the clarification period.
 	if queuesInput(m.session.Phase) {
 		return m, func() tea.Msg {
 			card, err := m.controller.Clarify(context.Background(), input)
@@ -155,13 +155,13 @@ func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
 	})
 }
 
-// looksLikeFollowUpChange 粗判用户是在改需求，而不是随口问「结束了？」。
+// looksLikeFollowUpChange roughly determines that the user is changing their needs, rather than casually asking "Is it over?"
 func looksLikeFollowUpChange(input string) bool {
 	s := strings.TrimSpace(strings.ToLower(input))
 	if s == "" {
 		return false
 	}
-	// 纯确认/收尾闲聊：不强制开澄清
+	// Pure confirmation/closing chat: no forced clarification
 	chitchat := []string{
 		"结束了", "结束了？", "结束了?", "完了", "完了吗", "好了", "好了吗",
 		"结束了就不搭理我了", "结束了就不搭理我了？", "在吗", "你好",
@@ -177,7 +177,7 @@ func looksLikeFollowUpChange(input string) bool {
 			return true
 		}
 	}
-	// 稍长的句子多半是在提需求
+	// Longer sentences are mostly about making demands.
 	return len([]rune(s)) >= 8
 }
 
@@ -209,8 +209,8 @@ func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
 			return actionDoneMsg{notice: controller.CompactStatus()}
 		}
 	case commandStop:
-		// Stop 本身很快；工作态动效继续由 phase 驱动，避免误清 Start 的 busy。
-		// argument 为空时由控制器回落到 cfg.Execute.Stop。
+		// Stop itself is very fast; the working state animation continues to be driven by phase to avoid misunderstanding Start's busy.
+		// When argument is empty, the controller falls back to cfg.Execute.Stop.
 		return m, func() tea.Msg {
 			return actionDoneMsg{notice: "Stop requested.", err: m.controller.Stop(context.Background(), command.argument)}
 		}
@@ -263,7 +263,7 @@ func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
 	}
 }
 
-// beginBusy 打开工作态；若原本已在动效中则不重复订阅 tick。
+// beginBusy opens the working state; if it is already in animation, it will not subscribe to tick repeatedly.
 func (m Model) beginBusy(work tea.Cmd) (tea.Model, tea.Cmd) {
 	wasTicking := m.needsTick()
 	m.setBusy(true)
@@ -296,10 +296,10 @@ func countPendingTodos(todos domain.TodoList) int {
 	return n
 }
 
-// startFinishReply 把 /start 收尾写成对话里的短收尾。
-// 同会话仍可继续聊，故不再塞 Progress / Artifacts / Resume 墙（进度已在下方 Progress 区）。
+// startFinishReply writes the /start ending as a short ending in the conversation.
+// You can still continue chatting in the same conversation, so the Progress / Artifacts / Resume wall is no longer blocked (the progress is already in the Progress area below).
 func startFinishReply(notice string, log []string, session domain.Session, todos domain.TodoList) string {
-	_ = log // 里程碑留给底部 Progress，不进对话
+	_ = log // Milestones are left to Progress at the bottom and do not enter the dialogue.
 	pending := countPendingTodos(todos)
 	aborted := session.TerminalStatus == domain.TerminalAborted ||
 		strings.Contains(notice, "中止") || strings.HasPrefix(strings.TrimSpace(notice), "Session aborted")
@@ -333,7 +333,7 @@ func ensureSentence(s string) string {
 	return s + "。"
 }
 
-// friendlyError 把底层解码噪音收成用户能看懂的一句。
+// friendlyError condenses the underlying decoding noise into a sentence that users can understand.
 func friendlyError(err error) string {
 	if err == nil {
 		return ""
@@ -349,4 +349,3 @@ func friendlyError(err error) string {
 		return "出错了：" + wrapNotice(msg, 72)
 	}
 }
-

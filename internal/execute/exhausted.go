@@ -8,7 +8,7 @@ const (
 	OnExhaustedContinueBestEffort = "continue_best_effort"
 )
 
-// ExhaustedDecision 描述步骤级修复耗尽后的编排动作。
+// ExhaustedDecision describes the orchestration actions after exhaustion of step-level repairs.
 type ExhaustedDecision struct {
 	StepStatus       domain.TodoStatus
 	ContinueSteps    bool
@@ -16,16 +16,16 @@ type ExhaustedDecision struct {
 	TerminalHint     domain.TerminalStatus
 }
 
-// Apply 根据 on_exhausted 策略给出步骤级修复耗尽后的固定决策。
+// Apply gives fixed decisions after step-level repairs are exhausted based on the on_exhausted policy.
 func Apply(policy string, step domain.TodoItem) ExhaustedDecision {
-	// 保留 step 参数，使策略接口直接对应当前 Todo；后续执行器负责写回该步骤状态。
+	// Keep the step parameter so that the policy interface directly corresponds to the current Todo; the subsequent executor is responsible for writing back the step status.
 	_ = step
 
-	// §8.5 矩阵：
-	// abort_session：failed，停止后续步骤，不运行会话级 Verify，终态提示 aborted。
-	// skip_step：skipped，继续后续步骤，仍运行会话级 Verify。
-	// continue_best_effort：failed，继续后续步骤，仍运行会话级 Verify；
-	//   若门禁最终通过，终态提示 done_with_failed_steps。
+	// §8.5 Matrix:
+	// abort_session: failed, subsequent steps are stopped, session-level Verify is not run, and the final status prompts aborted.
+	// skip_step: skipped, continue with subsequent steps and still run session-level Verify.
+	// continue_best_effort: failed, continue with subsequent steps and still run session-level Verify;
+	//   If the access control is finally passed, the final status prompts done_with_failed_steps.
 	switch policy {
 	case OnExhaustedSkipStep:
 		return ExhaustedDecision{
@@ -43,7 +43,7 @@ func Apply(policy string, step domain.TodoItem) ExhaustedDecision {
 	case OnExhaustedAbortSession:
 		fallthrough
 	default:
-		// 未知策略按最保守的 abort_session 处理，避免在未确认配置下继续改动。
+		// Unknown policies are processed according to the most conservative abort_session to avoid further changes without confirming the configuration.
 		return ExhaustedDecision{
 			StepStatus:   domain.TodoFailed,
 			TerminalHint: domain.TerminalAborted,

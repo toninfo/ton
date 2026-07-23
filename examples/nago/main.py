@@ -32,7 +32,7 @@ import sys
 import time as _time
 from pathlib import Path
 
-from ai_client import get_ai_action_sync
+from ai_client import compress_session_text, get_ai_action_sync
 from control import (
     CONTROL_INTERFACE_SPEC,
     apply_control_patch,
@@ -44,7 +44,9 @@ from control import (
     params_snapshot,
     with_display_color,
 )
+from memory import LongTermMemory
 from nago_config import get_runtime_settings
+from session import SessionMemory
 from PySide6.QtCore import (
     QEasingCurve, QObject, QPoint, QPropertyAnimation, Property, QRect, QRectF, Qt, QThread, QTimer, Signal,
 )
@@ -53,34 +55,34 @@ from PySide6.QtGui import (
     QPixmap, QRadialGradient,
 )
 from PySide6.QtWidgets import (
-    QApplication, QMenu, QSystemTrayIcon, QWidget,
+    QApplication, QInputDialog, QLineEdit, QMenu, QSystemTrayIcon, QWidget,
 )
 from stickman import StickmanParams
 
 logger = logging.getLogger(__name__)
 
-# 临时调试：在小人下方打印 AI 会话全文（上下文 + 模型原始回复）。关了改 False。
+# Temporary debugging: show the full AI transcript below the stickman. Set to False to disable.
 DEBUG_AI_PANEL = False
 DEBUG_PANEL_W = 480
 DEBUG_PANEL_H = 420
 STICKMAN_W = 100
 STICKMAN_H = 150
-# 内部绘制仍用 200×300 逻辑坐标，显示时整体缩放到窗口一半
+# Rendering uses a 200×300 logical canvas that is scaled down by half for display.
 STICKMAN_CANVAS_W = 200
 STICKMAN_CANVAS_H = 300
 RENDER_SCALE = STICKMAN_W / STICKMAN_CANVAS_W  # 0.5
-# approach_mouse 动画内部参数（仅 AI 触发 play 时执行）
+# Internal approach_mouse animation settings, used only when AI triggers ``play``.
 APPROACH_MOUSE_MIN_DIST = 110.0
 APPROACH_MOUSE_STOP_DIST = 75.0
 APPROACH_MOUSE_SPEED = 2.2
 APPROACH_MOUSE_MAX_SEC = 3.0
-# 调试面板：给 ASSISTANT 预留行数，避免 USER JSON 把面板撑满只剩 “…(panel full)”
+# Reserve panel lines for ASSISTANT output so USER JSON cannot fill the entire debug panel.
 DEBUG_ASSISTANT_MAX_LINES = 22
 DEBUG_USER_MAX_LINES = 12
 
 
 # ---------------------------------------------------------------------------
-# System prompt = 身份 + 控制面说明书
+# System prompt = identity + control-plane specification.
 # ---------------------------------------------------------------------------
 
 _STICKMAN_SYSTEM_PROMPT = build_system_prompt()
@@ -91,7 +93,7 @@ _STICKMAN_SYSTEM_PROMPT = build_system_prompt()
 # ---------------------------------------------------------------------------
 
 def _pen_style(style: str) -> Qt.PenStyle:
-    """线条风格映射。"""
+    """Map a line-style name to its Qt pen style."""
     if style == "dash":
         return Qt.PenStyle.DashLine
     if style == "dot":
@@ -292,7 +294,7 @@ def _head_bounds(
     ox: int,
     oy: int,
 ) -> tuple[float, float, float, float, int]:
-    """与 _draw_stickman_qt 一致的头颅包围盒 (head_x, head_y, hw, hh, hx_off)。"""
+    """Return the head bounds matching ``_draw_stickman_qt``."""
     hs = max(0.4, min(2.5, float(p.head_scale)))
     hx_off = int(p.neck_offset_x)
     if p.head_shape == "round":
@@ -307,7 +309,7 @@ def _head_bounds(
 
 
 def _head_rect(head_x: float, head_y: float, hw: float, hh: float, pad: float = 6.0) -> QRectF:
-    """头部占用区域（含安全边距）。"""
+    """Return the head's occupied rectangle, including a safety margin."""
     return QRectF(head_x - pad, head_y - pad, hw + pad * 2, hh + pad * 2)
 
 
@@ -323,7 +325,7 @@ def _bubble_intersects_head(
     tail_len: float,
     tail_at_right: bool | None,
 ) -> bool:
-    """气泡主体或尾巴是否与头部区域相交。"""
+    """Return whether a speech bubble body or tail intersects the head."""
     head = _head_rect(head_x, head_y, hw, hh)
     body = QRectF(bx, by, bw, bh)
     if body.intersects(head):
@@ -352,7 +354,10 @@ def _compute_bubble_layout(
     canvas_w: float = float(STICKMAN_CANVAS_W),
     canvas_h: float = float(STICKMAN_CANVAS_H),
 ) -> tuple[str, float, float, bool | None]:
-    """选取不遮挡头部的气泡位置。返回 (side, bx, by, tail_at_right)。"""
+    """Choose a bubble position that avoids the head.
+
+    Returns ``(side, bx, by, tail_at_right)``.
+    """
     head_cx = head_x + hw / 2.0
 
     def clamp_xy(bx: float, by: float) -> tuple[float, float]:
@@ -390,7 +395,7 @@ def _compute_bubble_layout(
         if not _bubble_intersects_head(bx, by, bw, bh, head_x, head_y, hw, hh, tail_len, tail):
             return _side, bx, by, tail
 
-    # 兜底：放到头部右下方
+    # Fallback: place it below and right of the head.
     bx, by = clamp_xy(head_x + hw + tail_len + gap, head_y + hh + gap)
     return "right", bx, by, True
 
@@ -407,7 +412,7 @@ def _compute_mouse_approach_velocity(
     stop_dist: float = APPROACH_MOUSE_STOP_DIST,
     speed: float = APPROACH_MOUSE_SPEED,
 ) -> tuple[float, float, bool]:
-    """朝鼠标方向的速度；第三项 True 表示应停下。"""
+    """Return velocity toward the mouse; the third result indicates a stop."""
     cx = win_x + win_w / 2.0
     cy = win_y + win_h / 2.0
     dx = float(mouse_x) - cx
@@ -422,7 +427,7 @@ def _compute_mouse_approach_velocity(
 
 
 def _look_offset_from_mouse(mouse_win_x: float, mouse_win_y: float) -> tuple[int, int]:
-    """窗口坐标 → 视线偏移 (eye_offset, pupil_offset_y)。"""
+    """Convert window coordinates to ``(eye_offset, pupil_offset_y)``."""
     lx = mouse_win_x / RENDER_SCALE
     ly = mouse_win_y / RENDER_SCALE
     eye = int(max(-18, min(18, (lx - 100.0) * 0.35)))
@@ -431,7 +436,10 @@ def _look_offset_from_mouse(mouse_win_x: float, mouse_win_y: float) -> tuple[int
 
 
 def _build_punch_play_frames(eye: int, pupil_y: int) -> tuple[list[dict], list[int]]:
-    """抓鼠标 → 蓄力 → 出拳 → 收招。返回 (帧参数, 每帧毫秒)。"""
+    """Build frames for target, wind up, punch, and recover.
+
+    Returns frame parameters and the duration of each frame in milliseconds.
+    """
     frames = [
         {
             "eye_offset": eye, "pupil_offset_y": pupil_y,
@@ -472,7 +480,7 @@ def _draw_speech_bubble_qt(
     outline_pen: QPen,
     outline_color: QColor,
 ) -> None:
-    # 逻辑画布内字号；paintEvent 还有 RENDER_SCALE=0.5，屏幕约等于一半
+    # Font size is in logical-canvas units; paintEvent applies RENDER_SCALE=0.5.
     font = QFont()
     font.setPointSize(18)
     font.setBold(True)
@@ -480,7 +488,8 @@ def _draw_speech_bubble_qt(
     fm = QFontMetrics(font)
 
     text = p.speech_bubble
-    # QFontMetrics.boundingRect 要 QRect（不是 QRectF），否则 TypeError 后 painter 状态损坏易段错误
+    # QFontMetrics.boundingRect requires QRect rather than QRectF; otherwise a
+    # TypeError can leave the painter in an invalid state and cause a crash.
     text_br = fm.boundingRect(
         QRect(0, 0, 200, 100),
         int(Qt.TextFlag.TextSingleLine | Qt.AlignmentFlag.AlignLeft),
@@ -511,7 +520,7 @@ def _draw_speech_bubble_qt(
     mid_y = by + bh / 2.0
     tail = QPainterPath()
     if tail_at_right is None:
-        # 顶部：尾巴指向身体
+        # Top placement: the tail points toward the body.
         mid_x = bx + bw / 2.0
         tail.moveTo(mid_x - 4, by + bh)
         tail.lineTo(mid_x, by + bh + tail_len)
@@ -545,7 +554,7 @@ def _draw_speech_bubble_qt(
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.drawPath(tail_outline)
 
-    # 白底气泡用深色字，避免跟小人线条色一样发淡看不清
+    # Use dark text on the white bubble to ensure contrast with the figure line color.
     text_color = QColor(35, 35, 35, alpha)
     painter.setPen(QPen(text_color))
     painter.drawText(
@@ -862,8 +871,8 @@ class NagoWindow(QWidget):
         # --- Stickman rendering state ---
         self._stickman_params = StickmanParams()
         self._last_color: tuple[int, int, int] = self._stickman_params.line_color
-        self._last_emotion: str | None = None  # 情绪标签；仅变化时才允许改色
-        # 调试面板：最近一轮 AI 会话 transcript（临时）
+        self._last_emotion: str | None = None  # Permit recoloring only when this label changes.
+        # Temporary transcript for the most recent AI round.
         self._ai_debug: dict = {
             "status": "waiting first AI round…",
             "user": "",
@@ -872,7 +881,7 @@ class NagoWindow(QWidget):
             "system": "",
         }
 
-        # --- 屏幕色采样缓存（每 5s 一次，避免拖慢主线程 + 膨胀 payload）---
+        # --- Screen-color sampling cache (every 5 seconds to limit main-thread work and payload size) ---
         self._screen_colors_cache: dict[str, object] = {}
         self._screen_colors_at: float = 0.0
 
@@ -907,13 +916,20 @@ class NagoWindow(QWidget):
 
         runtime = get_runtime_settings()
 
+        # --- Layered memory: session (medium term) + long-term memory ---
+        self._session = SessionMemory(
+            max_chars=runtime.session_max_chars,
+            keep_recent_chars=runtime.session_keep_recent_chars,
+        )
+        self._long_memory = LongTermMemory(max_facts=runtime.memory_max_facts)
+
         # --- Step 32: action queue for sequential multi-action execution ---
         self._action_queue: list[dict] = []
         self._queue_timer = QTimer(self)
         self._queue_timer.timeout.connect(self._process_action_queue)
         self._queue_timer.setInterval(400)
 
-        # --- AI 触发：慢心跳 + 事件 debounce ---
+        # --- AI triggers: slow heartbeat plus event debounce ---
         self._heartbeat_timer = QTimer(self)
         self._heartbeat_timer.timeout.connect(lambda: self._request_ai("heartbeat"))
         self._heartbeat_timer.start(runtime.heartbeat_ms)
@@ -922,7 +938,7 @@ class NagoWindow(QWidget):
         self._event_flush_timer.setSingleShot(True)
         self._event_flush_timer.timeout.connect(self._on_event_flush_timer)
 
-        # --- 气泡自动收起（纯 UI，非 AI 决策）---
+        # --- Speech-bubble auto-dismissal (UI-only, not an AI decision) ---
         self._speech_bubble_timer = QTimer(self)
         self._speech_bubble_timer.setSingleShot(True)
         self._speech_bubble_timer.timeout.connect(self._on_speech_bubble_dismiss)
@@ -930,7 +946,7 @@ class NagoWindow(QWidget):
         self._blink_timer = QTimer(self)
         self._blink_timer.timeout.connect(self._on_blink_tick)
 
-        # --- 窗口运动 + AI 触发的动画 ---
+        # --- Window movement and AI-triggered animations ---
         self._walk_vx: float = 0.0
         self._walk_vy: float = 0.0
         self._gait_enabled: bool = False
@@ -947,7 +963,7 @@ class NagoWindow(QWidget):
         self._play_timer.timeout.connect(self._on_play_tick)
         self._locomotor_timer = QTimer(self)
         self._locomotor_timer.timeout.connect(self._on_locomotor_tick)
-        self._locomotor_timer.start(50)  # 20 FPS 平滑移动
+        self._locomotor_timer.start(50)  # Smooth movement at 20 FPS.
 
         # --- Click-feedback scale animation (step 28) ---
         self._stickman_scale: float = 1.0
@@ -963,14 +979,14 @@ class NagoWindow(QWidget):
         self._ai_fade_start.connect(self._on_ai_fade_start)
 
     def _cursor_window_pos(self) -> QPoint | None:
-        """全局鼠标 → 窗口内坐标。"""
+        """Convert the global mouse position to window-local coordinates."""
         try:
             return self.mapFromGlobal(QCursor.pos())
         except Exception:
             return None
 
     def _stop_approach_mouse(self) -> None:
-        """结束 approach_mouse 动画。"""
+        """Stop the approach_mouse animation."""
         if not self._approach_mouse_active:
             return
         self._approach_mouse_active = False
@@ -979,7 +995,7 @@ class NagoWindow(QWidget):
         self._gait_enabled = False
 
     def _play_approach_mouse_animation(self) -> None:
-        """AI 触发：朝鼠标走一小段。"""
+        """Handle an AI-triggered short walk toward the mouse."""
         if self._dragging or self._play_active:
             return
         try:
@@ -1000,7 +1016,7 @@ class NagoWindow(QWidget):
         logger.info("play approach_mouse vx=%.2f vy=%.2f", vx, vy)
 
     def _tick_approach_mouse(self) -> None:
-        """更新 approach_mouse 动画步进。"""
+        """Advance the approach_mouse animation."""
         if not self._approach_mouse_active:
             return
         if _time.time() >= self._approach_mouse_until:
@@ -1024,7 +1040,7 @@ class NagoWindow(QWidget):
         self._walk_vy = vy
 
     def _play_punch_animation(self) -> None:
-        """AI 触发：朝鼠标方向出拳。"""
+        """Handle an AI-triggered punch toward the mouse."""
         if self._dragging:
             return
         self._stop_approach_mouse()
@@ -1042,7 +1058,7 @@ class NagoWindow(QWidget):
         logger.info("play punch toward (%d, %d)", pos.x(), pos.y())
 
     def _dispatch_play_animation(self, name: str) -> None:
-        """执行 AI 请求的客户端动画。"""
+        """Execute a client animation requested by the AI."""
         handlers = {
             "punch": self._play_punch_animation,
             "approach_mouse": self._play_approach_mouse_animation,
@@ -1059,7 +1075,7 @@ class NagoWindow(QWidget):
         self._last_play = name
 
     def _schedule_event_flush(self, reason: str) -> None:
-        """事件驱动 AI 请求（debounce，避免 hover 抖动刷屏）。"""
+        """Schedule a debounced event-driven AI request to avoid hover thrashing."""
         self._event_flush_reason = reason
         ms = get_runtime_settings().event_debounce_ms
         self._event_flush_timer.start(ms)
@@ -1068,7 +1084,7 @@ class NagoWindow(QWidget):
         self._request_ai(self._event_flush_reason)
 
     def _reset_observation_accumulators(self) -> None:
-        """本轮观测已打包，清空增量计数。"""
+        """Clear incremental counters after packaging this round's observations."""
         self._moves_this_second.clear()
         self._clicks_this_second.clear()
         self._wheel_this_second = (0, 0)
@@ -1084,6 +1100,9 @@ class NagoWindow(QWidget):
             obs.get("foreground_window"),
             not self._capabilities_full_sent,
         )
+        # Consume pending input only after the request starts, avoiding loss while busy or under test.
+        if obs.get("user_message"):
+            self._session.consume_pending_user()
         self._ai_worker = AIWorker(context, _STICKMAN_SYSTEM_PROMPT, parent=self)
         self._ai_worker.result_ready.connect(self._on_ai_worker_done)
         self._ai_worker.finished.connect(self._ai_worker.deleteLater)
@@ -1092,7 +1111,7 @@ class NagoWindow(QWidget):
             self._capabilities_full_sent = True
 
     def _request_ai(self, reason: str = "heartbeat") -> None:
-        """向 AI 上报观测；忙时排队，完成后补最新一轮。"""
+        """Send observations to the AI, queueing a latest-round retry while busy."""
         self._update_foreground_info()
 
         if self._ai_worker is not None and self._ai_worker.isRunning():
@@ -1106,7 +1125,7 @@ class NagoWindow(QWidget):
         self._start_ai_worker(context, reason)
 
     def _on_speech_bubble_dismiss(self) -> None:
-        """本地 UI：气泡显示数秒后自动清空。"""
+        """Locally clear the speech bubble after its display duration."""
         self._speech_bubble_timer.stop()
         if not self._stickman_params.speech_bubble:
             return
@@ -1117,7 +1136,7 @@ class NagoWindow(QWidget):
     def _sync_speech_bubble_auto_dismiss(
         self, before: str | None, after: str | None,
     ) -> None:
-        """新气泡出现时启动倒计时；显式清空时停止计时。"""
+        """Start a timer for a new bubble and stop it on explicit clearing."""
         if after and after.strip():
             if after != before:
                 ms = get_runtime_settings().speech_bubble_ms
@@ -1232,15 +1251,49 @@ class NagoWindow(QWidget):
         self._last_input_time = _time.time()
 
     def contextMenuEvent(self, event) -> None:
-        """右键菜单：退出直接关，无确认弹窗。"""
+        """Show the context menu for talking to Nago or quitting."""
         menu = QMenu(self)
+        talk_action = QAction("跟他说…", self)
+        talk_action.triggered.connect(self._prompt_user_message)
+        menu.addAction(talk_action)
+        menu.addSeparator()
         exit_action = QAction("退出", self)
         exit_action.triggered.connect(QApplication.instance().quit)
         menu.addAction(exit_action)
         menu.exec(event.globalPos())
 
+    def _prompt_user_message(self) -> None:
+        """Prompt for a user message, save it to the session, and request AI immediately."""
+        text, ok = QInputDialog.getText(
+            self,
+            "跟 Nago 说话",
+            "说一句：",
+            QLineEdit.EchoMode.Normal,
+            "",
+        )
+        if not ok:
+            return
+        if not self._session.queue_user_message(text):
+            return
+        # Explicit memory signals promote the message to the long-term layer.
+        self._long_memory.maybe_promote_from_user(text)
+        logger.info("User message queued: %r", text[:80])
+        self._maybe_compress_session()
+        self._request_ai("user_message")
+
+    def _maybe_compress_session(self) -> None:
+        """Compress older session entries above the threshold, preferring AI summarization."""
+        if not self._session.needs_compress():
+            return
+        logger.info(
+            "Session over limit (%d > %d) — compressing",
+            self._session.char_count(),
+            self._session.max_chars,
+        )
+        self._session.compress(summarizer=compress_session_text)
+
     def closeEvent(self, event) -> None:
-        """关闭窗口即退出应用（无确认）。"""
+        """Exit the application immediately when the window closes."""
         logger.info("Nago shutting down")
         event.accept()
         QApplication.quit()
@@ -1291,7 +1344,7 @@ class NagoWindow(QWidget):
             self._schedule_event_flush("foreground")
 
     def _sample_screen_colors(self) -> dict[str, object]:
-        """采样主屏颜色摘要（带 5s 缓存）。"""
+        """Sample a primary-screen color summary with a five-second cache."""
         now = _time.time()
         if self._screen_colors_cache and (now - self._screen_colors_at) < 5.0:
             return self._screen_colors_cache
@@ -1323,7 +1376,7 @@ class NagoWindow(QWidget):
             return self._screen_colors_cache
 
     def _build_context(self) -> dict[str, object]:
-        """组装观测包：传感器数据 + 当前控制状态 + 能力边界。"""
+        """Build an observation packet containing sensors, state, and capability limits."""
         if self._moves_this_second:
             last = self._moves_this_second[-1]
             mouse_position: list[int] = [last[0], last[1]]
@@ -1348,12 +1401,15 @@ class NagoWindow(QWidget):
             screen_resolution = [0, 0]
             available_geometry = [0, 0, 0, 0]
 
-        # 全局光标（窗口外也可感知大致位置）
+        # Global cursor position, including approximate position outside the window.
         try:
             gpos = self.cursor().pos()
             global_mouse = [int(gpos.x()), int(gpos.y())]
         except Exception:
             global_mouse = [0, 0]
+
+        # User message for this turn: peek now and consume after the worker starts.
+        pending_user = self._session.peek_pending_user()
 
         return {
             "observations": {
@@ -1377,6 +1433,14 @@ class NagoWindow(QWidget):
                 },
                 "swipe": self._swipe_this_second,
                 "screen_colors": self._sample_screen_colors(),
+                "user_message": pending_user,
+                "conversation": self._session.to_context_blob(),
+                "long_term_memory": self._long_memory.to_context_blob(),
+                "memory_layers": {
+                    "working": "user_message + live observations",
+                    "session": "conversation (compressible)",
+                    "long_term": "long_term_memory (durable facts)",
+                },
             },
             "agent_state": {
                 "params": params_snapshot(self._stickman_params),
@@ -1395,7 +1459,7 @@ class NagoWindow(QWidget):
         }
 
     def _flush_context(self) -> None:
-        """兼容旧调用：转发到 _request_ai。"""
+        """Maintain compatibility with legacy callers by forwarding to ``_request_ai``."""
         self._request_ai("manual")
 
     def _on_ai_worker_done(self, result: object) -> None:
@@ -1472,10 +1536,13 @@ class NagoWindow(QWidget):
             self._fade_animator.display_color = QColor(0, 0, 0)
 
     def _on_ai_result(self, actions: list[dict]) -> None:
-        """接收 AI 控制指令列表，入队忠实执行（不重置姿态/颜色）。"""
+        """Receive AI control commands and queue them for faithful execution."""
         count = len(actions)
         first = actions[0].get("action", "?")
         logger.info("Stickman commands (%d), first=%s", count, first)
+
+        self._session.append_nago_actions(actions)
+        self._maybe_compress_session()
 
         self._fade_opacity_anim.stop()
         self._fade_color_anim.stop()
@@ -1488,8 +1555,19 @@ class NagoWindow(QWidget):
         if not self._queue_timer.isActive():
             self._queue_timer.start()
 
+    def _apply_memory_side_effects(self, motion: dict) -> None:
+        """Apply remember and memory_forget side effects outside ``StickmanParams``."""
+        if "remember" in motion:
+            n = self._long_memory.apply_remember_payload(motion["remember"], source="ai")
+            if n:
+                logger.info("AI remembered %d long-term fact(s)", n)
+        if "memory_forget" in motion:
+            n = self._long_memory.apply_forget_payload(motion["memory_forget"])
+            if n:
+                logger.info("AI forgot %d long-term fact(s)", n)
+
     def _process_action_queue(self) -> None:
-        """执行下一条控制指令：纯 patch，无 action 名副作用。"""
+        """Execute the next control command as a pure patch without action-name side effects."""
         if self._play_active:
             return
         if not self._action_queue:
@@ -1518,7 +1596,7 @@ class NagoWindow(QWidget):
         self._stickman_params = updated
         self._sync_speech_bubble_auto_dismiss(before_bubble, updated.speech_bubble)
 
-        # 颜色过渡（仅当 patch 触及颜色时）
+        # Transition color only when the patch explicitly changes it.
         if "color" in raw_params or "line_color" in raw_params:
             target = updated.line_color
             self._last_color = target
@@ -1527,7 +1605,7 @@ class NagoWindow(QWidget):
             self._color_transition_anim.setEndValue(QColor(*target))
             self._color_transition_anim.start()
         else:
-            # 保持 display_color 与当前 line_color 一致
+            # Keep display_color synchronized with the current line_color.
             self._fade_animator.display_color = QColor(*updated.line_color)
             self._last_color = updated.line_color
 
@@ -1539,7 +1617,7 @@ class NagoWindow(QWidget):
                 self._stickman_params.stop_blink()
                 self._blink_timer.stop()
 
-        # 运动与动画：均由 AI params 触发
+        # Motion and animations are triggered exclusively by AI parameters.
         if "walk_dx" in motion or "walk_dy" in motion:
             self._stop_approach_mouse()
         if "walk_dx" in motion:
@@ -1553,6 +1631,7 @@ class NagoWindow(QWidget):
             self._gait_enabled = moving
         if motion.get("play"):
             self._dispatch_play_animation(str(motion["play"]))
+        self._apply_memory_side_effects(motion)
 
         logger.info(
             "Motion state vx=%.2f vy=%.2f gait=%s",
@@ -1563,7 +1642,7 @@ class NagoWindow(QWidget):
         self.update()
 
     def _on_locomotor_tick(self) -> None:
-        """平移窗口：执行 AI walk 或 AI 触发的 approach_mouse 动画。"""
+        """Move the window for AI walking or an AI-triggered approach_mouse animation."""
         if self._dragging:
             return
 
@@ -1609,7 +1688,7 @@ class NagoWindow(QWidget):
 
             self.move(nx, ny)
 
-        # 机械步态：仅当 AI 开启 gait 且仍在移动
+        # Mechanical gait runs only while the AI has enabled it and movement continues.
         if self._gait_enabled and moving:
             self._walk_phase += 0.35
             swing = math.sin(self._walk_phase) * 22.0
@@ -1621,7 +1700,7 @@ class NagoWindow(QWidget):
             self.update()
 
     def _apply_action_params(self, params: dict) -> None:
-        """兼容旧测试：转发到控制面 patch。"""
+        """Maintain compatibility with legacy tests by forwarding to the control-plane patch."""
         params, self._last_emotion = filter_sticky_color(
             params, self._stickman_params, self._last_emotion,
         )
@@ -1641,6 +1720,7 @@ class NagoWindow(QWidget):
             self._gait_enabled = bool(motion["gait"])
         if motion.get("play"):
             self._dispatch_play_animation(str(motion["play"]))
+        self._apply_memory_side_effects(motion)
         self._sync_render_params()
 
     # ------------------------------------------------------------------
@@ -1714,7 +1794,7 @@ class NagoWindow(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # 整体缩放到窗口一半（逻辑画布 200×300 → 100×150）
+        # Scale the 200×300 logical canvas down to the 100×150 window.
         painter.save()
         painter.scale(RENDER_SCALE, RENDER_SCALE)
 
@@ -1755,7 +1835,7 @@ class NagoWindow(QWidget):
         painter.end()
 
     def _paint_ai_debug_panel(self, painter: QPainter) -> None:
-        """在小人下方画半透明调试板，打印本轮 AI 会话（优先展示 ASSISTANT）。"""
+        """Draw a translucent debug panel below the stickman, prioritizing ASSISTANT output."""
         import textwrap
 
         top = STICKMAN_H
@@ -1818,7 +1898,7 @@ class NagoWindow(QWidget):
 
         if dbg.get("error"):
             emit_block("ERROR:", str(dbg.get("error")), QColor(255, 120, 120), 4)
-        # 先画 ASSISTANT，避免 USER 上下文把面板占满后看起来像“空回复”
+        # Draw ASSISTANT first so USER context cannot make the response appear empty.
         emit_block(
             "<<< ASSISTANT (raw):",
             str(dbg.get("raw") or ""),
@@ -1846,7 +1926,7 @@ def _bring_window_to_front(window: QWidget) -> None:
 # ---------------------------------------------------------------------------
 
 def _acquire_single_instance():
-    """进程级单例锁：避免多次启动叠出好几个小人（看起来像拖出分身）。"""
+    """Acquire a process-wide singleton lock to prevent multiple overlapping stickmen."""
     lock_path = Path("/tmp/nago-stickman.lock")
     fh = lock_path.open("w")
     try:
@@ -1868,7 +1948,10 @@ def main() -> None:
 
     lock_fh = _acquire_single_instance()
     if lock_fh is None:
-        logger.error("Nago 已在运行（单例锁 /tmp/nago-stickman.lock）。请先退出旧进程再启动。")
+        logger.error(
+            "Nago is already running (singleton lock: /tmp/nago-stickman.lock). "
+            "Exit the existing process before starting another instance."
+        )
         print("Nago already running. Kill old process or use tray Quit.", file=sys.stderr)
         sys.exit(1)
 
@@ -1877,7 +1960,7 @@ def main() -> None:
     app.setQuitOnLastWindowClosed(True)
 
     window = NagoWindow()
-    # PySide6/Qt6：QApplication 无 activeWindowChanged，用 focusWindowChanged。
+    # PySide6/Qt6 QApplication lacks activeWindowChanged; use focusWindowChanged instead.
     app.focusWindowChanged.connect(window._update_foreground_info)
     window._update_foreground_info()
     window.show()
@@ -1887,13 +1970,17 @@ def main() -> None:
     if not QSystemTrayIcon.isSystemTrayAvailable():
         logger.warning("System tray not available — running without tray icon")
     else:
-        # 有托盘时关掉窗口不退进程；退出必须走 Quit，避免残留幽灵进程。
+        # With a tray icon, closing the window does not exit; Quit prevents orphan processes.
         app.setQuitOnLastWindowClosed(False)
         tray_icon = QSystemTrayIcon()
         tray_icon.setIcon(_create_stickman_tray_icon())
         tray_icon.setToolTip("Nago")
 
         tray_menu = QMenu()
+        talk_action = QAction("跟他说…", tray_menu)
+        talk_action.triggered.connect(window._prompt_user_message)
+        tray_menu.addAction(talk_action)
+
         show_action = QAction("显示窗口", tray_menu)
         show_action.triggered.connect(lambda: _bring_window_to_front(window))
         tray_menu.addAction(show_action)
@@ -1911,7 +1998,7 @@ def main() -> None:
         tray_icon.show()
         logger.info("System tray icon active")
 
-    # 保持 lock_fh 存活直到进程退出
+    # Keep lock_fh alive until the process exits.
     app.aboutToQuit.connect(lock_fh.close)
     sys.exit(app.exec())
 

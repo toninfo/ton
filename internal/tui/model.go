@@ -8,8 +8,8 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// chatTurn 一轮对话：用户原文 + 对应短回复（避免新一轮冲掉上一轮答复）。
-// id 用于异步回填：busy 连发时不能假定「最新一条」就是本次 Clarify 的归属。
+// chatTurn A round of dialogue: user’s original text + corresponding short reply (to avoid the new round washing out the previous round of replies).
+// The id is used for asynchronous backfill: when busy bursts are sent, it cannot be assumed that the "latest one" belongs to this Clarify.
 type chatTurn struct {
 	ID    int
 	User  string
@@ -25,29 +25,29 @@ type Model struct {
 	clarify       clarify.ReqState
 	todos         domain.TodoList
 	milestone     string
-	milestoneLog  []string // /start 关键可见里程碑（滚动保留，不只覆盖单行）
+	milestoneLog  []string // /start key visible milestones (scrolling preserved, not just covering a single line)
 	notice        string
 	noticeIsError bool
 	showTodos     bool
-	busy          bool // 本地异步命令进行中（澄清 / start 等）
-	queueLen      int  // 执行期 InputQueue 深度，工作态必备信号
+	busy          bool // Local async commands in progress (clarification /start etc)
+	queueLen      int  // InputQueue depth during execution, necessary signal for working state
 	spinnerFrame  int
 	width, height int
-	chat          []chatTurn // 可见对话历史
-	nextChatID    int        // 单调递增，给 rememberUserTurn 发号
+	chat          []chatTurn // Visible conversation history
+	nextChatID    int        // Monotonically increasing, give number to rememberUserTurn
 }
 
 // NewModel creates a focused, minimal input-first interface.
 func NewModel(controller *SessionController) Model {
 	session, clarification, todos := controller.Snapshot()
 	input := textinput.New()
-	// ASCII 提示符：PowerShell/conhost 上 ❯ 常显示成方块并挤乱光标/IME。
+	// ASCII prompt: ❯ on PowerShell/conhost often appears as a square and clutters the cursor/IME.
 	input.Prompt = "> "
 	input.PromptStyle = promptStyle
 	input.Placeholder = placeholderFor(session.Phase, false)
 	input.Focus()
 	input.CharLimit = 2000
-	// Width=0：关闭右侧空格填空（填空会拉开「真光标」与可见字，IME 更惨）。
+	// Width=0: Turn off filling in the blanks on the right side (filling in the blanks will separate the "real cursor" and visible words, and the IME will be even worse).
 	input.Width = 0
 	configureInputIME(&input)
 
@@ -57,11 +57,11 @@ func NewModel(controller *SessionController) Model {
 		session:    session,
 		clarify:    clarification,
 		todos:      todos,
-		showTodos:  controller.cfg.UI.ShowTodos, // 尊重 ui.show_todos 初始显隐
+		showTodos:  controller.cfg.UI.ShowTodos, // Respect the initial display and hiding of ui.show_todos
 		milestone:  "",
 	}
 	m.syncInputWidth()
-	// 首次无 key：把向导提示塞进 notice，避免用户对着空会话干瞪眼。
+	// No key for the first time: Put the wizard prompt into the notice to prevent users from staring at the empty session.
 	if hint := controller.SetupHint(); hint != "" {
 		m.notice = hint
 	}
@@ -73,10 +73,10 @@ type milestoneMsg string
 type actionDoneMsg struct {
 	notice      string
 	err         error
-	endsBusy    bool // 仅由占用 busy 的异步动作在收尾时置位
-	toChat      bool // true：写入对话气泡；false：只进 notice（slash 命令默认）
-	chatID      int  // toChat 时回填到对应 turn；0 表示无归属（兼容 slash）
-	startFinish bool // /start 收尾：把里程碑摘要写进对话
+	endsBusy    bool // Set at the end only by asynchronous actions that occupy busy
+	toChat      bool // true: write the dialogue bubble; false: only enter notice (slash command default)
+	chatID      int  // When toChat, backfill to the corresponding turn; 0 means no ownership (compatible with slash)
+	startFinish bool // /start Closing: Write a summary of the milestone into the conversation
 }
 
 func (m *Model) refresh() {
@@ -85,18 +85,18 @@ func (m *Model) refresh() {
 	m.syncInputChrome()
 }
 
-// syncInputChrome 按阶段切换 placeholder，避免“工作中”还显示开场文案。
+// syncInputChrome switches placeholders according to stages to avoid showing the opening copy in "Working".
 func (m *Model) syncInputChrome() {
 	m.input.Placeholder = placeholderFor(m.session.Phase, m.busy)
 }
 
-// syncInputWidth：Width=0 关闭右侧填空。长句交给终端自然换行。
-// IME 跟真光标：configureInputIME + setIMECursorPos + imeFixWriter。
+// syncInputWidth: Width=0 turns off fill-in-the-blank on the right. Leave long sentences to the terminal and wrap them naturally.
+// IME and real cursor: configureInputIME + setIMECursorPos + imeFixWriter.
 func (m *Model) syncInputWidth() {
 	m.input.Width = 0
 }
 
-// needsTick 仅在需要动效时订阅 tick，避免空转。
+// needsTick only subscribes to ticks when animation is needed to avoid idling.
 func (m Model) needsTick() bool {
 	return m.busy || isWorkingPhase(m.session.Phase)
 }
@@ -114,7 +114,7 @@ func (m *Model) setNotice(notice string, isError bool) {
 const maxChatTurns = 8
 const maxMilestoneLog = 16
 
-// rememberUserTurn 记录用户原文，返回本轮 chatID（slash/空串返回 0）。
+// rememberUserTurn records the user's original text and returns the current chat ID (slash/empty string returns 0).
 func (m *Model) rememberUserTurn(text string) int {
 	text = strings.TrimSpace(text)
 	if text == "" || strings.HasPrefix(text, "/") {
@@ -123,7 +123,7 @@ func (m *Model) rememberUserTurn(text string) int {
 	return m.appendChatTurn(text)
 }
 
-// rememberSlashTurn 把关键 slash（如 /start）记入对话，便于回填结果。
+// rememberSlashTurn Remember key slashes (such as /start) into the conversation to facilitate backfilling results.
 func (m *Model) rememberSlashTurn(text string) int {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -142,11 +142,11 @@ func (m *Model) appendChatTurn(text string) int {
 	return id
 }
 
-// appendMilestoneLog 追加用户可见里程碑；过滤编排旁白。
+// appendMilestoneLog appends user-visible milestones; filters and arranges narration.
 func (m *Model) appendMilestoneLog(raw string) {
 	line := displayMilestone(raw)
 	if line == "" {
-		// Done / Session aborted 等收尾文案不过滤。
+		// Closing copy such as Done/Session aborted is not filtered.
 		trimmed := strings.TrimSpace(raw)
 		if trimmed == "Done" || trimmed == "Session aborted" || trimmed == "Summarizing…" || trimmed == "Planning…" {
 			line = trimmed
@@ -163,7 +163,7 @@ func (m *Model) appendMilestoneLog(raw string) {
 	}
 }
 
-// applyChatReply 按 id 回填 ton 回复；找不到 id 时绝不盲写到最后一条（防乱序）。
+// applyChatReply backfills the ton reply by id; when the id cannot be found, it will never be blindly written to the last one (to prevent out-of-order).
 func (m *Model) applyChatReply(chatID int, reply string) bool {
 	if chatID <= 0 || strings.TrimSpace(reply) == "" {
 		return false

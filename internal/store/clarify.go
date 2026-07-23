@@ -8,7 +8,7 @@ import (
 	"github.com/toninfo/ton/internal/clarify"
 )
 
-// SaveClarifyArtifacts 将磨合产物落到会话目录（design §14）。
+// SaveClarifyArtifacts drops the grinding artifacts into the session directory (design §14).
 func (s *Store) SaveClarifyArtifacts(sessionID string, state clarify.ReqState) error {
 	dir, err := s.sessionDir(sessionID)
 	if err != nil {
@@ -32,7 +32,7 @@ func (s *Store) SaveClarifyArtifacts(sessionID string, state clarify.ReqState) e
 	return writeJSONAtomic(filepath.Join(dir, "clarify.json"), state)
 }
 
-// LoadClarifyArtifacts 从会话目录恢复磨合状态。
+// LoadClarifyArtifacts Restore grinding state from session directory.
 func (s *Store) LoadClarifyArtifacts(sessionID string) (clarify.ReqState, error) {
 	var state clarify.ReqState
 	path, err := s.sessionFile(sessionID, "clarify.json")

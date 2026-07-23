@@ -22,7 +22,7 @@ type Repairer struct {
 }
 
 // RepairFromVerify repairs a failed acceptance gate without allowing the agent to weaken it.
-// extraInputs 来自 InputQueue 在 Repair 边界的消费，追加为约束而非改写门禁。
+// extraInputs comes from the consumption of InputQueue at the Repair boundary, appended as a constraint instead of overwriting the access control.
 func (r Repairer) RepairFromVerify(ctx context.Context, failure domain.VerifyResult, round int, extraInputs ...string) error {
 	if r.Backend == nil {
 		return errors.New("repair: nil backend")

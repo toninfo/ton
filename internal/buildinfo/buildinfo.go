@@ -1,14 +1,14 @@
-// Package buildinfo 保存由 GoReleaser / -ldflags 注入的构建元数据。
+// Package buildinfo holds build metadata injected by GoReleaser/-ldflags.
 package buildinfo
 
-// 下列变量在发布构建时由 -X 覆盖；开发构建保持 dev 默认值。
+// The following variables are overridden by -X on release builds; development builds keep the dev defaults.
 var (
 	Version = "dev"
 	Commit  = "none"
 	Date    = "unknown"
 )
 
-// Summary 返回给人读的一行版本信息。
+// Summary returns a human-readable line of version information.
 func Summary() string {
 	return Version + " (" + Commit + ") " + Date
 }

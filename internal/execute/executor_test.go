@@ -68,7 +68,7 @@ func TestExecutorRunAllCompletesThreeStepsSequentially(t *testing.T) {
 	if remaining := queue.Drain(); len(remaining) != 0 {
 		t.Errorf("InputQueue remaining = %v, want empty after boundary drain", remaining)
 	}
-	// 步骤结束后不得伪装 Done；Verify 由 SessionRunner 接管。
+	// Done must not be faked after the step; Verify is taken over by SessionRunner.
 	if session.Phase != domain.PhaseExecuting {
 		t.Errorf("phase after RunAll = %q, want %q so verify can own the next phase", session.Phase, domain.PhaseExecuting)
 	}
@@ -144,7 +144,7 @@ func TestExecutorSoftStopAbortsAtStepBoundary(t *testing.T) {
 			milestones = append(milestones, name)
 		},
 		AfterStep: func(step domain.TodoItem) {
-			// 第一步结束后再 soft-stop，下一步不得启动。
+			// After the first step is completed, soft-stop is performed, and the next step must not be started.
 			if step.ID == "step-1" {
 				queue.Enqueue(execute.UserInput{Kind: execute.InputKindSoftStop})
 			}

@@ -9,10 +9,10 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// ParseOutput 将 Cursor CLI 的 stream-json（NDJSON）或 json 回退输出归一化为 ton 事件。
+// ParseOutput Normalizes the Cursor CLI's stream-json (NDJSON) or json fallback output into ton events.
 func ParseOutput(reader io.Reader) ([]domain.AgentEvent, error) {
 	scanner := bufio.NewScanner(reader)
-	// Cursor 的 tool result 可能较长，提升默认扫描上限以避免截断合法 JSON 事件。
+	// Cursor's tool result may be long. Increase the default scanning limit to avoid truncating legitimate JSON events.
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 
 	var events []domain.AgentEvent
@@ -89,7 +89,7 @@ func (raw streamEvent) normalize() (domain.AgentEvent, bool) {
 			event.Payload["error"] = raw.Result
 		}
 	case raw.Type == "result" || (raw.Type == "" && raw.Result != ""):
-		// --output-format json 仅在执行结束后返回单个结果对象，通常不带 type。
+		// --output-format json Returns only a single result object at the end of execution, usually without type.
 		event.Type = domain.EventUsage
 		event.Payload["result"] = raw.Result
 		event.Payload["duration_ms"] = raw.DurationMS

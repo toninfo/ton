@@ -10,10 +10,10 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// ParseNDJSON 将 OpenCode 的 --format json 输出归一化，避免泄漏 driver 专有字段。
+// ParseNDJSON normalizes OpenCode's --format json output to avoid leaking driver-specific fields.
 func ParseNDJSON(reader io.Reader) ([]domain.AgentEvent, error) {
 	scanner := bufio.NewScanner(reader)
-	// 工具输出可能很长；提高 token 上限以避免截断合法的 NDJSON 事件。
+	// Tool output can be long; raise the token limit to avoid truncating legitimate NDJSON events.
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 
 	var events []domain.AgentEvent

@@ -36,8 +36,8 @@ import (
 )
 
 // Run starts the terminal UI and returns the session terminal status after the user quits.
-// sessionID 非空时从磁盘恢复会话；退出时 Close 负责 hard Stop（若仍在跑）再 Unlock。
-// 退出后在 stderr 打印 TON.REN 大字 + `Continue ton -s <id>`，方便续跑。
+// When the sessionID is not empty, the session is restored from the disk; when exiting, Close is responsible for the hard stop (if it is still running) and then Unlock.
+// After exiting, print TON.REN in large characters + `Continue ton -s <id>` on stderr for easy continuation.
 func Run(cfg config.Config, workspace, sessionID string) (domain.TerminalStatus, error) {
 	controller, err := NewSessionController(cfg, workspace, sessionID)
 	if err != nil {
@@ -45,8 +45,8 @@ func Run(cfg config.Config, workspace, sessionID string) (domain.TerminalStatus,
 	}
 	defer controller.Close()
 
-	// 平台选项见 program_windows.go / program_unix.go：
-	// Windows 不用 AltScreen（IME 弹窗时 Alt+Tab 会卡死），改用清屏重绘。
+	// See program_windows.go/program_unix.go for platform options:
+	// Windows does not use AltScreen (Alt+Tab will freeze when the IME pops up), and uses clear screen and redraw instead.
 	finalModel, err := tea.NewProgram(NewModel(controller), programOpts()...).Run()
 
 	session, _, _ := controller.Snapshot()
@@ -78,16 +78,16 @@ type SessionController struct {
 	budgetTracker  budget.Tracker
 	budgetExceeded bool
 	locked         bool
-	gitFatal       error // CommitRequired 失败时由 AfterStep 置位
+	gitFatal       error // CommitRequired Set by AfterStep on failure
 	serveMgr       *serve.Manager
-	resumeAction   orch.ResumeAction // 恢复指令；Start 入口清空以免重试循环
-	lastRationale string // 最近一次指挥层 rationale，供 /status
-	// launchWorkspace 是进程启动时的 cwd（或 -w）；用户未指定目标目录时始终用它。
-	// 指定 TargetWorkspace 后 ensureEffectiveWorkspace 会切到目标项目根。
+	resumeAction   orch.ResumeAction // Recovery command; the Start entry is cleared to avoid retry loops
+	lastRationale  string            // The most recent command rationale for /status
+	// launchWorkspace is the cwd (or -w) when the process is started; it is always used when the user does not specify a target directory.
+	// After specifying TargetWorkspace, ensureEffectiveWorkspace will cut to the target project root.
 	launchWorkspace string
-	// 注意：/driver 显式钉死只改 session + driverSource，不改写 cfg.Driver.Default，
-	// 以免把进程级 auto 永久钉死、堵死后继 MarkFailure 改选。
-	// lastInputAt 记录最近一次用户输入时间，供闲置检测。
+	// Note: Explicit nailing of /driver only changes session + driverSource, but does not overwrite cfg.Driver.Default.
+	// In order to avoid permanently nailing the process-level auto and blocking the subsequent MarkFailure reselection.
+	// lastInputAt records the latest user input time for idle detection.
 	lastInputAt time.Time
 }
 
@@ -142,7 +142,7 @@ func (c *SessionController) initNewSession(workspace string) error {
 	}
 	agent, err := c.openBackend(name, "")
 	if err != nil {
-		// 工厂失败：重扫；auto 模式下尝试改选一次。
+		// Factory failure: rescan; try to reselect in auto mode.
 		if retryName, retrySource, retryErr := c.recoverDriver(name, err); retryErr == nil {
 			agent, err = c.openBackend(retryName, "")
 			name, source = retryName, retrySource
@@ -177,7 +177,7 @@ func (c *SessionController) loadSession(sessionID string) error {
 		if !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("load todos: %w", err)
 		}
-		// 澄清期尚未写出 todos.json 时允许空列表。
+		// Clarification that an empty list is allowed when todos.json has not been written yet.
 		todos = domain.TodoList{}
 	}
 	state, err := c.store.LoadClarifyArtifacts(sessionID)
@@ -186,7 +186,7 @@ func (c *SessionController) loadSession(sessionID string) error {
 	}
 	agent, err := c.openBackend(meta.Driver, "")
 	if err != nil {
-		// resume 保持会话钉死的 driver；仍重扫缓存，便于下次新会话改选。
+		// Resume is a driver that keeps the session pinned; it still scans the cache to facilitate the selection of a new session next time.
 		_, _ = discover.New(c.cfg).MarkFailure(meta.Driver, err)
 		return err
 	}
@@ -194,9 +194,9 @@ func (c *SessionController) loadSession(sessionID string) error {
 	c.todos = todos
 	c.state = state
 	c.backend = agent
-	// 恢复会话视为已钉死该 driver（即使全局配置是 auto）。
+	// A resume session considers the driver to have been pinned (even if the global configuration is auto).
 	c.driverSource = discover.SourceConfig
-	// 从 session.json.budget 恢复累计用量，避免续跑丢失成本账本。
+	// Restore the accumulated usage from session.json.budget to avoid losing the cost ledger during continued operations.
 	c.budgetTracker = budget.NewTracker(
 		budget.Snapshot{
 			TotalTokens: meta.Budget.TotalTokens,
@@ -207,7 +207,7 @@ func (c *SessionController) loadSession(sessionID string) error {
 	return nil
 }
 
-// applyResume 落实 PlanResume 的 §9.3 恢复指令（todos / 会话字段；SkipExecute 等由 Start 读 Kind）。
+// applyResume implements PlanResume's §9.3 recovery instructions (todos / session fields; SkipExecute, etc. read Kind by Start).
 func (c *SessionController) applyResume(action orch.ResumeAction) {
 	if action.DiscardTodos || action.Kind == orch.ResumeReplan {
 		c.todos = domain.TodoList{}
@@ -222,7 +222,7 @@ func (c *SessionController) applyResume(action orch.ResumeAction) {
 			if c.todos.Items[i].ID != action.StepID {
 				continue
 			}
-			// 崩溃步先标 failed；有剩余 repair 额度则改回 pending，供 RunAll 重入 repair。
+			// The crash step is marked failed first; if there is remaining repair quota, it is changed back to pending for RunAll to re-enter repair.
 			c.todos.Items[i].Status = domain.TodoFailed
 			maxRepairs := c.state.Fallback.MaxRepairs
 			if maxRepairs == 0 {
@@ -254,7 +254,7 @@ func (c *SessionController) applyResume(action orch.ResumeAction) {
 			}
 		}
 	case orch.ResumeRerunGate, orch.ResumeRerunGateRepair:
-		// 仅保留会话级 VerifyRound；SkipExecute 由 Start 根据 resumeAction.Kind 设置。
+		// Only session-level VerifyRound is retained; SkipExecute is set by Start based on resumeAction.Kind.
 		if action.VerifyRound > 0 {
 			c.session.VerifyRound = action.VerifyRound
 		}
@@ -264,9 +264,9 @@ func (c *SessionController) applyResume(action orch.ResumeAction) {
 			c.session.CurrentStepID = action.StepID
 		}
 	case orch.ResumeRewriteReport:
-		// phase 保持 summarizing，Start 只重写报告。
+		// phase keeps summarizing, Start only rewrites the report.
 	case orch.ResumeRestoreUI, orch.ResumeNoop, orch.ResumeReplan:
-		// 无执行态变更（Replan 的 todos 已在上方清空）。
+		// No execution state changes (Replan's todos have been cleared above).
 	}
 
 	c.session.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
@@ -302,12 +302,12 @@ func (c *SessionController) Snapshot() (domain.Session, clarify.ReqState, domain
 	return *c.session, c.state, c.todos
 }
 
-// QueueLen 返回执行期尚未消费的输入数，供状态行与 /status 感知排队。
+// QueueLen returns the number of inputs that have not been consumed during the execution period for status line and /status aware queuing.
 func (c *SessionController) QueueLen() int {
 	return c.queue.Len()
 }
 
-// Running 表示 Start 编排仍在进行（含 Plan/Execute/Verify/Repair/Summarize）。
+// Running means that Start orchestration is still in progress (including Plan/Execute/Verify/Repair/Summarize).
 func (c *SessionController) Running() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -322,10 +322,10 @@ func (c *SessionController) NextMilestone() tea.Cmd {
 }
 
 // Clarify performs one durable clarification turn through the configured LLM.
-// 可选：指挥层决策 → 磨合期 agent 委派（可要求确认）→ 卡片更新 → Ready 预检。
+// Optional: Command-level decision-making → Agent delegation during the running-in period (confirmation may be requested) → Card update → Ready pre-check.
 func (c *SessionController) Clarify(ctx context.Context, input string) (string, error) {
 	c.mu.Lock()
-	// Start 进行中（含 Plan/Summarize）：一律入队，绝不中途注入或并发磨合。
+	// Start is in progress (including Plan/Summarize): All players will join the team and will never be injected midway or run in concurrently.
 	if c.cancel != nil {
 		if !c.cfg.Execute.QueueUserInput {
 			c.mu.Unlock()
@@ -346,7 +346,7 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 	}
 	c.session.Phase = domain.PhaseClarifying
 	c.session.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
-	// B 模型：从用户话术捕获目标目录（未指定则继续用 launch cwd）。
+	// Model B: Capture the target directory from the user session (continues to use launch cwd if not specified).
 	clarify.ApplyWorkspaceHint(&c.state, input, c.launchWorkspace)
 	model := c.session.Model
 	apiKey := c.cfg.LLM.APIKey
@@ -375,12 +375,12 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 	}
 
 	forcePreflight := false
-	// 纯问候且尚无任务：跳过 conductor + clarifier，避免 LLM 把 prompt 示例抄成「已定目标」。
+	// Pure greetings and no tasks yet: skip conductor + clarifier to prevent LLM from copying the prompt example into "targeted".
 	noTaskYet := strings.TrimSpace(stateSnap.Requirements) == "" &&
 		strings.TrimSpace(stateSnap.Understanding.Summary) == "" &&
 		strings.TrimSpace(stateSnap.Design) == ""
 	smalltalk := noTaskYet && control.LooksLikeSmalltalk(input)
-	// 用户只给了父目录、项目名尚未拼出时，先别在启动目录写文档（避免污染 ton 仓）。
+	// When the user only provides the parent directory and the project name has not been spelled out, do not write documents in the startup directory (to avoid contaminating the ton warehouse).
 	pathPending := strings.TrimSpace(stateSnap.TargetParent) != "" &&
 		strings.TrimSpace(stateSnap.TargetWorkspace) == ""
 	if pathPending {
@@ -446,7 +446,7 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 	c.ensureFallbackDefaults()
 	c.mu.Unlock()
 
-	// LLM 可能刚填了 target_workspace：再绑一次，确保文档落在目标项目根。
+	// LLM may have just filled in the target_workspace: tie it again and make sure the document falls in the target project root.
 	if _, err := c.ensureEffectiveWorkspace(ctx); err != nil {
 		return "", err
 	}
@@ -493,7 +493,7 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max]) + "…"
 }
 
-// SetupHint 首次使用提示（无 key 时）。
+// SetupHint First use prompt (when there is no key).
 func (c *SessionController) SetupHint() string {
 	c.mu.RLock()
 	key := c.cfg.LLM.APIKey
@@ -504,12 +504,12 @@ func (c *SessionController) SetupHint() string {
 	return fmt.Sprintf("First-run: LLM key missing. Run `ton setup` or /key <API_KEY> (→ %s).", secrets.FilePath())
 }
 
-// QueueSummary 供 /queue。
+// QueueSummary for /queue.
 func (c *SessionController) QueueSummary() string {
 	return c.queue.Summary()
 }
 
-// SetAPIKey 保存 LLM key 到本机密钥文件并更新当前进程配置。
+// SetAPIKey saves the LLM key to the local key file and updates the current process configuration.
 func (c *SessionController) SetAPIKey(key string) error {
 	if err := secrets.SaveAPIKey(key); err != nil {
 		return err
@@ -520,7 +520,7 @@ func (c *SessionController) SetAPIKey(key string) error {
 	return nil
 }
 
-// QueueSkip 在执行期请求边界跳过当前步。
+// QueueSkip skips the current step on an execution-time request boundary.
 func (c *SessionController) QueueSkip() (string, error) {
 	c.mu.RLock()
 	running := c.cancel != nil
@@ -536,7 +536,7 @@ func (c *SessionController) QueueSkip() (string, error) {
 	return fmt.Sprintf("Skip queued (%d pending: %s).", c.queue.Len(), c.queue.Summary()), nil
 }
 
-// QueueBrief 在执行期边界追加下一步 brief。
+// QueueBrief appends the next brief at the execution period boundary.
 func (c *SessionController) QueueBrief(text string) (string, error) {
 	c.mu.RLock()
 	running := c.cancel != nil
@@ -558,7 +558,7 @@ func (c *SessionController) setRationale(r string) {
 	c.mu.Unlock()
 }
 
-// ensureFallbackDefaults 固化无人值守运维默认：不问 driver/sandbox/确认/git。
+// ensureFallbackDefaults solidifies unattended operation and maintenance default: do not ask driver/sandbox/confirm/git.
 func (c *SessionController) ensureFallbackDefaults() {
 	mode := "dontAsk"
 	switch strings.ToLower(c.session.Driver) {
@@ -588,7 +588,7 @@ func (c *SessionController) ensureFallbackDefaults() {
 	})
 }
 
-// ReopenForFollowUp 在 Done/Aborted 后重新进入澄清，便于继续改需求再 /start。
+// ReopenForFollowUp re-enters clarification after Done/Aborted, so that you can continue to change requirements and then /start.
 func (c *SessionController) ReopenForFollowUp() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -617,7 +617,7 @@ func (c *SessionController) ReopenForFollowUp() error {
 // Start plans then executes a ready session, reporting only phase and step milestones.
 func (c *SessionController) Start(ctx context.Context) error {
 	c.mu.Lock()
-	// 消费一次 resumeAction，避免 /start 重试再次走同一条恢复分支。
+	// Consume resumeAction once to avoid /start retrying to take the same recovery branch again.
 	resume := c.resumeAction
 	c.resumeAction = orch.ResumeAction{}
 
@@ -646,12 +646,12 @@ func (c *SessionController) Start(ctx context.Context) error {
 			break
 		}
 	}
-	// 无 pending（含 Done 后全员终态）再 /start → 重新规划；有 pending 则续跑。
+	// If there is no pending (including the final state of all members after Done), then /start → re-plan; if there is pending, continue running.
 	planFresh := resume.Kind == orch.ResumeReplan || len(c.todos.Items) == 0 || !hasPending
 	dirtyConfirmed := c.state.Acceptance.DirtyConfirmed
 	c.mu.Unlock()
 
-	// /start 前最后一次绑定目标工作区（用户指定目录 or 启动 cwd）。
+	// The last time to bind the target workspace (user-specified directory or start cwd) before /start.
 	if _, err := c.ensureEffectiveWorkspace(ctx); err != nil {
 		return err
 	}
@@ -675,7 +675,7 @@ func (c *SessionController) Start(ctx context.Context) error {
 	c.mu.Lock()
 	c.cancel = cancel
 	c.gitFatal = nil
-	// verify-only 恢复不得强行切入 Planning，以免破坏 SkipExecute 语义。
+	// Verify-only recovery must not be forced into Planning to avoid breaking SkipExecute semantics.
 	if !skipExecute {
 		c.session.Phase = domain.PhasePlanning
 		c.session.Subphase = "planning"
@@ -733,7 +733,7 @@ func (c *SessionController) Start(ctx context.Context) error {
 	c.mu.Lock()
 	c.todos = todos
 	if !skipExecute {
-		// 进入 Execute 时递增 run_epoch，供崩溃恢复去重。
+		// Increment run_epoch when entering Execute for crash recovery and deduplication.
 		c.session.Phase = domain.PhaseExecuting
 		c.session.Subphase = "between_steps"
 		c.session.RunEpoch++
@@ -764,8 +764,8 @@ func (c *SessionController) Start(ctx context.Context) error {
 	}
 
 	if branch := strings.TrimSpace(gitPolicy.Branch); branch != "" {
-		// 工作区若还不是 git 仓库（如空目录/临时目录），自动初始化，
-		// 让阶段提交可用，而不是抛出「not a git repository」原始错误。
+		// If the workspace is not a git warehouse (such as an empty directory/temporary directory), it will be automatically initialized.
+		// Make staged commits available instead of throwing the original "not a git repository" error.
 		if created, err := git.EnsureRepo(runCtx, branch); err != nil {
 			return fmt.Errorf("ensure git repository: %w", err)
 		} else if created {
@@ -812,7 +812,7 @@ func (c *SessionController) Start(ctx context.Context) error {
 				c.checkBudgetAtStepBoundary()
 				c.handleGitAfterStep(runCtx, git, step, gitPolicy)
 			},
-			// 步骤级验收：todo.step_verify 与 acceptance.step_verify 叠加（§8.4）。
+			// Step-level acceptance: todo.step_verify overlaps with acceptance.step_verify (§8.4).
 			StepVerify: func(step domain.TodoItem) (bool, error) {
 				run, commands, err := execute.ResolveStepVerify(step, stepVerify)
 				if err != nil {
@@ -888,12 +888,12 @@ func (c *SessionController) Start(ctx context.Context) error {
 		return gitFatal
 	}
 	if err != nil {
-		// runner 错误含 verify 基础设施失败等，不能一律当 agent CLI 故障去隔离改选。
+		// Runner errors include verify infrastructure failures, etc., which cannot always be treated as agent CLI failures to isolate and reselect.
 		_ = c.writeReport()
 		return err
 	}
 
-	// Verify 成功（SessionRunner 切入 Summarizing）后再 push。
+	// Push after Verify is successful (SessionRunner switches to Summarizing).
 	c.mu.RLock()
 	phase := c.session.Phase
 	terminal := c.session.TerminalStatus
@@ -909,7 +909,7 @@ func (c *SessionController) Start(ctx context.Context) error {
 					_ = c.writeReport()
 					return pushErr
 				}
-				// continue_report：记下失败仍写报告。
+				// continue_report: Note the failure and still write the report.
 			}
 		}
 	}
@@ -920,8 +920,8 @@ func (c *SessionController) Start(ctx context.Context) error {
 	return nil
 }
 
-// ensureBackendReady 按会话 driver 构造 backend；OpenCode ManageServe 时先拉起 serve 再 attach。
-// 失败时强制重扫缓存；仅当会话仍处于 auto 来源时才允许改选其他 agent。
+// ensureBackendReady constructs the backend according to the session driver; when using OpenCode ManageServe, first pull up serve and then attach.
+// Forces a cache rescan on failure; only allows reselection of another agent if the session is still in the auto source.
 func (c *SessionController) ensureBackendReady(ctx context.Context) error {
 	c.mu.RLock()
 	driver := c.session.Driver
@@ -945,7 +945,7 @@ func (c *SessionController) ensureBackendReady(ctx context.Context) error {
 	return nil
 }
 
-// retryBackendAfterFailure 重扫缓存；auto 来源允许改选其他 agent 再构造一次。
+// retryBackendAfterFailure rescans the cache; the auto source allows you to select another agent and construct it again.
 func (c *SessionController) retryBackendAfterFailure(ctx context.Context, driver, workspace string, source discover.Source, cause error) error {
 	if source != discover.SourceAuto {
 		c.noteAgentFailure(driver, cause)
@@ -992,7 +992,7 @@ func (c *SessionController) ensureOpenCodeServe(ctx context.Context, driver, wor
 	return backend.OpenCodeAttachURL(c.cfg), nil
 }
 
-// resolveDriver 配置优先；未配置则扫描缓存/本机自主抉择。
+// The resolveDriver configuration takes precedence; if not configured, the cache will be scanned/the machine will make its own decision.
 func (c *SessionController) resolveDriver(forceRescan bool) (string, discover.Source, error) {
 	d, err := discover.New(c.cfg).Resolve(forceRescan)
 	if err != nil {
@@ -1005,7 +1005,7 @@ func (c *SessionController) openBackend(name, attachURL string) (backend.AgentBa
 	return backend.FactoryFromConfig(c.cfg, name, attachURL)
 }
 
-// recoverDriver 在 agent 报错后重扫；返回可能的新选型（auto）或原钉死值。
+// recoverDriver rescans after the agent reports an error; returns the possible new selection (auto) or the original pinned value.
 func (c *SessionController) recoverDriver(failed string, cause error) (string, discover.Source, error) {
 	d, err := discover.New(c.cfg).MarkFailure(failed, cause)
 	if err != nil {
@@ -1076,8 +1076,8 @@ func (c *SessionController) handleGitPush(ctx context.Context, git *gitmgr.Manag
 	return nil
 }
 
-// Stop soft/hard：空 mode 回落到 cfg.Execute.Stop。
-// soft 仅入队 soft_stop；hard 立即 cancel + Interrupt。
+// Stop soft/hard: empty mode falls back to cfg.Execute.Stop.
+// soft only enqueues soft_stop; hard cancels + Interrupt immediately.
 func (c *SessionController) Stop(ctx context.Context, mode string) error {
 	if strings.TrimSpace(mode) == "" {
 		mode = c.cfg.Execute.Stop
@@ -1115,7 +1115,7 @@ func (c *SessionController) Stop(ctx context.Context, mode string) error {
 }
 
 // SetDriver switches backends before execution begins.
-// name 为 auto（或空）时强制重扫并自主抉择；其他值仅钉死本会话（不改写 cfg.Driver.Default）。
+// When name is auto (or empty), it forces a rescan and makes an independent decision; other values ​​only nail this session (without overwriting cfg.Driver.Default).
 func (c *SessionController) SetDriver(name string) error {
 	c.mu.Lock()
 	if c.cancel != nil {
@@ -1127,7 +1127,7 @@ func (c *SessionController) SetDriver(name string) error {
 	source := discover.SourceManual
 	resolved := strings.TrimSpace(name)
 	if discover.IsAuto(resolved) {
-		// 切回 auto：确保进程配置也是 auto，才能在后续失败时改选。
+		// Switch back to auto: Make sure the process configuration is also auto so that you can change it in case of subsequent failure.
 		c.cfg.Driver.Default = ""
 		d, err := discover.New(c.cfg).Resolve(true)
 		if err != nil {
@@ -1180,7 +1180,7 @@ func (c *SessionController) clearCancel() {
 	c.cancel = nil
 }
 
-// emit 保证最新里程碑不被静默丢弃：缓冲满时丢掉最旧一条再写入；并 best-effort 落盘。
+// emit ensures that the latest milestone is not silently discarded: when the buffer is full, the oldest one is discarded and then written; and best-effort is placed on disk.
 func (c *SessionController) emit(text string) {
 	select {
 	case c.milestones <- text:
@@ -1207,7 +1207,7 @@ func (c *SessionController) onExecutionMilestone(name string) {
 	todos := c.todos
 	maxRepairs := c.cfg.Execute.MaxRepairs
 	maxGate := c.state.Fallback.MaxGateRepairs
-	// 每步执行 rationale：标题 + acceptance 摘要，供 /status why。
+	// Each step performs rationale: title + acceptance summary for /status why.
 	if name == "step_started" || name == "step_repair" {
 		if idx := session.TodoCursor; idx >= 0 && idx < len(todos.Items) {
 			item := todos.Items[idx]
@@ -1220,11 +1220,11 @@ func (c *SessionController) onExecutionMilestone(name string) {
 	}
 	c.mu.Unlock()
 	c.emit(formatMilestone(name, session, todos, maxRepairs, maxGate))
-	// 阶段/步骤里程碑边界做 checkpoint，便于崩溃恢复。
+	// Checkpoint the boundaries of phase/step milestones to facilitate crash recovery.
 	_ = c.checkpoint()
 }
 
-// runAgentPrompt 供 AgentPlanner：复用当前 backend 跑一轮 prompt。
+// runAgentPrompt is used by AgentPlanner: reuse the current backend to run a prompt.
 func (c *SessionController) runAgentPrompt(ctx context.Context, cwd, prompt string) (string, error) {
 	if err := c.ensureBackendReady(ctx); err != nil {
 		return "", err
@@ -1270,7 +1270,7 @@ func (c *SessionController) runAgentPrompt(ctx context.Context, cwd, prompt stri
 	return text.String(), nil
 }
 
-// conductVerifyAction 验收失败/耗尽时问指挥层；解析失败则保守降级。
+// conductVerifyAction Ask the command layer when acceptance fails/exhausts; if parsing fails, it will be downgraded conservatively.
 func (c *SessionController) conductVerifyAction(ctx context.Context, phase, summary string) control.Action {
 	c.mu.RLock()
 	client := llm.Client{BaseURL: c.cfg.LLM.BaseURL, APIKey: c.cfg.LLM.APIKey, Model: c.session.Model}
@@ -1294,7 +1294,7 @@ func (c *SessionController) conductVerifyAction(ctx context.Context, phase, summ
 	return dec.Next
 }
 
-// conductPlanNotes 规划边界问指挥层，返回写入约束的意图文本（失败则空）。
+// conductPlanNotes asks the command layer for planning boundaries and returns the intention text of the written constraints (empty if failed).
 func (c *SessionController) conductPlanNotes(ctx context.Context, client llm.Client) string {
 	if !c.cfg.Orchestrate.ConductPlan || strings.TrimSpace(client.APIKey) == "" {
 		return ""
@@ -1333,7 +1333,7 @@ func (c *SessionController) conductPlanNotes(ctx context.Context, client llm.Cli
 	return notes
 }
 
-// summarizeNarrative 写报告前让 LLM 补一段英文叙事；失败不阻断。
+// summarizeNarrative Ask LLM to fill in an English narrative before writing the report; failure will not block it.
 func (c *SessionController) summarizeNarrative(ctx context.Context, session domain.Session, todos domain.TodoList) string {
 	if !c.cfg.Orchestrate.ConductSummarize {
 		return ""
@@ -1344,7 +1344,7 @@ func (c *SessionController) summarizeNarrative(ctx context.Context, session doma
 	if strings.TrimSpace(client.APIKey) == "" {
 		return ""
 	}
-	// 先问指挥层是否 summarize；再用同一 rationale 作叙事种子，必要时再 Chat 扩写。
+	// First ask the commanding staff if they want to summarize; then use the same rationale as the narrative seed, and then use Chat to expand it if necessary.
 	dec, err := (control.Conductor{Client: client}).Decide(ctx, control.Input{
 		Phase: "summarizing",
 		UserText: fmt.Sprintf(
@@ -1395,7 +1395,7 @@ func (c *SessionController) summarizeNarrative(ctx context.Context, session doma
 	return strings.TrimSpace(content)
 }
 
-// syncTodoFromMilestone 在里程碑瞬间同步 todos 工作态，避免 Snapshot 仍是 Plan 快照。
+// syncTodoFromMilestone synchronizes the todos working state at the milestone moment to prevent the Snapshot from remaining a Plan snapshot.
 func (c *SessionController) syncTodoFromMilestone(name string) {
 	idx := c.session.TodoCursor
 	if idx < 0 || idx >= len(c.todos.Items) {
@@ -1411,7 +1411,7 @@ func (c *SessionController) syncTodoFromMilestone(name string) {
 		c.todos.Items[idx].Status = domain.TodoDone
 	default:
 		if name == "step_exhausted" || strings.HasPrefix(name, "step_exhausted:") {
-			// 终态以 AfterStep 权威回写为准；此处先标 failed 以免 UI 卡住 running。
+			// The final state is subject to the authoritative writeback of AfterStep; mark failed here first to avoid the UI getting stuck running.
 			if c.todos.Items[idx].Status == domain.TodoRunning {
 				c.todos.Items[idx].Status = domain.TodoFailed
 			}
@@ -1429,7 +1429,7 @@ func (c *SessionController) upsertTodo(step domain.TodoItem) {
 	c.todos.Items = append(c.todos.Items, step)
 }
 
-// CompactStatus 生成 /status 紧凑行：phase·subphase·step·queue·driver·budget。
+// CompactStatus generates /status compact lines: phase·subphase·step·queue·driver·budget.
 func (c *SessionController) CompactStatus() string {
 	session, state, todos := c.Snapshot()
 	queueLen := c.QueueLen()
@@ -1498,7 +1498,7 @@ func (c *SessionController) persist(session *domain.Session, todos domain.TodoLi
 	return c.upsertIndex(*session)
 }
 
-// checkpoint 在步/阶段边界原子落盘 session + todos + 全局 index。
+// Checkpoint is placed atomically at the step/stage boundary session + todos + global index.
 func (c *SessionController) checkpoint() error {
 	c.mu.Lock()
 	c.copyBudgetInto(c.session)
@@ -1514,7 +1514,7 @@ func (c *SessionController) checkpoint() error {
 	return c.upsertIndex(session)
 }
 
-// copyBudgetInto 把 tracker 快照写入 session.Budget，供 session.json 持久化。
+// copyBudgetInto writes the tracker snapshot to session.Budget for session.json persistence.
 func (c *SessionController) copyBudgetInto(session *domain.Session) {
 	if session == nil {
 		return
@@ -1561,7 +1561,7 @@ func (c *SessionController) trackBudget(event domain.AgentEvent) {
 	_ = c.budgetTracker.Accumulate(event)
 }
 
-// checkBudgetAtStepBoundary 在步边界评估预算；超限且 abort 则 cancel。
+// checkBudgetAtStepBoundary evaluates the budget at the step boundary; cancel if exceeded and abort.
 func (c *SessionController) checkBudgetAtStepBoundary() {
 	c.mu.Lock()
 	decision := c.budgetTracker.CheckAtStepBoundary()
@@ -1607,7 +1607,7 @@ func (c *SessionController) writeReport() error {
 	c.mu.Lock()
 	switch session.TerminalStatus {
 	case domain.TerminalAborted:
-		// 还有 pending 则回到 ready_to_start，状态栏提示再 /start；否则保持 aborted。
+		// If there is still pending, return to ready_to_start, and then /start when the status bar prompts; otherwise, remain aborted.
 		pending := 0
 		for _, item := range todos.Items {
 			if item.Status == domain.TodoPending {

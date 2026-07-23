@@ -165,7 +165,7 @@ func TestDecodeClarifyJSONTrailingCommaAndPeekFallback(t *testing.T) {
 		t.Fatalf("summary = %q", out.Understanding.Summary)
 	}
 
-	// 故意破坏 JSON（value 后塞脏字符），应 peek summary 兜底而非硬失败
+	// Deliberately corrupt JSON (dirty characters inserted after value), you should peek summary instead of hard failure
 	broken := `{"understanding":{"summary":"仍可见","confirmed":false}è,"assumptions":{"items":[]}}`
 	out, err = decodeClarifyJSON(broken)
 	if err != nil {

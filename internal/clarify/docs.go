@@ -6,16 +6,16 @@ import (
 	"unicode/utf8"
 )
 
-// 需求/设计文档最低充实度：过短的一句摘要不算「可开干」的终版文档。
-// 长周期执行前必须先形成可打开查阅的 Markdown 正文。
+// Minimum level of completeness of requirements/design documents: A summary that is too short is not considered a "workable" final document.
+// Before long-term execution, the Markdown text that can be opened and consulted must be formed.
 const (
 	minDocRunes       = 320
 	minDocHeadings    = 2
 	minDocBulletLines = 3
 )
 
-// DocsAdequate 判断 requirements + design 是否已达到可确认的充实度。
-// 不要求完美，但必须是可打开阅读的 Markdown，而非一句话口号。
+// DocsAdequate determines whether requirements + design have reached a confirmable degree of enrichment.
+// It’s not required to be perfect, but it must be Markdown that can be opened and read, not a slogan.
 func DocsAdequate(state *ReqState) bool {
 	if state == nil {
 		return false
@@ -43,7 +43,7 @@ func docBodyAdequate(body string) bool {
 	return headings >= minDocHeadings && bullets >= minDocBulletLines
 }
 
-// HasOpenProductDecisions 是否还有未回答的产品类 blocking 决策。
+// HasOpenProductDecisions Whether there are any unanswered product class blocking decisions.
 func HasOpenProductDecisions(state *ReqState) bool {
 	if state == nil {
 		return false
@@ -56,7 +56,7 @@ func HasOpenProductDecisions(state *ReqState) bool {
 	return false
 }
 
-// DocPaths 返回会话目录下需求/设计文档的绝对或相对路径（供用户打开查看）。
+// DocPaths returns the absolute or relative path of the requirements/design document in the session directory (for the user to open and view).
 func DocPaths(sessionDir string) (requirements, design string) {
 	sessionDir = strings.TrimSpace(sessionDir)
 	if sessionDir == "" {

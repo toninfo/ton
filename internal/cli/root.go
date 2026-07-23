@@ -122,7 +122,7 @@ func NewRoot(cfg config.Config, workspace string) *cobra.Command {
 	return root
 }
 
-// rootLong 根 help：指路，不展开配置手册。
+// rootLong root help: guides the way, does not expand the configuration manual.
 func rootLong() string {
 	return `Local TUI for long-running coding-agent sessions.
 
@@ -172,8 +172,8 @@ func resolveWorkspace(cfg config.Config, flag string) (string, error) {
 	return cwd, nil
 }
 
-// resolveSessionWorkspace 在 -s 续跑时用全局 index 纠正 workspace。
-// 优先：flag workspace 下已有该 session；否则查全局 sessions/index.json。
+// resolveSessionWorkspace uses the global index to correct the workspace when -s continues.
+// Priority: The session already exists in the flag workspace; otherwise, check global sessions/index.json.
 func resolveSessionWorkspace(flagWorkspace, sessionID string) (string, error) {
 	if sessionID == "" {
 		return flagWorkspace, nil

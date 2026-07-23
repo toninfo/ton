@@ -17,7 +17,7 @@ func TestDoctorCmd_ProbeServe(t *testing.T) {
 	defer listener.Close()
 
 	cfg := config.Default()
-	// 钉死 fake，避免 CI 机器未装真实 agent 时拖垮 serve 探针用例。
+	// Nail the fake to avoid bringing down the serve probe use case when the CI machine is not installed with the real agent.
 	cfg.Driver.Default = "fake"
 	cfg.Driver.Opencode.ServeHost = "127.0.0.1"
 	cfg.Driver.Opencode.ServePort = listener.Addr().(*net.TCPAddr).Port

@@ -25,7 +25,7 @@ type Executor struct {
 	OnExhausted string
 	InputQueue  *InputQueue
 	Timeout     time.Duration
-	// ResolveExhausted 可选：步骤修复耗尽时覆盖 on_exhausted（须仍在策略空间内）。
+	// ResolveExhausted Optional: Override on_exhausted when step repair is exhausted (must still be in the policy space).
 	ResolveExhausted func(ctx context.Context, step domain.TodoItem, configured string) string
 }
 
@@ -53,7 +53,7 @@ func (e Executor) RunAll(
 	session.Subphase = "between_steps"
 	session.TerminalStatus = domain.TerminalRunning
 
-	// 执行循环的起点同样是一个安全边界：先取走此前已排队的输入，再启动首个 agent。
+	// The starting point of the execution loop is also a safety boundary: the previously queued input is taken away before starting the first agent.
 	boundary := ClassifyDrain(e.drainInput())
 	if boundary.SoftStop {
 		return e.abortSoft(session, todos, hooks)
@@ -68,7 +68,7 @@ func (e Executor) RunAll(
 			continue
 		}
 
-		// 步边界：若用户已 soft-stop，则不再启动新步骤。
+		// Step boundary: If the user has soft-stopped, no new steps will be started.
 		more := ClassifyDrain(e.drainInput())
 		pendingInputs = append(pendingInputs, more.Texts...)
 		pendingBriefs = append(pendingBriefs, more.Briefs...)
@@ -97,7 +97,7 @@ func (e Executor) RunAll(
 			session.Subphase = "step_running"
 			prompt := MergeBriefs(pendingBriefs) + BuildPrompt(*step, pendingInputs, repairing)
 			outcome := e.runStep(ctx, *session, *step, agent, prompt, hooks)
-			// 每次 agent 结束后才消费队列，保证输入不会被注入正在运行的步骤。
+			// The queue is consumed only after each agent ends, ensuring that input will not be injected into running steps.
 			more = ClassifyDrain(e.drainInput())
 			pendingInputs = append(pendingInputs[:0], more.Texts...)
 			pendingBriefs = append(pendingBriefs[:0], more.Briefs...)
@@ -160,8 +160,8 @@ func (e Executor) RunAll(
 		}
 	}
 
-	// 步骤跑完后保持 executing/between_steps，由 SessionRunner 切入 Verify。
-	// 绝不能在这里标 PhaseDone，否则 TUI 会在验收/修复期间误显示 Done。
+	// After the steps are completed, executing/between_steps remains, and SessionRunner switches to Verify.
+	// PhaseDone must not be marked here, otherwise the TUI will mistakenly display Done during acceptance/repair.
 	session.CurrentStepID = ""
 	session.TodoCursor = len(todos.Items)
 	session.Subphase = "between_steps"
@@ -189,7 +189,7 @@ func (e Executor) runStep(
 		return RunOutcome{ExitCode: -1, Err: err}
 	}
 
-	// 默认失败：只有收到 run_finished 的 exit_code=0，才能进入 StepSucceeded 的成功判断。
+	// Default failure: Only when exit_code=0 of run_finished is received can the success judgment of StepSucceeded be entered.
 	outcome := RunOutcome{ExitCode: -1}
 	for event := range events {
 		if hooks.OnEvent != nil {

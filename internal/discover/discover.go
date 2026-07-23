@@ -1,5 +1,5 @@
-// Package discover 扫描本机可用的 agent CLI，并缓存结果供自动选型。
-// 策略：显式配置（yaml / TON_DRIVER / /driver）优先；未配置时按扫描结果自主抉择。
+// Package discover scans the agent CLI available on the machine and caches the results for automatic selection.
+// Strategy: Explicit configuration (yaml / TON_DRIVER / /driver) takes precedence; if not configured, make your own decision based on the scan results.
 package discover
 
 import (
@@ -22,16 +22,16 @@ const (
 	defaultTTLHours = 24
 )
 
-// Source 说明当前 driver 来自何处。
+// Source indicates where the current driver comes from.
 type Source string
 
 const (
-	SourceConfig Source = "config" // yaml / TON_DRIVER 钉死
-	SourceAuto   Source = "auto"   // 扫描抉择
-	SourceManual Source = "manual" // /driver 显式钉死到某 driver（不含 auto）
+	SourceConfig Source = "config" // yaml/TON_DRIVER Crucified
+	SourceAuto   Source = "auto"   // Scan to choose
+	SourceManual Source = "manual" // /driver Explicitly pinned to a driver (excluding auto)
 )
 
-// Entry 是一次扫描中某个 agent 的可用性快照。
+// Entry is a snapshot of the availability of an agent in a scan.
 type Entry struct {
 	Name      string `json:"name"`
 	Cmd       string `json:"cmd"`
@@ -41,7 +41,7 @@ type Entry struct {
 	CheckedAt string `json:"checked_at"`
 }
 
-// Cache 持久化扫描结果；扫一次可复用，TTL 到期或失败时重扫。
+// Cache persists scan results; a scan can be reused and the scan will be repeated when the TTL expires or fails.
 type Cache struct {
 	Version   int     `json:"version"`
 	ScannedAt string  `json:"scanned_at"`
@@ -49,32 +49,32 @@ type Cache struct {
 	Agents    []Entry `json:"agents"`
 }
 
-// Decision 是 Resolve 的结果。
+// Decision is the result of Resolve.
 type Decision struct {
 	Name   string
 	Source Source
 	Cache  Cache
 }
 
-// Deps 注入 LookPath / 时钟 / 缓存目录，便于单测。
+// Deps is injected into the LookPath/Clock/Cache directory to facilitate single testing.
 type Deps struct {
 	LookPath func(string) (string, error)
 	Now      func() time.Time
 	BasePath string
 }
 
-// Resolver 绑定配置与依赖，负责扫描、缓存与选型。
+// Resolver binds configuration and dependencies and is responsible for scanning, caching and selection.
 type Resolver struct {
 	cfg  config.Config
 	deps Deps
 }
 
-// New 使用默认 PATH 探测与 ~/.local/share/ton 缓存（兼容旧 ton 目录）。
+// New uses default PATH detection and ~/.local/share/ton cache (compatible with old ton directories).
 func New(cfg config.Config) *Resolver {
 	return NewWithDeps(cfg, Deps{})
 }
 
-// NewWithDeps 允许测试注入 LookPath 与隔离缓存目录。
+// NewWithDeps allows tests to inject LookPath and isolate cache directories.
 func NewWithDeps(cfg config.Config, deps Deps) *Resolver {
 	if deps.LookPath == nil {
 		deps.LookPath = exec.LookPath
@@ -88,29 +88,29 @@ func NewWithDeps(cfg config.Config, deps Deps) *Resolver {
 	return &Resolver{cfg: cfg, deps: deps}
 }
 
-// IsAuto 表示未钉死 driver，应由扫描自主抉择。
+// IsAuto means that the driver is not nailed and should be determined independently by the scan.
 func IsAuto(name string) bool {
 	n := strings.ToLower(strings.TrimSpace(name))
 	return n == "" || n == "auto"
 }
 
-// PreferenceOrder 多 agent 同时可用时的默认优先级（与历史默认 opencode 对齐）。
+// PreferenceOrder Default priority when multiple agents are available simultaneously (aligned with historical default opencode).
 func PreferenceOrder() []string {
 	return []string{"opencode", "claude", "cursor"}
 }
 
-// Resolve 按「配置优先，否则扫描抉择」返回有效 driver。
-// forceRescan 为 true 时忽略 TTL，立即重扫（供 /driver auto 与失败恢复）。
+// Resolve press "Configuration First, Otherwise Scan Decision" to return the valid driver.
+// When forceRescan is true, ignore TTL and rescan immediately (for /driver auto and failure recovery).
 func (r *Resolver) Resolve(forceRescan bool) (Decision, error) {
 	pinned := strings.TrimSpace(r.cfg.Driver.Default)
 	if !IsAuto(pinned) {
 		name := strings.ToLower(pinned)
-		// 钉死路径也刷新/读取缓存，用于校验「禁用 / PATH 缺失」。
+		// Pinned paths also flush/read the cache for verification of "disabled/missing PATH".
 		cache, _ := r.ensureCache(forceRescan)
 		if name != "fake" {
-			// pinned 是用户显式意图：若缓存标记不可用但本次未强制重扫，可能只是上次
-			// 运行期的瞬时失败（如陈旧 serve pid 被 MarkFailure 隔离）。先强制重扫一次
-			// 按 PATH 重新判定，避免被陈旧 LastError 永久 brick 掉一个仍可用的 driver。
+			// pinned is the user's explicit intention: if the cache tag is unavailable but a rescan is not forced this time, it may only be the last time
+			// Transient failures during runtime (such as stale serve pids isolated by MarkFailure). Force a rescan first
+			// Press PATH to re-judge to avoid being stale LastError and permanently brick out a still available driver.
 			if e, ok := findAgent(cache, name); ok && !e.Available && !forceRescan {
 				if rescanned, err := r.Scan(); err == nil {
 					cache = rescanned
@@ -138,9 +138,9 @@ func (r *Resolver) Resolve(forceRescan bool) (Decision, error) {
 	return Decision{Name: name, Source: SourceAuto, Cache: cache}, nil
 }
 
-// MarkFailure 在某 agent 报错后强制重扫并更新缓存；auto 模式下可能改选其他可用 agent。
-// 即使二进制仍在 PATH，失败项也会被隔离（Available=false），避免立刻又选回同一 agent。
-// 下次普通 Scan（TTL / doctor / /driver auto）会重新探测并可能解除隔离。
+// MarkFailure forces a rescan and updates the cache after an agent reports an error; other available agents may be selected in auto mode.
+// Even if the binary is still in PATH, the failed entry will be isolated (Available=false) to prevent the same agent from being re-elected immediately.
+// The next normal scan (TTL / doctor / /driver auto) will re-probe and possibly un-quarantine.
 func (r *Resolver) MarkFailure(failed string, cause error) (Decision, error) {
 	cache, err := r.Scan()
 	if err != nil {
@@ -151,7 +151,7 @@ func (r *Resolver) MarkFailure(failed string, cause error) (Decision, error) {
 		if cache.Agents[i].Name != failed {
 			continue
 		}
-		// 运行失败 ≠ PATH 消失；必须显式隔离，否则 selectBest 会按优先级又选回来。
+		// Operation failure ≠ PATH disappears; it must be explicitly isolated, otherwise selectBest will select it back according to priority.
 		cache.Agents[i].Available = false
 		if cause != nil {
 			cache.Agents[i].LastError = cause.Error()
@@ -181,7 +181,7 @@ func (r *Resolver) MarkFailure(failed string, cause error) (Decision, error) {
 	return Decision{Name: name, Source: SourceAuto, Cache: cache}, nil
 }
 
-// Scan 立即扫描本机候选 CLI 并写入缓存。
+// Scan Immediately scans the native candidate CLI and writes to the cache.
 func (r *Resolver) Scan() (Cache, error) {
 	now := r.deps.Now().UTC()
 	stamp := now.Format(time.RFC3339Nano)
@@ -205,10 +205,10 @@ func (r *Resolver) Scan() (Cache, error) {
 		} else {
 			entry.Available = true
 			entry.Path = path
-			// 保留上一次失败备注，便于 doctor 对照；成功探测后清空。
+			// Keep the last failure notes for easy reference by doctor; clear them after successful detection.
 			entry.LastError = ""
 		}
-		// Cursor.enabled=false 时不当作可选中目标，但仍记录扫描结果。
+		// When Cursor.enabled=false, the target is not considered selectable, but the scan results are still recorded.
 		if c.name == "cursor" && !r.cfg.Driver.Cursor.Enabled {
 			entry.Available = false
 			if entry.LastError == "" {
@@ -224,7 +224,7 @@ func (r *Resolver) Scan() (Cache, error) {
 		Selected:  prev.Selected,
 		Agents:    agents,
 	}
-	// 若上次选中已不可用，清掉以免误导。
+	// If the last selection is no longer available, clear it to avoid misleading.
 	if cache.Selected != "" {
 		if e, ok := findAgent(cache, cache.Selected); !ok || !e.Available {
 			cache.Selected = ""
@@ -236,7 +236,7 @@ func (r *Resolver) Scan() (Cache, error) {
 	return cache, nil
 }
 
-// LoadCache 读取磁盘缓存；不存在则返回空 Cache。
+// LoadCache reads the disk cache; returns an empty Cache if it does not exist.
 func (r *Resolver) LoadCache() (Cache, error) {
 	return r.loadCache()
 }
@@ -333,5 +333,5 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// ErrNoAgent 用于 errors.Is 判断「机器上没有可用 agent」。
+// ErrNoAgent is used for errors.Is to determine "there is no agent available on the machine".
 var ErrNoAgent = errors.New("discover: no agent available")

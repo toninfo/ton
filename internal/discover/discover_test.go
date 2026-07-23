@@ -18,7 +18,7 @@ func TestResolve_PinnedConfigSkipsAutoSelect(t *testing.T) {
 
 	res := discover.NewWithDeps(cfg, discover.Deps{
 		BasePath: dir,
-		// 钉死仍会扫缓存做可用性校验，故需让 claude 可解析。
+		// Even if it is nailed down, the cache will still be scanned for availability verification, so it needs to be parsable by claude.
 		LookPath: func(cmd string) (string, error) {
 			if cmd == "claude" {
 				return "/bin/claude", nil
@@ -60,12 +60,12 @@ func TestResolve_AutoSelectsPreferenceOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// opencode 不可用 → 选 claude（优先于 cursor）
+	// opencode is not available → choose claude (takes precedence over cursor)
 	if d.Name != "claude" || d.Source != discover.SourceAuto {
 		t.Fatalf("got %+v, want claude/auto", d)
 	}
 
-	// 缓存应落盘
+	// The cache should be flushed to disk
 	if _, err := os.Stat(filepath.Join(dir, "discovered_agents.json")); err != nil {
 		t.Fatalf("cache not written: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestResolve_PrefersCachedSelectionWhenStillAvailable(t *testing.T) {
 	}
 	res := discover.NewWithDeps(cfg, discover.Deps{BasePath: dir, LookPath: look, Now: func() time.Time { return now }})
 
-	// 写入带 sticky selected=cursor 的未过期缓存
+	// Write to unexpired cache with sticky selected=cursor
 	raw := []byte(`{
   "version": 1,
   "scanned_at": "2026-07-18T10:00:00Z",
@@ -172,7 +172,7 @@ func TestMarkFailure_RescansAndSwitchesInAutoMode(t *testing.T) {
 				}
 				return "", errors.New("missing")
 			}
-			// 失败后：opencode 消失，claude 出现
+			// After failure: opencode disappears and claude appears
 			if cmd == "claude" {
 				return "/bin/claude", nil
 			}
@@ -229,7 +229,7 @@ func TestMarkFailure_QuarantinesEvenWhenStillOnPATH(t *testing.T) {
 		t.Fatalf("initial = %q", d.Name)
 	}
 
-	// PATH 上 opencode 仍在；失败后必须改选，不能 sticky/优先级又选回 opencode。
+	// opencode is still on PATH; it must be reselected after failure, and opencode cannot be selected with sticky/priority.
 	d2, err := res.MarkFailure("opencode", errors.New("serve refused"))
 	if err != nil {
 		t.Fatal(err)

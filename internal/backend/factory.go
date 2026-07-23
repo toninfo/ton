@@ -20,7 +20,7 @@ func Factory(name string) (AgentBackend, error) {
 	return FactoryFromConfig(config.Default(), name, "")
 }
 
-// FactoryFromConfig 按有效配置构造 driver，并可注入 OpenCode serve attach URL。
+// FactoryFromConfig constructs the driver according to the valid configuration and can inject the OpenCode serve attach URL.
 func FactoryFromConfig(cfg config.Config, name, attachURL string) (AgentBackend, error) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "fake":
@@ -39,7 +39,7 @@ func FactoryFromConfig(cfg config.Config, name, attachURL string) (AgentBackend,
 	}
 }
 
-// OpenCodeAttachURL 由 serve host/port 拼出 attach 端点。
+// OpenCodeAttachURL consists of serve host/port spelling out the attach endpoint.
 func OpenCodeAttachURL(cfg config.Config) string {
 	host := cfg.Driver.Opencode.ServeHost
 	if host == "" {
@@ -52,7 +52,7 @@ func OpenCodeAttachURL(cfg config.Config) string {
 	return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
 }
 
-// DriverTimeout 返回所选 driver 的步骤超时。
+// DriverTimeout Returns the step timeout for the selected driver.
 func DriverTimeout(cfg config.Config, driver string) time.Duration {
 	sec := 0
 	switch strings.ToLower(strings.TrimSpace(driver)) {

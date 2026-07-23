@@ -4,5 +4,5 @@ package tui
 
 import "os"
 
-// syncConsoleCursor：Unix 无 Win32 控制台光标；AltScreen 路径也不走 imeFixWriter。
+// syncConsoleCursor: There is no Win32 console cursor in Unix; the AltScreen path does not use imeFixWriter.
 func syncConsoleCursor(_ *os.File, _, _ int) {}

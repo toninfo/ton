@@ -49,7 +49,7 @@ type TodoList struct {
 	Items []TodoItem `json:"items"`
 }
 
-// BudgetSnapshot 是 session.json 内持久化的用量累计（design §16）。
+// BudgetSnapshot is the accumulated usage persisted in session.json (design §16).
 type BudgetSnapshot struct {
 	TotalTokens int64   `json:"total_tokens"`
 	TotalUSD    float64 `json:"total_usd"`

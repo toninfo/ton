@@ -19,7 +19,7 @@ import (
 // Deps contains external functions so doctor checks are deterministic in tests.
 type Deps struct {
 	LookPath func(string) (string, error)
-	// BasePath 覆盖 discover 缓存目录；测试用。
+	// BasePath covers the discover cache directory; used for testing.
 	BasePath string
 	// ProbeServe optionally verifies an already running OpenCode serve endpoint.
 	// Its absence deliberately skips the probe because doctor must also work before serve starts.
@@ -34,7 +34,7 @@ type Check struct {
 	Path     string
 	Err      error
 	Optional bool
-	Hint     string // 可行动修复建议
+	Hint     string // Actionable fix suggestions
 }
 
 // Report is the complete result of a dependency check.
@@ -43,14 +43,14 @@ type Report struct {
 	Selected string
 	Source   discover.Source
 	Checks   []Check
-	Hints    []string // 汇总可行动提示
-	// Paths 关键配置/密钥/发现缓存等 DX 路径，便于排查“写哪了”。
+	Hints    []string // A collection of actionable tips
+	// Paths key configuration/key/discovery cache and other DX paths to facilitate troubleshooting "where was written".
 	Paths map[string]string
 }
 
-// Run 扫描本机 agent（强制重扫并写缓存），再按钉死/自动策略判定是否就绪。
-// 未配置 default 时：不要求用户配齐所有 CLI，只要扫描到至少一个可用 agent。
-// TON_LLM_API_KEY缺失时告警（Optional），不阻断 PATH 检查——澄清时仍会硬失败。
+// Run scans the local agent (forces rescan and writes cache), and then determines whether it is ready according to the nailing/automatic policy.
+// When default is not configured: users are not required to configure all CLIs, as long as at least one available agent is scanned.
+// Alert when TON_LLM_API_KEY is missing (Optional), does not block PATH check - it will still fail hard when clarifying.
 func Run(deps Deps, cfg config.Config) Report {
 	lookPath := deps.LookPath
 	if lookPath == nil {
@@ -78,13 +78,13 @@ func Run(deps Deps, cfg config.Config) Report {
 	auto := discover.IsAuto(cfg.Driver.Default)
 	pinnedFake := strings.EqualFold(strings.TrimSpace(cfg.Driver.Default), "fake")
 
-	// LLM key：fake 不强制；其它情况缺 key 只 warn。
+	// LLM key: fake is not mandatory; in other cases, if the key is missing, only warn.
 	if !pinnedFake {
 		keyName := brand.EnvKey("LLM_API_KEY")
 		key := strings.TrimSpace(getenv(keyName))
 		check := Check{Name: keyName, Found: key != "", Optional: true}
 		if key == "" {
-			// 也检查落盘密钥文件（doctor 进程未必 export）
+			// Also check the disk key file (doctor process may not export)
 			if fileKey, _ := secrets.LoadAPIKey(); fileKey != "" {
 				check.Found = true
 				check.Path = secrets.FilePath()
@@ -107,7 +107,7 @@ func Run(deps Deps, cfg config.Config) Report {
 				checkErr = fmt.Errorf("not found")
 			}
 		}
-		// auto / fake：单项缺失不直接打垮 doctor；钉死某 driver 时仅该项必填。
+		// auto/fake: A single missing item will not directly defeat the doctor; only this item is required when nailing a driver.
 		optional := auto || pinnedFake || !strings.EqualFold(entry.Name, decision.Name)
 		check := Check{
 			Name:     entry.Name,
@@ -145,7 +145,7 @@ func Run(deps Deps, cfg config.Config) Report {
 			report.OK = false
 		}
 	default:
-		// 钉死真实 driver：不可用时 Resolve 也会报错；以缓存项 Found 为准。
+		// Nail the real driver: Resolve will also report an error when it is unavailable; the cache item Found shall prevail.
 		if resolveErr != nil {
 			report.OK = false
 		}
@@ -197,7 +197,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// runtimePaths 汇总关键路径；basePath 空时用 brand 默认数据目录。
+// runtimePaths summarizes key paths; when basePath is empty, the brand default data directory is used.
 func runtimePaths(basePath string) map[string]string {
 	if basePath == "" {
 		basePath = brand.ResolveDataDir()

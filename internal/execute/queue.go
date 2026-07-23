@@ -8,29 +8,29 @@ import (
 )
 
 const (
-	// InputKindText 是执行边界消费的自然语言约束。
+	// InputKindText is a natural language constraint that performs boundary consumption.
 	InputKindText = "text"
-	// InputKindSoftStop 在步/修复边界中止后续工作（不立刻 kill）。
+	// InputKindSoftStop Stops subsequent work at the step/fix boundary (does not kill immediately).
 	InputKindSoftStop = "soft_stop"
-	// InputKindBrief 收紧/改写下一步 agent brief（边界生效）。
+	// InputKindBrief Tightens/rewrites the next agent brief (boundaries take effect).
 	InputKindBrief = "brief"
-	// InputKindSkipStep 请求在边界跳过当前步（由执行器策略解释）。
+	// InputKindSkipStep Requests that the current step be skipped on a boundary (interpreted by the executor policy).
 	InputKindSkipStep = "skip_step"
 )
 
-// UserInput 是执行期间暂存、等待边界消费的用户输入或控制信号。
+// UserInput is a user input or control signal that is temporarily stored during execution and waiting for boundary consumption.
 type UserInput struct {
 	Kind string
 	Text string
 }
 
-// InputQueue 保存执行期间的用户输入；仅在步骤或 Repair 轮次边界调用 Drain。
+// InputQueue holds user input during execution; Drain is only called at step or Repair turn boundaries.
 type InputQueue struct {
 	mu    sync.Mutex
 	items []UserInput
 }
 
-// Enqueue 按 FIFO 顺序追加输入，绝不向正在运行的 agent 中途注入。
+// Enqueue appends input in FIFO order and never injects it into the running agent halfway.
 func (q *InputQueue) Enqueue(input UserInput) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -40,7 +40,7 @@ func (q *InputQueue) Enqueue(input UserInput) {
 	q.items = append(q.items, input)
 }
 
-// Drain 取出当前所有输入并清空队列，供执行边界统一消费。
+// Drain takes out all current inputs and clears the queue for unified consumption at the execution boundary.
 func (q *InputQueue) Drain() []UserInput {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -50,7 +50,7 @@ func (q *InputQueue) Drain() []UserInput {
 	return items
 }
 
-// Len 返回尚未消费的排队输入数，供 TUI /status 展示工作态。
+// Len returns the number of queued inputs that have not been consumed for TUI /status to display the working status.
 func (q *InputQueue) Len() int {
 	if q == nil {
 		return 0
@@ -60,7 +60,7 @@ func (q *InputQueue) Len() int {
 	return len(q.items)
 }
 
-// Peek 返回队列副本，不消费（供 /queue 与调试）。
+// Peek returns a copy of the queue without consumption (for /queue and debugging).
 func (q *InputQueue) Peek() []UserInput {
 	if q == nil {
 		return nil
@@ -70,7 +70,7 @@ func (q *InputQueue) Peek() []UserInput {
 	return append([]UserInput(nil), q.items...)
 }
 
-// KindCounts 按 kind 统计排队项。
+// KindCounts counts queued items by kind.
 func (q *InputQueue) KindCounts() map[string]int {
 	out := map[string]int{}
 	for _, item := range q.Peek() {
@@ -83,7 +83,7 @@ func (q *InputQueue) KindCounts() map[string]int {
 	return out
 }
 
-// Summary 生成紧凑队列摘要，如 "2 text · 1 brief · 1 skip_step"。
+// Summary generates a compact queue summary, such as "2 text · 1 brief · 1 skip_step".
 func (q *InputQueue) Summary() string {
 	counts := q.KindCounts()
 	if len(counts) == 0 {
@@ -115,7 +115,7 @@ func fmtKind(kind string, n int) string {
 	return fmt.Sprintf("%s×%s", label, strconv.Itoa(n))
 }
 
-// BoundaryDrain 是执行边界一次 Drain 的分类结果。
+// BoundaryDrain is the classification result of performing a boundary Drain.
 type BoundaryDrain struct {
 	Texts    []UserInput
 	Briefs   []UserInput
@@ -123,13 +123,13 @@ type BoundaryDrain struct {
 	SkipStep bool
 }
 
-// SplitDrain 拆分文本约束与 soft-stop 控制信号（兼容旧调用方）。
+// SplitDrain splits text constraints with soft-stop control signals (compatible with older callers).
 func SplitDrain(items []UserInput) (texts []UserInput, softStop bool) {
 	d := ClassifyDrain(items)
 	return d.Texts, d.SoftStop
 }
 
-// ClassifyDrain 按 kind 拆分边界输入。
+// ClassifyDrain splits boundary input by kind.
 func ClassifyDrain(items []UserInput) BoundaryDrain {
 	var out BoundaryDrain
 	for _, item := range items {
@@ -147,7 +147,7 @@ func ClassifyDrain(items []UserInput) BoundaryDrain {
 	return out
 }
 
-// MergeBriefs 把 brief 类输入拼进下一步 prompt 前缀。
+// MergeBriefs spells the brief input into the next step with the prompt prefix.
 func MergeBriefs(briefs []UserInput) string {
 	if len(briefs) == 0 {
 		return ""

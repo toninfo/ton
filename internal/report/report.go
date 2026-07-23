@@ -24,7 +24,7 @@ type Input struct {
 	BudgetExceeded  bool
 	AllowNoGate     bool
 	AcceptanceNotes string
-	// Narrative 可选：指挥层/LLM 会话叙事（英文短段落）。
+	// Narrative Optional: Command/LLM conversation narrative (short paragraphs in English).
 	Narrative string
 }
 
@@ -72,7 +72,7 @@ func writeVerify(out *strings.Builder, input Input) {
 	out.WriteString("## Verify\n\n")
 	rounds := input.Session.VerifyRound
 	if rounds == 0 && input.Session.TerminalStatus == domain.TerminalDone {
-		// 门禁一次通过时 VerifyRound 仍为 1；0 表示未进入会话级 verify。
+		// VerifyRound is still 1 when the access control is passed once; 0 means that session-level verify has not been entered.
 		out.WriteString("- Rounds executed: 0 (session-level verify not reached)\n")
 		return
 	}

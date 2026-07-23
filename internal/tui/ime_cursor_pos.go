@@ -9,25 +9,25 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// configureInputIME：关掉 bubbles 假光标。fcitx/ibus/微软拼音都认终端真光标；
-// 假光标在、真光标钉在行首时，预编辑就会盖住输入行开头。
+// configureInputIME: Turn off the bubbles fake cursor. fcitx/ibus/Microsoft Pinyin all recognize the terminal’s real cursor;
+// When the false cursor is at the beginning of the line and the real cursor is at the beginning of the line, the pre-editing will cover the beginning of the input line.
 func configureInputIME(input *textinput.Model) {
 	_ = input.Cursor.SetMode(cursor.CursorHide)
 }
 
-// imeCursorSuffix 只登记插入点，CUP 由 imeFixWriter 在 flush 末尾改写发出。
-// termHeight：AltScreen 裁掉顶部行时，输入行落在最后可见行。
+// imeCursorSuffix only registers the insertion point, and CUP is rewritten and emitted by imeFixWriter at the end of flush.
+// termHeight: AltScreen When the top row is cropped, the input row falls on the last visible row.
 func imeCursorSuffix(view, prompt, valueBeforeCursor string, termHeight int) string {
 	row, col := imeCursorPos(view, prompt, valueBeforeCursor, termHeight)
 	setIMECursorPos(row, col)
 	return ""
 }
 
-// imeCursorPos 按「显示列宽」算插入点 1-based 绝对坐标。
-// view 含 framePrefix（Windows 清屏）或 AltScreen 内容时，行号即屏上绝对行。
+// imeCursorPos calculates the 1-based absolute coordinates of the insertion point according to the "display column width".
+// When the view contains framePrefix (Windows clear screen) or AltScreen content, the line number is the absolute line on the screen.
 func imeCursorPos(view, prompt, valueBeforeCursor string, termHeight int) (row, col int) {
 	row = strings.Count(view, "\n") + 1
-	// bubbletea 会按 height 从顶部裁行，输入永远在裁后最后一行。
+	// bubbletea will cut rows from the top by height, and the input will always be the last row after cutting.
 	if termHeight > 0 && row > termHeight {
 		row = termHeight
 	}
@@ -41,7 +41,7 @@ func imeCursorPos(view, prompt, valueBeforeCursor string, termHeight int) (row, 
 	return row, col
 }
 
-// 跨 goroutine：View 写坐标，imeFixWriter 在 flush 改写时读走。
+// Cross goroutine: View writes coordinates, and imeFixWriter reads them when flush is rewritten.
 var (
 	imeRow atomic.Int32
 	imeCol atomic.Int32
@@ -67,7 +67,7 @@ func loadIMECursorPos() (row, col int, ok bool) {
 	return int(imeRow.Load()), int(imeCol.Load()), true
 }
 
-// resetIMECursorPos 仅测试用：清掉已记录的插入点。
+// resetIMECursorPos For testing only: Clear the recorded insertion point.
 func resetIMECursorPos() {
 	imeSet.Store(false)
 	imeRow.Store(0)

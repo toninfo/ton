@@ -13,22 +13,22 @@ import (
 	"github.com/toninfo/ton/internal/llm"
 )
 
-// AgentRunner 跑一轮 agent（与 clarify/execute 同形：cwd + prompt）。
+// AgentRunner runs one round of agent (same shape as clarify/execute: cwd + prompt).
 type AgentRunner func(ctx context.Context, cwd, prompt string) (stdout string, err error)
 
-// AgentPlanner：LLM 只产出约束 JSON，agent 写 todos.json，ton 校验。
+// AgentPlanner: LLM only outputs constraint JSON, the agent writes todos.json, and ton verifies it.
 type AgentPlanner struct {
 	Chat      ChatClient
 	Run       AgentRunner
 	Workspace string
 	SessionID string
-	// SandboxBlock 注入到 agent prompt 前的边界说明（可空）。
+	// SandboxBlock Boundary description before injecting into agent prompt (nullable).
 	SandboxBlock string
-	// ExtraNotes 来自指挥层的规划意图（写入 constraints.notes）。
+	// ExtraNotes Planning intent from command (written into constraints.notes).
 	ExtraNotes string
 }
 
-// planConstraints 是 LLM 给 agent 的硬约束（不是最终 todos）。
+// planConstraints are hard constraints (not final todos) given by LLM to the agent.
 type planConstraints struct {
 	MinSteps       int      `json:"min_steps"`
 	MaxSteps       int      `json:"max_steps"`
@@ -38,7 +38,7 @@ type planConstraints struct {
 	AcceptanceHint string   `json:"acceptance_hint"`
 }
 
-// Generate 生成权威 TodoList（读 .ton/sessions/<id>/todos.json）。
+// Generate generates the authoritative TodoList (read .ton/sessions/<id>/todos.json).
 func (p AgentPlanner) Generate(ctx context.Context, requirements, design string, options Options) (domain.TodoList, error) {
 	if p.Chat == nil {
 		return domain.TodoList{}, fmt.Errorf("plan: chat client is required")
@@ -60,7 +60,7 @@ func (p AgentPlanner) Generate(ctx context.Context, requirements, design string,
 	}
 
 	todosPath := artifacts.TodosPath(ws, sid)
-	_ = os.Remove(todosPath) // 清旧文件，逼 agent 重写
+	_ = os.Remove(todosPath) // Clear old files and force the agent to rewrite them
 
 	constraints, err := p.askConstraints(ctx, requirements, design, options)
 	if err != nil {
@@ -121,7 +121,7 @@ Do NOT invent todo steps. Constraints only. Keep must_cover short (3-8).`
 	content = stripJSONFence(content)
 	var c planConstraints
 	if err := json.Unmarshal([]byte(content), &c); err != nil {
-		// LLM 约束失败时给保守默认，不阻断 agent 规划
+		// Give a conservative default when LLM constraints fail and do not block agent planning
 		return planConstraints{
 			MinSteps:       options.MinSteps,
 			MaxSteps:       options.MaxSteps,

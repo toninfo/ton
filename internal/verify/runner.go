@@ -84,11 +84,11 @@ func ResolveCWD(workspace, cwd string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("compare gate cwd: %w", err)
 	}
-	// cwd jail：Rel 以 .. 开头即跨出 workspace，绝不能让验收命令在仓库外执行。
+	// cwd jail: Rel starting with .. will step out of the workspace, and the acceptance command must not be executed outside the warehouse.
 	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("gate cwd %q escapes workspace %q", cwd, base)
 	}
-	// Rel 在「base\D:\tmp」这类畸形路径上可能不返回 ..，再加一层前缀守卫。
+	// Rel may not return .. on malformed paths such as "base\D:\tmp", and add a layer of prefix guard.
 	sep := string(filepath.Separator)
 	basePrefix := strings.TrimRight(base, sep) + sep
 	if resolved != base && !strings.HasPrefix(strings.ToLower(resolved+sep), strings.ToLower(basePrefix)) {
@@ -97,11 +97,11 @@ func ResolveCWD(workspace, cwd string) (string, error) {
 	return resolved, nil
 }
 
-// looksLikeMangledAbsJoin 识别 Windows 上把盘符绝对路径拼进相对段后的畸形结果，
-// 例如 D:\ws\D:\tmp\WpfTimer。
+// looksLikeMangledAbsJoin identifies the malformed result of spelling the absolute path of the drive letter into relative segments on Windows.
+// For example D:\ws\D:\tmp\WpfTimer.
 func looksLikeMangledAbsJoin(p string) bool {
 	normalized := filepath.ToSlash(p)
-	// 跳过开头的盘符 "D:/"，其后若再出现 ":/" 即为畸形。
+	// Skip the beginning drive letter "D:/". If ":/" appears later, it will be malformed.
 	if i := strings.Index(normalized, ":/"); i >= 0 {
 		if strings.Contains(normalized[i+2:], ":/") || strings.Contains(normalized[i+2:], ":\\") {
 			return true
@@ -167,7 +167,7 @@ func (w *limitedWriter) Write(data []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	// 告诉 exec 全部数据都已被消费，超出日志上限的部分只是不再落盘。
+	// Tell exec that all data has been consumed, and the part that exceeds the log limit will no longer be written to disk.
 	return len(data), nil
 }
 
@@ -212,7 +212,7 @@ func runShellCommand(
 	case err := <-done:
 		return commandOutcome{exitCode: exitCode(cmd, err), err: err}
 	case <-ctx.Done():
-		// 进程组 kill：shell 可能派生子进程，超时时必须同时清理整个组，防止孤儿继续占用资源。
+		// Process group kill: The shell may spawn child processes. When timeout occurs, the entire group must be cleaned up at the same time to prevent orphans from continuing to occupy resources.
 		_ = killProcessGroup(cmd)
 		err := <-done
 		return commandOutcome{exitCode: exitCode(cmd, err), timedOut: true, err: ctx.Err()}

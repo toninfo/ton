@@ -7,14 +7,14 @@ import (
 	"unicode"
 )
 
-// winAbsPath 匹配 Windows 盘符绝对路径（正斜杠/反斜杠均可）。
+// winAbsPath matches the absolute path of the Windows drive letter (forward slashes/backslashes are acceptable).
 var (
 	reWinAbs  = regexp.MustCompile(`(?i)\b([a-z]:[\\/][^\s"'，。；;！!？?）)]*)`)
 	reUnixAbs = regexp.MustCompile(`(?:^|[\s"'「])(/[^\s"'，。；;！!？?）)]+)`)
 )
 
-// EffectiveWorkspace 返回本会话应使用的项目根目录。
-// target 为空时回落到启动时的 cwd（launch）；二者都会 Clean/Abs。
+// EffectiveWorkspace Returns the project root directory that should be used for this session.
+// When target is empty, it falls back to cwd (launch) at startup; both will Clean/Abs.
 func EffectiveWorkspace(launch, target string) (string, error) {
 	launch = strings.TrimSpace(launch)
 	target = strings.TrimSpace(target)
@@ -28,19 +28,19 @@ func EffectiveWorkspace(launch, target string) (string, error) {
 	return filepath.Abs(base)
 }
 
-// ApplyWorkspaceHint 从用户话术与已有状态推断目标项目根目录。
-// 规则：
-//   - 用户给出完整项目路径 → TargetWorkspace = 该路径
-//   - 用户只给父目录（如 D:\tmp\ / 「放在 D:\tmp 下面」）→ 记为 TargetParent；
-//     若已有项目名 slug，则拼成 TargetWorkspace = parent/slug
-//   - 未指定 → 保持空（表示使用启动 cwd）
+// ApplyWorkspaceHint infers the target project root directory from user utterances and existing state.
+// rule:
+//   - User gives full project path → TargetWorkspace = this path
+//   - The user only gives the parent directory (such as D:\tmp\ / "Put it under D:\tmp") → mark it as TargetParent;
+//     If there is already a project name slug, spell it as TargetWorkspace = parent/slug
+//   - unspecified → leave empty (indicates use startup cwd)
 func ApplyWorkspaceHint(state *ReqState, userText, launchWorkspace string) {
 	if state == nil {
 		return
 	}
 	hint := ExtractPathHint(userText)
 	if hint == "" {
-		// 无新路径时，若已有 parent + slug，尝试补全。
+		// When there is no new path, if there is already a parent + slug, try to complete it.
 		maybeComposeTarget(state)
 		return
 	}
@@ -59,7 +59,7 @@ func ApplyWorkspaceHint(state *ReqState, userText, launchWorkspace string) {
 	state.TargetParent = filepath.Dir(abs)
 }
 
-// ExtractPathHint 从一句用户输入里抽出最像目标目录的路径。
+// ExtractPathHint Extracts the path that most closely resembles the target directory from a user input.
 func ExtractPathHint(text string) string {
 	s := strings.TrimSpace(text)
 	if s == "" {
@@ -77,7 +77,7 @@ func ExtractPathHint(text string) string {
 func trimPathJunk(p string) string {
 	p = strings.TrimSpace(p)
 	p = strings.TrimRight(p, "，。；;！!？?）)」\"'")
-	// 「D:/tmp/目录」→ 去掉中文「目录」后缀
+	// "D:/tmp/directory" → remove the Chinese "directory" suffix
 	for _, suf := range []string{"目录", "文件夹", "下", "下面", "里头", "里面"} {
 		if strings.HasSuffix(p, suf) {
 			p = strings.TrimSuffix(p, suf)
@@ -87,18 +87,18 @@ func trimPathJunk(p string) string {
 	return strings.TrimSpace(p)
 }
 
-// looksLikeParentDir：用户说「放在 X 下面/目录」或路径本身过浅（如 D:\tmp）。
+// looksLikeParentDir: The user said "put it under X/directory" or the path itself is too shallow (such as D:\tmp).
 func looksLikeParentDir(abs, userText string) bool {
 	low := strings.ToLower(userText)
 	if strings.Contains(low, "下面") || strings.Contains(low, "底下") ||
 		strings.Contains(low, "目录") || strings.Contains(low, "文件夹里") ||
 		strings.Contains(low, "放到") && !strings.Contains(low, "项目") {
-		// 「放在 d:/tmp/目录」几乎总是父目录意图
-	base := strings.ToLower(filepath.Base(abs))
+		// "Put it in d:/tmp/" is almost always the parent directory intention
+		base := strings.ToLower(filepath.Base(abs))
 		if base == "tmp" || base == "temp" || base == "projects" || base == "code" || base == "src" || base == "work" {
 			return true
 		}
-		// 路径段很少也当父目录（盘符+一层）
+		// Path segments are rarely used as parent directories (drive letter + one layer)
 		rel := strings.TrimPrefix(filepath.ToSlash(abs), filepath.VolumeName(abs)+"/")
 		rel = strings.Trim(rel, "/")
 		if rel != "" && !strings.Contains(rel, "/") {
@@ -125,7 +125,7 @@ func projectSlug(state *ReqState) string {
 	if state == nil {
 		return ""
 	}
-	// 优先从 TargetWorkspace 已有尾段、其次从文案猜一个合法目录名。
+	// First, guess the tail segment of TargetWorkspace, and then guess a legal directory name from the copy.
 	candidates := []string{
 		state.Understanding.Summary,
 		state.Requirements,
@@ -140,7 +140,7 @@ func projectSlug(state *ReqState) string {
 
 func guessSlug(text string) string {
 	low := strings.ToLower(text)
-	// 常见显式项目名
+	// Common explicit project names
 	for _, name := range []string{"WpfTimer", "wpf-timer", "wpftimer", "TimerApp", "LoginPage", "login"} {
 		if strings.Contains(low, strings.ToLower(name)) {
 			return sanitizeSlug(name)
@@ -173,14 +173,14 @@ func sanitizeSlug(s string) string {
 	if out == "" {
 		return ""
 	}
-	// 规范 WpfTimer 大小写
+	// Standardize WpfTimer case
 	if strings.EqualFold(out, "wpftimer") || strings.EqualFold(out, "wpf-timer") {
 		return "WpfTimer"
 	}
 	return out
 }
 
-// WorkspaceLabel 用于 UI/回复展示。
+// WorkspaceLabel is used for UI/reply presentation.
 func WorkspaceLabel(launch, target string) string {
 	eff, err := EffectiveWorkspace(launch, target)
 	if err != nil {

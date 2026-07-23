@@ -60,7 +60,7 @@ func (s *Store) TryLock(sessionID string) error {
 			return fmt.Errorf("create lock: %w", openErr)
 		}
 
-		// O_EXCL 保证并发实例不会同时接管锁；仅确认原 PID 已死后才重试。
+		// O_EXCL ensures that concurrent instances will not take over the lock at the same time; only retry after confirming that the original PID is dead.
 		reclaimed, reclaimErr := s.ReclaimStaleLock(sessionID)
 		if reclaimErr != nil {
 			return reclaimErr

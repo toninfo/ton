@@ -10,8 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Load 按 defaults → yaml → TON_* 环境变量顺序加载配置。
-// API 密钥类字段（LLM.APIKey、Cursor.APIKey）仅来自环境变量，yaml 中的同名字段会被忽略。
+// Load loads configurations in the order of defaults → yaml → TON_* environment variables.
+// API key class fields (LLM.APIKey, Cursor.APIKey) only come from environment variables, and fields with the same name in yaml will be ignored.
 func Load(path string) (Config, error) {
 	cfg := Default()
 
@@ -20,7 +20,7 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 
-	// yaml 反序列化到已有默认值之上；敏感字段带 yaml:"-" 不会被文件覆盖。
+	// YAML is deserialized onto the existing default value; sensitive fields with YAML: "-" will not be overwritten by the file.
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
@@ -47,8 +47,8 @@ func LoadEffective(path string) (Config, error) {
 	return cfg, nil
 }
 
-// applyEnv 用 TON_* / CURSOR_API_KEY 覆盖已加载的配置。
-// 空字符串 env 表示“不覆盖”，保留 yaml/默认值。
+// applyEnv overwrites the loaded configuration with TON_* / CURSOR_API_KEY.
+// Empty string env means "no override", retain yaml/default value.
 func applyEnv(cfg *Config) {
 	if v := brand.Env("LLM_API_KEY"); v != "" {
 		cfg.LLM.APIKey = v
@@ -73,7 +73,7 @@ func applyEnv(cfg *Config) {
 	}
 }
 
-// applySecretFile 在环境变量未设置时，从配置目录 llm.env 回填 API key。
+// applySecretFile backfills the API key from the configuration directory llm.env when the environment variable is not set.
 func applySecretFile(cfg *Config) {
 	if strings.TrimSpace(cfg.LLM.APIKey) != "" {
 		return

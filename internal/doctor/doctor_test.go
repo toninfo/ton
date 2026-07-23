@@ -91,7 +91,7 @@ func TestDoctor_UsesConfiguredDriverCommands(t *testing.T) {
 	if !report.OK {
 		t.Fatal("expected configured commands to be available")
 	}
-	// Scan 顺序：opencode → claude → cursor
+	// Scan order: opencode → claude → cursor
 	want := []string{"custom-opencode", "custom-claude", "custom-agent"}
 	if len(lookedUp) != len(want) {
 		t.Fatalf("lookups = %v, want %v", lookedUp, want)
@@ -143,7 +143,7 @@ func TestDoctor_FakeDefaultDoesNotRequireCLIs(t *testing.T) {
 	report := doctor.Run(doctor.Deps{
 		BasePath: t.TempDir(),
 		LookPath: func(string) (string, error) {
-			// fake 钉死仍会扫 PATH 供展示，但不应影响 OK。
+			// The fake crucifixion will still scan PATH for display, but should not affect OK.
 			return "", errors.New("not found")
 		},
 	}, cfg)
@@ -156,9 +156,9 @@ func TestDoctor_FakeDefaultDoesNotRequireCLIs(t *testing.T) {
 }
 
 func TestDoctor_WarnsMissingLLMKey(t *testing.T) {
-	// 隔离本机真实 llm.env，否则 secrets.LoadAPIKey 会读到已配置的 key。
+	// Isolate the local real llm.env, otherwise secrets.LoadAPIKey will read the configured key.
 	t.Setenv("TON_CONFIG_DIR", t.TempDir())
-	// doctor 通过 deps.Getenv 读 key；同时隔离 llm.env，避免本机密钥文件误报 Found。
+	// doctor reads the key through deps.Getenv; at the same time, isolate llm.env to avoid false positives of Found in the local key file.
 	cfg := config.Default()
 	cfg.Driver.Default = "opencode"
 

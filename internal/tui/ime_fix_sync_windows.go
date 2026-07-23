@@ -8,10 +8,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// syncConsoleCursor 用 Win32 API 再钉一次真光标。
-// Windows IME（尤其微软拼音）读的是控制台光标位置；仅靠 ANSI CUP
-// 在部分宿主（老 conhost / 某些 WT 版本）上，候选窗仍会漂到行首或乱跳。
-// 坐标：CUP 是视口内 1-based；(X,Y) 是屏缓冲 0-based，Y 要加 Window.Top。
+// syncConsoleCursor uses Win32 API to nail the real cursor again.
+// Windows IME (especially Microsoft Pinyin) reads the console cursor position; only ANSI CUP
+// On some hosts (old conhosts/certain WT versions), the candidate window still floats to the beginning of the line or jumps around.
+// Coordinates: CUP is 1-based in the viewport; (X, Y) is 0-based in the screen buffer, and Y needs to add Window.Top.
 func syncConsoleCursor(f *os.File, row, col int) {
 	if f == nil || row < 1 || col < 1 {
 		return

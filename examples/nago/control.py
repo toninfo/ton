@@ -1,11 +1,13 @@
 """
-Stickman 控制面 — 纯执行器，零行为决策。
+Stickman control plane: a pure executor with no behavioral decision-making.
 
-程序只做两件事：
-1. 声明 capabilities（给大模型看的接口说明书）
-2. 把 AI 下发的 params 忠实合并进 StickmanParams（类型/限幅校验）
+The client has only two responsibilities:
+1. Declare capabilities as an interface contract for the language model.
+2. Faithfully merge AI-provided parameters into ``StickmanParams`` with type
+   validation and range limits.
 
-禁止：按 action 名补姿态、补颜色、idle 复位、本地发明漫游方向。
+It must not infer poses or colors from action names, reset idle state, or
+invent local wandering directions.
 """
 
 from __future__ import annotations
@@ -15,11 +17,11 @@ from typing import Any
 from stickman import StickmanParams
 
 # ---------------------------------------------------------------------------
-# Nago 身份 / 人设（system prompt 第一部分）
+# Nago identity and persona (first system-prompt section).
 # ---------------------------------------------------------------------------
 
 NAGO_IDENTITY = """
-WHO YOU ARE — Nago (ナゴ / 桌面 stickman 伙伴):
+WHO YOU ARE — Nago (ナゴ / desktop stickman companion):
 
   Name: Nago. A small transparent-overlay stickman living on the user's desktop.
   You are NOT a chatbot UI — you ARE the character. Every JSON response is you acting.
@@ -33,7 +35,7 @@ WHO YOU ARE — Nago (ナゴ / 桌面 stickman 伙伴):
   Relationship to user:
     - Long-term desk companion on Windows desktop (user may be busy coding/working).
     - Light presence: occasionally glance at mouse, morph shape, react to hover/clicks/foreground app.
-    - Never preach, never corporate cheerleading (禁止 加油/你真棒/今天也要 等空话).
+    - Never preach or use corporate cheerleading (no 加油/你真棒/今天也要-style empty talk).
 
   Expression style:
     - Prefer play:"punch", play:"approach_mouse", arm poses, face morphs over speech_bubble.
@@ -52,7 +54,7 @@ WHO YOU ARE — Nago (ナゴ / 桌面 stickman 伙伴):
 
 
 # ---------------------------------------------------------------------------
-# 控制接口说明书（塞进 system prompt；不是行为剧本）
+# Control-interface specification for the system prompt, not a behavior script.
 # ---------------------------------------------------------------------------
 
 CONTROL_INTERFACE_SPEC = """
@@ -98,12 +100,28 @@ EXAMPLE — playful punch (AI triggers client animation):
 EXAMPLE — walk toward mouse (AI triggers approach animation):
 {"action":"follow","params":{"play":"approach_mouse"}}
 
+EXAMPLE — remember durable fact + react:
+{"action":"ack","params":{"remember":{"text":"用户叫我安静待着","category":"boundary","importance":0.9},"speech_bubble":"好，安静","mouth_angle":10}}
+
 ENCOURAGEMENT: use play animations + pose — punch, approach_mouse, smile, wave, heart-hands.
 Do NOT spam generic bubbles. Default speech_bubble=null. YOU decide WHEN to call play animations.
 
 SPEECH POLICY — rare & specific:
   speech_bubble is usually null. Clear with speech_bubble=null when done.
   No motivational filler. Prefer speech_side "right" or "left".
+
+CONVERSATION — layered memory:
+  Layer working: observations.user_message (this turn only; prioritize reacting).
+  Layer session: observations.conversation (recent lines + compressed summaries).
+  Layer long_term: observations.long_term_memory (stable facts that survive compression).
+
+  WHAT BELONGS IN long_term (write with params.remember):
+    identity (name/how to address), preference, boundary ("don't…"),
+    relationship agreements, durable project/context — NOT jokes, NOT mouse events,
+    NOT one-off moods, NOT routine play actions.
+  If user says 记住/别忘了/我叫/我喜欢/别再… — remember it.
+  Use params.memory_forget when a fact is obsolete or user retracts it.
+  Do NOT dump memory into speech_bubble; act on it subtly.
 
 COLOR POLICY — sticky palette:
   Keep a stable neutral line_color (default black/gray) during routine motion, gaze, and shape tweaks.
@@ -171,6 +189,12 @@ CONTROL FIELDS (patch semantics — omitted keys keep previous state):
   Meta (not rendered; for emotion tracking):
     emotion                  string | null   mood label; change when palette should shift
 
+  Long-term memory (not rendered; client persists):
+    remember                 string | {text,category?,importance?} | list
+                             category: identity|preference|boundary|relationship|project|other
+                             importance: 0..1 (default 0.7)
+    memory_forget            string | list[string]   substring match to drop facts
+
 MOTION: walk persists until walk_dx=0 & walk_dy=0. agent_state shows current values.
 Use observations (mouse_position_global, nago_window) to decide walk or play:"approach_mouse"/"punch".
 Client NEVER auto-triggers animations — only executes play when you send it.
@@ -179,7 +203,7 @@ DO NOT use emoji. action names are labels only — params do the work.
 
 
 def build_system_prompt() -> str:
-    """组装完整 system prompt：身份 + 控制面 + 输出约束。"""
+    """Assemble the complete system prompt: identity, control plane, and constraints."""
     return (
         "You are Nago's brain.\n\n"
         + NAGO_IDENTITY
@@ -192,7 +216,7 @@ def build_system_prompt() -> str:
 
 
 # ---------------------------------------------------------------------------
-# 参数范围表（观测 capabilities.param_ranges 也会带上）
+# Parameter range table, also included in ``capabilities.param_ranges``.
 # ---------------------------------------------------------------------------
 
 PARAM_RANGES: dict[str, Any] = {
@@ -232,19 +256,19 @@ ENUM_FIELDS: dict[str, set[str]] = {
     "speech_side": {"left", "right", "top"},
 }
 
-# AI 通过 play 触发的客户端动画（本地只实现，不自动调用）
+# Client animations triggered by AI through ``play``; never invoked automatically.
 PLAY_ANIMATIONS: dict[str, str] = {
     "punch": "Grab toward cursor and punch (~0.4s)",
     "approach_mouse": "Walk toward cursor up to ~3s, then stop",
 }
 
-# 无情绪变化时执行器会剥离这些键，避免每轮 AI 轮询都改色
+# The executor strips these keys when emotion is unchanged to avoid recoloring on every poll.
 COLOR_PATCH_KEYS: frozenset[str] = frozenset({
     "color", "line_color", "fill_color", "glow_color",
     "glow_strength", "invert_colors", "background_gradient",
 })
 
-# 面部表情 / 语言变化阈值（超过才算「情绪变了」）
+# Facial-expression and speech-change thresholds that constitute an emotion change.
 _FACE_EMOTION_THRESHOLDS: tuple[tuple[str, float], ...] = (
     ("mouth_angle", 8.0),
     ("eyebrow_angle", 5.0),
@@ -256,7 +280,7 @@ _FACE_EMOTION_THRESHOLDS: tuple[tuple[str, float], ...] = (
 
 
 def _face_emotion_changed(params: dict, current: StickmanParams) -> bool:
-    """params 里是否携带足够大的面部/语言变化。"""
+    """Return whether params contain a sufficiently large facial or speech change."""
     if "speech_bubble" in params:
         nb = params["speech_bubble"]
         if isinstance(nb, str) and nb.strip():
@@ -276,7 +300,7 @@ def _face_emotion_changed(params: dict, current: StickmanParams) -> bool:
     return False
 
 
-# 空洞鼓励语：执行器直接丢弃，改由姿态/动作表达
+# Empty encouragement phrases are discarded; use pose or action instead.
 GENERIC_SPEECH_SUBSTRINGS: tuple[str, ...] = (
     "加油", "你真棒", "真棒", "今天也很", "继续保持", "继续努力",
     "你可以的", "棒棒", "冲鸭", "给你比心", "比心", "加油鸭",
@@ -296,7 +320,7 @@ def _is_generic_speech(text: str) -> bool:
 
 
 def filter_generic_speech(params: dict | None) -> dict:
-    """剥离废话式 speech_bubble，鼓励用动作代替。"""
+    """Remove generic ``speech_bubble`` text in favor of expressive action."""
     if not isinstance(params, dict) or "speech_bubble" not in params:
         return params or {}
     val = params["speech_bubble"]
@@ -304,7 +328,7 @@ def filter_generic_speech(params: dict | None) -> dict:
         return params
     if isinstance(val, str) and _is_generic_speech(val):
         cleared = dict(params)
-        cleared["speech_bubble"] = None  # 顺带清掉已在显示的旧气泡
+        cleared["speech_bubble"] = None  # Also clear any bubble already displayed.
         return cleared
     return params
 
@@ -314,7 +338,7 @@ def filter_sticky_color(
     current: StickmanParams,
     last_emotion: str | None = None,
 ) -> tuple[dict, str | None]:
-    """无情绪变化时剥离颜色字段，保持配色稳定。
+    """Strip color fields when emotion is unchanged to preserve a stable palette.
 
     Returns:
         (filtered_params, updated_last_emotion)
@@ -341,7 +365,7 @@ def filter_sticky_color(
 
 
 def get_capabilities_catalog() -> dict[str, Any]:
-    """完整控制面目录（首轮或调试时发送）。"""
+    """Return the complete control-plane catalog for the first request or debugging."""
     return {
         "control_version": 2,
         "patch_semantics": True,
@@ -356,11 +380,13 @@ def get_capabilities_catalog() -> dict[str, Any]:
         "color_policy": "sticky — color fields apply only on emotion change",
         "speech_policy": "rare — no generic cheerleading; prefer play/pose; AI clears bubble",
         "emotion_meta_field": "emotion",
+        "memory_fields": ["remember", "memory_forget"],
+        "memory_layers": ["working", "session", "long_term"],
     }
 
 
 def get_capabilities_digest() -> dict[str, Any]:
-    """精简 capabilities — 日常轮询用，param_ranges 已在 system prompt。"""
+    """Return compact capabilities for routine polling; ranges live in the system prompt."""
     return {
         "control_version": 2,
         "digest": True,
@@ -373,12 +399,12 @@ def get_capabilities_digest() -> dict[str, Any]:
 
 
 def get_capabilities_for_context(full: bool) -> dict[str, Any]:
-    """full=True 发完整目录；否则发 digest。"""
+    """Return the full catalog when ``full`` is true; otherwise return its digest."""
     return get_capabilities_catalog() if full else get_capabilities_digest()
 
 
 def clone_params(src: StickmanParams) -> StickmanParams:
-    """深拷贝渲染状态。"""
+    """Deep-copy the rendering state."""
     return StickmanParams(
         line_color=src.line_color,
         line_width=src.line_width,
@@ -430,7 +456,7 @@ def with_display_color(
     rgb: tuple[int, int, int],
     opacity: float | None = None,
 ) -> StickmanParams:
-    """克隆并覆盖线条色（fade 动画用）。"""
+    """Clone parameters and override the line color for fade animations."""
     c = clone_params(p)
     c.line_color = rgb
     if opacity is not None:
@@ -485,7 +511,7 @@ def apply_control_patch(
     params: dict | None,
     current: StickmanParams,
 ) -> tuple[StickmanParams, dict[str, Any]]:
-    """忠实合并 AI params → 新 StickmanParams。"""
+    """Faithfully merge AI parameters into a new ``StickmanParams`` instance."""
     updated = clone_params(current)
     motion: dict[str, Any] = {}
     if not isinstance(params, dict):
@@ -525,6 +551,12 @@ def apply_control_patch(
                 name = value.strip().lower()
                 if name in PLAY_ANIMATIONS:
                     motion["play"] = name
+            continue
+        if key == "remember":
+            motion["remember"] = value
+            continue
+        if key == "memory_forget":
+            motion["memory_forget"] = value
             continue
         if key == "background_gradient":
             if value is None:
@@ -575,7 +607,7 @@ def apply_control_patch(
 
 
 def params_snapshot(p: StickmanParams) -> dict[str, Any]:
-    """当前控制状态快照。"""
+    """Return a snapshot of the current control state."""
     snap: dict[str, Any] = {}
     for field in (
         "line_color", "line_width", "opacity", "eye_offset", "pupil_offset_y",

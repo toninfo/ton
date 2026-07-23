@@ -9,10 +9,10 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// ParseStreamJSON 将 Claude Code 的 stream-json（JSONL）输出归一化为 ton 事件。
+// ParseStreamJSON normalizes Claude Code's stream-json (JSONL) output into ton events.
 func ParseStreamJSON(reader io.Reader) ([]domain.AgentEvent, error) {
 	scanner := bufio.NewScanner(reader)
-	// Claude 的工具结果可包含较长文本，避免 Scanner 默认上限截断有效事件。
+	// Claude's tool results can contain longer text, avoiding Scanner's default upper limit of truncating valid events.
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 
 	var events []domain.AgentEvent

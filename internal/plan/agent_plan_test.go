@@ -39,7 +39,7 @@ func TestAgentPlannerWritesAndValidatesTodos(t *testing.T) {
 			if err := artifacts.WriteTodosJSON(ws, sid, todos); err != nil {
 				return "", err
 			}
-			// 约束文件应已落盘
+			// The constraint file should have been placed on disk
 			if _, err := os.Stat(filepath.Join(artifacts.SessionDir(ws, sid), "plan_constraints.json")); err != nil {
 				t.Fatalf("constraints missing: %v", err)
 			}

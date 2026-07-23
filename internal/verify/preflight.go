@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-// PreflightResult 是 Ready 前门禁轻量预检结果（不写入正式 verify 日志权威）。
+// PreflightResult is the Ready preflight lightweight preflight result (does not write to the formal verify log authority).
 type PreflightResult struct {
 	OK      bool
 	Message string
 }
 
-// PreflightGate 对门禁命令做短超时试跑；用于 Ready 提示，不替代正式 Verify。
+// PreflightGate performs a short timeout test run on access control commands; it is used for Ready prompts and does not replace formal Verify.
 func PreflightGate(ctx context.Context, workspace string, gate Gate, shell string, timeout time.Duration) PreflightResult {
 	if len(gate.Commands) == 0 {
 		return PreflightResult{OK: true, Message: "no gate commands"}
@@ -25,7 +25,7 @@ func PreflightGate(ctx context.Context, workspace string, gate Gate, shell strin
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
-	// 只预检第一条，避免 Ready 时跑完整套。
+	// Only pre-check the first item to avoid running the entire set when Ready.
 	cmdLine := strings.TrimSpace(gate.Commands[0].Cmd)
 	if cmdLine == "" {
 		return PreflightResult{OK: false, Message: "empty gate command"}
