@@ -234,8 +234,8 @@ def _draw_face_features_qt(
     lid = max(0, min(10, int(p.eyelid_offset)))
     mws = max(0.5, min(2.0, float(p.mouth_width_scale)))
 
-    # Face strokes stay thicker than the body so 0.5× display still reads.
-    face_w = max(2, int(2 + hs * 0.6 + p.line_width))
+    # Face strokes: barely thicker than body — thick ink reads as muddy at 0.5×.
+    face_w = max(1.0, float(p.line_width) + 0.35)
     face_pen = QPen(color, face_w)
     face_pen.setStyle(_pen_style(p.line_style))
     face_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -1006,6 +1006,10 @@ class NagoWindow(QWidget):
         self._moves_this_second: list[tuple[int, int, int, int]] = []
         self._clicks_this_second: list[str] = []
         self._wheel_this_second: tuple[int, int] = (0, 0)
+        # Stickman poke history (rolling 60s) — feeds interaction.salience for the model.
+        self._session_started_at: float = _time.time()
+        self._stickman_click_times: list[float] = []
+        self._ever_poked: bool = False
 
         # --- Hover state (step 10) ---
         self._hover: bool = False
@@ -1543,26 +1547,36 @@ class NagoWindow(QWidget):
     def mousePressEvent(self, event) -> None:
         self._last_input_time = _time.time()
         pos = event.position().toPoint()
+        on_stickman = self._is_on_stickman(pos)
+        name = self._button_name(event.button())
 
-        # Brief scale bounce when clicking the stickman (step 28)
-        if self._is_on_stickman(pos):
+        # Brief scale bounce when poking the figure.
+        if on_stickman:
             self._trigger_click_animation()
 
         # ONLY left-drag. Right-press opens the context menu; if we set
         # _dragging here, the menu steals mouseRelease and the window sticks
         # permanently to the cursor ("吸住").
-        if event.button() == Qt.MouseButton.LeftButton and (
+        in_drag_zone = (
             int(30 * RENDER_SCALE) <= pos.x() <= int(170 * RENDER_SCALE)
             and int(30 * RENDER_SCALE) <= pos.y() <= int(270 * RENDER_SCALE)
-        ):
+        )
+        if event.button() == Qt.MouseButton.LeftButton and in_drag_zone:
+            # Count the poke BEFORE drag — previously we returned early and
+            # left-clicks on the body never reached observations.clicks.
+            if name and on_stickman:
+                self._note_stickman_poke(name)
+                self._schedule_event_flush("click")
             self._stop_approach_mouse()
             self._drag_offset = pos
             self._dragging = True
             return
 
-        name = self._button_name(event.button())
         if name:
-            self._clicks_this_second.append(name)
+            if on_stickman:
+                self._note_stickman_poke(name)
+            else:
+                self._clicks_this_second.append(name)
             self._schedule_event_flush("click")
 
     def mouseReleaseEvent(self, event) -> None:
@@ -1574,9 +1588,86 @@ class NagoWindow(QWidget):
     def mouseDoubleClickEvent(self, event) -> None:
         self._last_input_time = _time.time()
         name = self._button_name(event.button())
-        if name:
-            self._clicks_this_second.append(f"double_{name}")
-            self._schedule_event_flush("double_click")
+        if not name:
+            return
+        kind = f"double_{name}"
+        if self._is_on_stickman(event.position().toPoint()):
+            self._note_stickman_poke(kind)
+        else:
+            self._clicks_this_second.append(kind)
+        self._schedule_event_flush("double_click")
+
+    def _note_stickman_poke(self, kind: str) -> None:
+        """Record a body poke into the flush buffer and the rolling 60s window."""
+        now = _time.time()
+        self._ever_poked = True
+        self._clicks_this_second.append(kind)
+        self._stickman_click_times.append(now)
+        # Keep a compact rolling window for burst / neglect signals.
+        self._stickman_click_times = [
+            t for t in self._stickman_click_times if now - t <= 60.0
+        ]
+
+    def _build_interaction_salience(self) -> dict:
+        """Derive high-priority poke / neglect cues for the next AI observation."""
+        now = _time.time()
+        times = self._stickman_click_times
+        flush_n = len(self._clicks_this_second)
+        c10 = sum(1 for t in times if now - t <= 10.0)
+        c60 = len(times)
+        if times:
+            since_ms = int((now - times[-1]) * 1000)
+        else:
+            since_ms = int((now - self._session_started_at) * 1000)
+
+        # Priority ladder — clicks must outrank idle heartbeat morphs.
+        if flush_n > 0 or c10 >= 1:
+            if c10 >= 5 or flush_n >= 4:
+                level = "critical"
+                priority = 0.95
+                hint = (
+                    f"POKE BURST: {max(c10, flush_n)} clicks recently — "
+                    "react now (annoyed / playful / flustered). Do not ignore."
+                )
+            elif c10 >= 2 or flush_n >= 2:
+                level = "high"
+                priority = 0.85
+                hint = (
+                    f"Poked {max(c10, flush_n)}× — clear face+pose reaction required."
+                )
+            else:
+                level = "high"
+                priority = 0.8
+                hint = "Just poked — acknowledge with a clear expression (not a blank morph)."
+        elif not self._ever_poked and since_ms >= 90_000:
+            level = "medium"
+            priority = 0.55
+            hint = (
+                "Nobody has poked you (~"
+                f"{since_ms // 1000}s). Mild lonely/emo presence is ok."
+            )
+        elif self._ever_poked and since_ms >= 180_000:
+            level = "medium"
+            priority = 0.5
+            hint = (
+                f"Ignored for {since_ms // 1000}s after earlier attention — "
+                "mild emo / restless ok."
+            )
+        else:
+            level = "low"
+            priority = 0.15
+            hint = ""
+
+        return {
+            "salience": level,
+            "priority": priority,
+            "hint": hint,
+            "stickman_clicks_flush": list(self._clicks_this_second),
+            "stickman_click_count_10s": c10,
+            "stickman_click_count_60s": c60,
+            "time_since_last_stickman_click_ms": since_ms,
+            "ever_poked_this_session": self._ever_poked,
+        }
 
     def wheelEvent(self, event) -> None:
         self._last_input_time = _time.time()
@@ -1817,6 +1908,8 @@ class NagoWindow(QWidget):
                 "mouse_position_global": global_mouse,
                 "mouse_delta": mouse_delta,
                 "clicks": self._clicks_this_second.copy(),
+                # High-priority poke / neglect signal — read before idle morph habits.
+                "interaction": self._build_interaction_salience(),
                 "wheel_delta": list(self._wheel_this_second),
                 "hover": self._hover,
                 "dragging": self._dragging,

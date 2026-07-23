@@ -415,6 +415,7 @@ class TestAIClient(unittest.TestCase):
         self.assertIn("walk_dx", prompt)
         self.assertIn("Stay in character as Nago", prompt)
         self.assertIn("EXPRESSION RECIPES", prompt)
+        self.assertIn("SOCIAL TOUCH", prompt)
         self.assertIn("READ their words carefully", prompt)
 
     def test_build_system_prompt_single_source(self) -> None:
@@ -799,12 +800,15 @@ class TestNagoWindow(unittest.TestCase):
         obs = ctx["observations"]
         for key in (
             "mouse_position_window", "mouse_position_global", "mouse_delta",
-            "clicks", "wheel_delta", "hover", "time_since_last_input_ms",
+            "clicks", "interaction", "wheel_delta", "hover", "time_since_last_input_ms",
             "foreground_window", "is_desktop", "screen_resolution",
             "available_geometry", "nago_window", "at_screen_edge", "screen_colors",
             "user_message", "conversation", "long_term_memory", "memory_layers",
         ):
             self.assertIn(key, obs, f"observations missing: {key}")
+        self.assertIn("salience", obs["interaction"])
+        self.assertIn("priority", obs["interaction"])
+        self.assertIn("hint", obs["interaction"])
         self.assertIn("left", obs["at_screen_edge"])
         self.assertIn("right", obs["at_screen_edge"])
         self.assertIn("at_screen_edge", ctx["agent_state"]["motion"])
@@ -1112,6 +1116,46 @@ class TestNagoWindow(unittest.TestCase):
         # Right press in body → no drag.
         self.window.mousePressEvent(_Fake(Qt.MouseButton.RightButton, 80, 120))
         self.assertFalse(self.window._dragging)
+
+    def test_left_poke_on_body_reaches_observations(self) -> None:
+        """Left-click on the figure must record clicks (not only start drag)."""
+        from PySide6.QtCore import QPointF, Qt
+
+        class _Fake:
+            def __init__(self, button, x, y):
+                self._button = button
+                self._pos = QPointF(x, y)
+
+            def button(self):
+                return self._button
+
+            def position(self):
+                return self._pos
+
+        self.window._clicks_this_second.clear()
+        self.window._stickman_click_times.clear()
+        self.window._ever_poked = False
+        self.window._dragging = False
+        # Patch hit-test: treat this press as on-stickman.
+        self.window._is_on_stickman = lambda _pos: True  # type: ignore[method-assign]
+        self.window.mousePressEvent(_Fake(Qt.MouseButton.LeftButton, 50, 60))
+        self.assertIn("left", self.window._clicks_this_second)
+        self.assertTrue(self.window._ever_poked)
+        inter = self.window._build_interaction_salience()
+        self.assertEqual(inter["salience"], "high")
+        self.assertGreaterEqual(inter["priority"], 0.8)
+        self.window.mouseReleaseEvent(_Fake(Qt.MouseButton.LeftButton, 50, 60))
+
+    def test_poke_burst_raises_critical_salience(self) -> None:
+        import time as _t
+        now = _t.time()
+        self.window._stickman_click_times = [now - i * 0.5 for i in range(5)]
+        self.window._clicks_this_second = ["left"] * 5
+        self.window._ever_poked = True
+        inter = self.window._build_interaction_salience()
+        self.assertEqual(inter["salience"], "critical")
+        self.assertGreaterEqual(inter["priority"], 0.9)
+        self.assertIn("BURST", inter["hint"])
 
     def test_discard_ambient_for_talk(self) -> None:
         before = self.window._stickman_params.mouth_angle
