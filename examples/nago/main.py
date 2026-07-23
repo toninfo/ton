@@ -1104,11 +1104,6 @@ class NagoWindow(QWidget):
         )
         self._line_breathe_period_sec: float = 1.35  # one inhale+exhale cycle
         self._line_breathe_tick_ms: int = 40
-        # After a tantrum pulse, refuse another for a long while — not a spoiled 大爷.
-        self._line_breathe_cooldown_sec: float = float(
-            os.environ.get("NAGO_LINE_BREATHE_COOLDOWN_SEC", "1200")
-        )
-        self._line_breathe_last_ended_at: float = 0.0
 
         # --- Window movement and AI-triggered animations ---
         self._walk_vx: float = 0.0
@@ -1627,40 +1622,32 @@ class NagoWindow(QWidget):
                 level = "high"
                 priority = 0.8
                 hint = "Just poked — acknowledge with a clear expression (not a blank morph)."
-        elif not self._ever_poked and since_ms >= 1_500_000:
-            # ~25 min with zero pokes — rare comic tantrum only.
+        elif not self._ever_poked and since_ms >= 180_000:
             level = "medium"
-            priority = 0.45
+            priority = 0.5
             hint = (
                 f"Still never poked (~{since_ms // 1000}s). "
-                "EXPLODE allowed once as rare comic spice — then cool down. "
-                "Do not chain anger."
+                "Long quiet stretch — comic EXPLODE/tantrum is on the table if it fits the moment."
             )
-        elif not self._ever_poked and since_ms >= 480_000:
-            # ~8 min — soft hello, not anger.
+        elif not self._ever_poked and since_ms >= 60_000:
             level = "low"
             priority = 0.3
             hint = (
                 f"Nobody has poked you (~{since_ms // 1000}s). "
-                "Soft seek only: silly face or short '嘿' if ambient_speech.allowed. "
-                "No angry blink."
+                "Soft seek / silly face / short '嘿' if ambient_speech.allowed."
             )
-        elif self._ever_poked and since_ms >= 1_800_000:
-            # ~30 min after last poke.
+        elif self._ever_poked and since_ms >= 300_000:
             level = "medium"
-            priority = 0.45
+            priority = 0.5
             hint = (
                 f"Quiet for {since_ms // 1000}s after earlier attention. "
-                "EXPLODE allowed once as rare comic spice — then cool down. "
-                "Do not chain anger."
+                "Long neglect — comic EXPLODE/tantrum is on the table if it fits."
             )
-        elif self._ever_poked and since_ms >= 900_000:
-            # ~15 min — mild sulk, still no explode.
+        elif self._ever_poked and since_ms >= 120_000:
             level = "low"
             priority = 0.28
             hint = (
-                f"Quiet for {since_ms // 1000}s — mild restless/sulk pose ok. "
-                "No explode, no red blink."
+                f"Quiet for {since_ms // 1000}s — mild restless/sulk pose fits."
             )
         else:
             level = "low"
@@ -2225,27 +2212,14 @@ class NagoWindow(QWidget):
             int(a[2] + (b[2] - a[2]) * t),
         )
 
-    def _line_breathe_on_cooldown(self) -> bool:
-        if self._line_breathe_last_ended_at <= 0:
-            return False
-        return (_time.time() - self._line_breathe_last_ended_at) < self._line_breathe_cooldown_sec
-
     def _start_line_breathe(
         self,
         peak_rgb: tuple[int, int, int],
         restore_rgb: tuple[int, int, int],
     ) -> None:
-        """Begin a ≤10s soft red outline pulse; ignore restarts / cooldown rejects."""
+        """Begin a ≤10s soft red outline pulse; ignore restarts while one is already running."""
         if self._line_breathe_active:
-            # Already pulsing — do not reset the deadline (prevents endless anger loops).
-            return
-        if self._line_breathe_on_cooldown():
-            logger.info(
-                "Line breathe suppressed — cooldown %.0fs left",
-                self._line_breathe_cooldown_sec
-                - (_time.time() - self._line_breathe_last_ended_at),
-            )
-            self._stickman_params.blink = False
+            # Already pulsing — do not reset the deadline mid-flash.
             return
         self._line_breathe_active = True
         self._line_breathe_started_at = _time.time()
@@ -2287,12 +2261,10 @@ class NagoWindow(QWidget):
             self._color_transition_anim.stop()
             self._fade_animator.display_color = QColor(*rgb)
         if was:
-            self._line_breathe_last_ended_at = _time.time()
             logger.info(
-                "Line breathe stop restore=%s color=%s cooldown=%.0fs",
+                "Line breathe stop restore=%s color=%s",
                 restore,
                 self._stickman_params.line_color,
-                self._line_breathe_cooldown_sec,
             )
         self._sync_render_params()
         self.update()
@@ -2345,17 +2317,6 @@ class NagoWindow(QWidget):
         if params.get("blink") is True or (
             is_anger_emotion(emotion) and params.get("blink", True)
         ):
-            if self._line_breathe_on_cooldown() and not self._line_breathe_active:
-                # AI asked for another tantrum too soon — keep the buddy palette.
-                logger.info("Anger blink ignored — line-breathe cooldown active")
-                self._stickman_params.blink = False
-                self._stickman_params.line_color = pre_line
-                self._last_color = pre_line
-                self._color_transition_anim.stop()
-                self._fade_animator.display_color = QColor(*pre_line)
-                self._sync_render_params()
-                self.update()
-                return
             peak = updated.line_color
             restore = pre_line
             # If pre-line was already the anger peak, fall back to a calm default.
