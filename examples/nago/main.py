@@ -183,75 +183,7 @@ def _draw_stickman_qt(
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.drawEllipse(head_x, head_y, hw, hh)
 
-    es = max(0.3, min(3.0, float(p.eye_size)))
-    eye_dot = max(2, int(3 * es * max(1.0, hs * 0.55)))
-    eye_pen = QPen(color, max(1, p.line_width - 1))
-    eye_pen.setStyle(_pen_style(p.line_style))
-    painter.setPen(eye_pen)
-    eye_y = head_y + int(hh * 0.38) + p.pupil_offset_y
-    eye_spread = max(4, int(hw * 0.18))
-    for ex in (head_cx - eye_spread + p.eye_offset,
-               head_cx + eye_spread + p.eye_offset):
-        painter.drawEllipse(ex, eye_y, eye_dot, eye_dot)
-
-    if abs(p.eyebrow_angle) > 0.5:
-        brow_y = eye_y - max(3, int(4 * es))
-        brow_w = max(4, int(6 * es * max(1.0, hs * 0.5)))
-        for side, ex in ((-1, head_cx - eye_spread + p.eye_offset),
-                         (1, head_cx + eye_spread + p.eye_offset)):
-            tilt = p.eyebrow_angle * side
-            painter.drawLine(ex - brow_w, brow_y + int(tilt * 0.2),
-                             ex + brow_w, brow_y - int(tilt * 0.2))
-
-    if p.cheek_blush:
-        blush = QColor(255, 140, 160, max(40, alpha // 2))
-        painter.setPen(QPen(Qt.PenStyle.NoPen))
-        painter.setBrush(blush)
-        cr = max(2, int(4 * es * max(1.0, hs * 0.5)))
-        painter.drawEllipse(head_cx - eye_spread - 8, eye_y + 4, cr * 2, cr)
-        painter.drawEllipse(head_cx + eye_spread - cr, eye_y + 4, cr * 2, cr)
-
-    if p.eyelid_offset > 0:
-        lid_h = max(1, round(p.eyelid_offset * 6 / 10 * max(1.0, hs * 0.5)))
-        painter.setPen(QPen(Qt.PenStyle.NoPen))
-        painter.setBrush(color)
-        for ex in (head_cx - eye_spread + p.eye_offset,
-                   head_cx + eye_spread + p.eye_offset):
-            painter.fillRect(ex - eye_dot, eye_y, eye_dot * 2 + 1, lid_h, color)
-
-    painter.setPen(pen)
-    mws = max(0.5, min(2.0, float(p.mouth_width_scale)))
-    mouth_width = max(8, int(12 * mws * max(1.0, hs * 0.55)))
-    mouth_x = head_cx - mouth_width // 2
-    mouth_y = head_y + int(hh * 0.62)
-    angle = max(-90.0, min(90.0, p.mouth_angle))
-    opening = max(0.0, min(100.0, p.mouth_opening))
-    mouth_pen = QPen(color, max(1, p.line_width))
-    mouth_pen.setStyle(_pen_style(p.line_style))
-    painter.setPen(mouth_pen)
-
-    if opening == 0.0:
-        if angle == 0.0:
-            painter.drawLine(mouth_x, mouth_y, mouth_x + mouth_width, mouth_y)
-        else:
-            arc_h = 10.0 * mws * max(1.0, hs * 0.5)
-            arc_deg = min(abs(angle), 85.0)
-            path = QPainterPath()
-            if angle > 0:
-                start = 360.0 - float(arc_deg)
-                sweep = -(180.0 - 2.0 * arc_deg)
-            else:
-                start = float(arc_deg)
-                sweep = 180.0 - 2.0 * arc_deg
-            rect_y = mouth_y - arc_h / 2.0
-            path.arcMoveTo(float(mouth_x), rect_y, float(mouth_width), arc_h, start)
-            path.arcTo(float(mouth_x), rect_y, float(mouth_width), arc_h, start, sweep)
-            painter.drawPath(path)
-    else:
-        ellipse_h = max(2.0, (opening / 100.0) * 15.0 * mws * max(1.0, hs * 0.5))
-        corner_shift = (angle / 90.0) * (ellipse_h * 0.4)
-        painter.drawEllipse(mouth_x, int(mouth_y - ellipse_h / 2 + corner_shift),
-                            mouth_width, int(ellipse_h))
+    _draw_face_features_qt(painter, p, head_cx, head_y, hw, hh, hs, color, alpha)
 
     painter.setPen(pen)
     bs = max(0.5, min(2.0, float(p.body_scale)))
@@ -274,6 +206,170 @@ def _draw_stickman_qt(
         _draw_speech_bubble_qt(painter, p, ox, oy, alpha, pen, color)
 
     painter.restore()
+
+
+def _draw_face_features_qt(
+    painter: QPainter,
+    p: StickmanParams,
+    head_cx: int,
+    head_y: int,
+    hw: int,
+    hh: int,
+    hs: float,
+    color: QColor,
+    alpha: int,
+) -> None:
+    """Draw brows / eyes / mouth large enough to read emotion at RENDER_SCALE.
+
+    Expression grammar (cartoon stick face):
+      happy     — raised brows, open dots, U smile
+      laugh     — arched brows, ^ crescent eyes, open oval mouth
+      sad/emo   — inner-down brows, half lids, inverted-U frown
+      angry     — V brows, squint, flat/frown mouth
+    """
+    es = max(0.3, min(3.0, float(p.eye_size)))
+    angle = max(-90.0, min(90.0, float(p.mouth_angle)))
+    opening = max(0.0, min(100.0, float(p.mouth_opening)))
+    brow = max(-30.0, min(30.0, float(p.eyebrow_angle)))
+    lid = max(0, min(10, int(p.eyelid_offset)))
+    mws = max(0.5, min(2.0, float(p.mouth_width_scale)))
+
+    # Face strokes stay thicker than the body so 0.5× display still reads.
+    face_w = max(2, int(2 + hs * 0.6 + p.line_width))
+    face_pen = QPen(color, face_w)
+    face_pen.setStyle(_pen_style(p.line_style))
+    face_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    face_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+
+    eye_y = head_y + int(hh * 0.36) + int(p.pupil_offset_y)
+    eye_spread = max(8, int(hw * 0.22))
+    eye_cx_l = head_cx - eye_spread + int(p.eye_offset)
+    eye_cx_r = head_cx + eye_spread + int(p.eye_offset)
+
+    # —— Eyebrows (always drawn; tilt is heavily exaggerated) ——
+    brow_y = eye_y - max(8, int(hh * 0.10))
+    brow_half = max(7, int(hw * 0.13 * es))
+    # Map [-30,30] → strong inner/outer lift. Negative = furrowed (sad/angry).
+    t = brow / 30.0
+    for side, ecx in ((-1, eye_cx_l), (1, eye_cx_r)):
+        # Inner end (toward nose) drops when furrowed; outer rises when angry V.
+        if t >= 0:
+            # Raised / surprised / happy: both ends lift, outer a bit more.
+            y_inner = brow_y - int(6 * t)
+            y_outer = brow_y - int(10 * t)
+        else:
+            # Furrowed: inner down hard → readable sad/angry brow.
+            y_inner = brow_y - int(12 * t)   # t negative → inner goes down
+            y_outer = brow_y + int(4 * t)    # outer slightly up
+        painter.setPen(face_pen)
+        if side < 0:
+            painter.drawLine(ecx - brow_half, y_outer, ecx + brow_half, y_inner)
+        else:
+            painter.drawLine(ecx - brow_half, y_inner, ecx + brow_half, y_outer)
+
+    # —— Eyes ——
+    eye_w = max(8, int(10 * es * max(1.0, hs * 0.42)))
+    eye_h = max(8, int(10 * es * max(1.0, hs * 0.42)))
+    laugh_eyes = opening >= 35.0 and angle >= 18.0
+    sleepy = lid >= 4 and not laugh_eyes
+
+    for ecx in (eye_cx_l, eye_cx_r):
+        if laugh_eyes:
+            # Crescent / ^ happy eyes — unmistakable laugh.
+            arc = QPainterPath()
+            aw, ah = eye_w, max(6, eye_h // 2)
+            arc.moveTo(ecx - aw // 2, eye_y + ah // 2)
+            arc.quadTo(ecx, eye_y - ah // 2, ecx + aw // 2, eye_y + ah // 2)
+            painter.setPen(face_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(arc)
+        elif sleepy:
+            # Half-lidded emo/tired: horizontal dash + tiny pupil.
+            painter.setPen(face_pen)
+            painter.drawLine(ecx - eye_w // 2, eye_y, ecx + eye_w // 2, eye_y)
+            pupil = max(2, eye_w // 5)
+            painter.setBrush(color)
+            painter.setPen(QPen(Qt.PenStyle.NoPen))
+            painter.drawEllipse(ecx - pupil // 2, eye_y + 1, pupil, pupil)
+        else:
+            # Open oval eye + solid pupil (gaze via eye_offset already on ecx).
+            painter.setPen(face_pen)
+            painter.setBrush(QColor(255, 255, 255, max(180, alpha)))
+            painter.drawEllipse(ecx - eye_w // 2, eye_y - eye_h // 2, eye_w, eye_h)
+            pupil = max(3, int(eye_w * 0.42))
+            # Squint: shrink visible height with eyelid_offset.
+            if lid > 0:
+                cover = int(eye_h * (lid / 10.0) * 0.55)
+                painter.setBrush(color)
+                painter.setPen(QPen(Qt.PenStyle.NoPen))
+                painter.drawRect(
+                    ecx - eye_w // 2 - 1,
+                    eye_y - eye_h // 2 - 1,
+                    eye_w + 2,
+                    cover + 1,
+                )
+            painter.setBrush(color)
+            painter.setPen(QPen(Qt.PenStyle.NoPen))
+            painter.drawEllipse(ecx - pupil // 2, eye_y - pupil // 2, pupil, pupil)
+            # Tiny highlight so eyes don't look like dead dots.
+            hi = max(1, pupil // 4)
+            painter.setBrush(QColor(255, 255, 255, min(255, alpha)))
+            painter.drawEllipse(ecx - pupil // 4, eye_y - pupil // 3, hi, hi)
+
+    # —— Cheeks ——
+    if p.cheek_blush:
+        blush = QColor(255, 120, 150, max(70, alpha // 2))
+        painter.setPen(QPen(Qt.PenStyle.NoPen))
+        painter.setBrush(blush)
+        cr = max(4, int(hw * 0.07 * es))
+        painter.drawEllipse(eye_cx_l - eye_w - cr, eye_y + eye_h // 3, cr * 2, cr)
+        painter.drawEllipse(eye_cx_r + eye_w // 2, eye_y + eye_h // 3, cr * 2, cr)
+
+    # —— Mouth (depth scales with head + |angle|; opening → laugh oval) ——
+    mouth_w = max(14, int(hw * 0.36 * mws))
+    mouth_x = head_cx - mouth_w // 2
+    mouth_y = head_y + int(hh * 0.64)
+    # Smile/frown bowl depth: neutral tiny, ±45° ≈ quarter of head height.
+    depth = max(4.0, (abs(angle) / 90.0) * hh * 0.32)
+    mouth_pen = QPen(color, face_w)
+    mouth_pen.setStyle(_pen_style(p.line_style))
+    mouth_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(mouth_pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+
+    if opening >= 20.0:
+        # Open mouth — laugh / talk / gasp. Angle tips the oval.
+        oh = max(8.0, (opening / 100.0) * hh * 0.28)
+        tip = (angle / 90.0) * oh * 0.35
+        painter.setBrush(QColor(40, 40, 40, max(120, alpha // 2)))
+        painter.drawEllipse(
+            mouth_x,
+            int(mouth_y - oh / 2 + tip),
+            mouth_w,
+            int(oh),
+        )
+        # Upper lip smile curve when happy-open.
+        if angle > 8:
+            lip = QPainterPath()
+            lip.moveTo(mouth_x, mouth_y - oh / 2 + tip)
+            lip.quadTo(head_cx, mouth_y - oh / 2 + tip - depth * 0.35, mouth_x + mouth_w, mouth_y - oh / 2 + tip)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(lip)
+    elif abs(angle) < 4.0:
+        # Flat neutral.
+        painter.drawLine(mouth_x, mouth_y, mouth_x + mouth_w, mouth_y)
+    elif angle > 0:
+        # U smile — deep quadratic so happy ≠ flat.
+        smile = QPainterPath()
+        smile.moveTo(mouth_x, mouth_y - depth * 0.15)
+        smile.quadTo(head_cx, mouth_y + depth, mouth_x + mouth_w, mouth_y - depth * 0.15)
+        painter.drawPath(smile)
+    else:
+        # Inverted-U frown / emo.
+        frown = QPainterPath()
+        frown.moveTo(mouth_x, mouth_y + depth * 0.15)
+        frown.quadTo(head_cx, mouth_y - depth, mouth_x + mouth_w, mouth_y + depth * 0.15)
+        painter.drawPath(frown)
 
 
 def _draw_limb_qt(

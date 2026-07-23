@@ -414,6 +414,7 @@ class TestAIClient(unittest.TestCase):
         self.assertIn("DO NOT use emoji", prompt)
         self.assertIn("walk_dx", prompt)
         self.assertIn("Stay in character as Nago", prompt)
+        self.assertIn("EXPRESSION RECIPES", prompt)
         self.assertIn("READ their words carefully", prompt)
 
     def test_build_system_prompt_single_source(self) -> None:
@@ -973,6 +974,26 @@ class TestNagoWindow(unittest.TestCase):
         bw2, _bh2, flags2 = _measure_speech_bubble_text("嗨")
         self.assertLess(bw2, bw)
         self.assertFalse(flags2 & int(Qt.TextFlag.TextWordWrap))
+
+    def test_face_expression_recipes_paint(self) -> None:
+        """Happy / laugh / sad faces must paint without throwing (readable grammar)."""
+        from PySide6.QtGui import QImage, QPainter
+        from stickman import StickmanParams
+        from main import _draw_stickman_qt
+
+        img = QImage(200, 300, QImage.Format.Format_ARGB32)
+        recipes = [
+            StickmanParams(mouth_angle=32, eyebrow_angle=14, cheek_blush=True),
+            StickmanParams(mouth_angle=30, mouth_opening=55, eyebrow_angle=18),
+            StickmanParams(mouth_angle=-32, eyebrow_angle=-18, eyelid_offset=5),
+            StickmanParams(mouth_angle=-18, eyebrow_angle=-24, eyelid_offset=3),
+        ]
+        for params in recipes:
+            img.fill(0)
+            painter = QPainter(img)
+            self.assertTrue(painter.isActive())
+            _draw_stickman_qt(painter, params)
+            painter.end()
 
     def test_listening_feedback_instant(self) -> None:
         """Talk ACK is pose-only — never a stuck '…' bubble."""
