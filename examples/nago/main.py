@@ -926,6 +926,10 @@ class NagoWindow(QWidget):
         self._min_speech_gap_sec: float = float(
             os.environ.get("NAGO_MIN_SPEECH_GAP_SEC", "90")
         )
+        # True while local "thinking" ACK is showing (not real AI speech).
+        self._listening_placeholder: bool = False
+        # When talk is queued behind an in-flight ambient call, drop that result.
+        self._discard_ambient_result: bool = False
 
         runtime = get_runtime_settings()
 
@@ -1178,9 +1182,9 @@ class NagoWindow(QWidget):
     def _run_ambient_request(self, reason: str) -> None:
         """Ambient route: heartbeat / sensors — never steals a talk utterance."""
         if self._talk.should_skip_heartbeat() or self._session.peek_pending_user():
-            self._ambient_pending = True
-            self._ambient_reason = reason
-            logger.debug("Defer ambient [%s] — talk route owns the turn", reason)
+            # Talk owns the turn — do not quietly re-queue ambient behind it.
+            self._ambient_pending = False
+            logger.debug("Defer ambient [%s] dropped — talk route owns the turn", reason)
             return
         self._update_foreground_info()
         context = self._build_context()
@@ -1193,26 +1197,47 @@ class NagoWindow(QWidget):
         self._start_ai_worker(context, "ambient", reason)
 
     def _request_talk(self) -> None:
-        """Talk route entry — independent queue from ambient."""
+        """Talk route — always real-time: wipe ambient queue and preempt in-flight ambient."""
+        self._ambient_pending = False
+        self._ambient_reason = "heartbeat"
         if self._ai_busy():
+            if self._ai_route == "ambient":
+                self._discard_ambient_result = True
             self._talk_pending = True
             self._talk.mark_thinking()
-            logger.info("Talk route queued (AI pipe busy)")
+            logger.info(
+                "Talk route queued (preempting %s) — ambient queue cleared",
+                self._ai_route or "?",
+            )
             return
         self._run_talk_request()
 
     def _request_ambient(self, reason: str = "heartbeat") -> None:
-        """Ambient route entry — heartbeat & events never overwrite talk queue."""
+        """Ambient route — single slot, latest wins.
+
+        A new round clears any older ambient queue entry. If an ambient call is
+        already in flight, its result is discarded so the fresh context runs next.
+        Talk always owns the pipe while a conversation turn is active.
+        """
         if self._talk.active or self._talk_pending or self._session.peek_pending_user():
-            if reason != "heartbeat":
-                self._ambient_pending = True
-                self._ambient_reason = reason
-            logger.debug("Ambient [%s] skipped — talk route active/pending", reason)
+            # Conversation is live — do not let ambient backlog grow.
+            self._ambient_pending = False
+            logger.debug("Ambient [%s] dropped — talk route owns the turn", reason)
             return
         if self._ai_busy():
+            if self._ai_route == "talk":
+                # Never interrupt talk; also don't queue ambient behind it.
+                self._ambient_pending = False
+                logger.debug("Ambient [%s] dropped — talk in flight", reason)
+                return
+            # Ambient in flight: supersede it. Keep only this latest reason.
+            self._discard_ambient_result = True
             self._ambient_pending = True
             self._ambient_reason = reason
-            logger.debug("Ambient route queued (%s)", reason)
+            logger.info(
+                "Ambient [%s] replaces in-flight/queued round (latest-wins)",
+                reason,
+            )
             return
         self._run_ambient_request(reason)
 
@@ -1224,15 +1249,31 @@ class NagoWindow(QWidget):
             self._request_ambient(reason)
 
     def _show_listening_feedback(self) -> None:
-        """Instant local ACK while waiting for the AI reply (UI only)."""
-        before = self._stickman_params.speech_bubble
-        self._stickman_params.speech_bubble = "…"
+        """Instant local ACK while waiting for the AI reply (UI only).
+
+        Do NOT put "…" into ``speech_bubble``: patch semantics would keep it forever
+        when the model returns pose-only without an explicit speech_bubble=null.
+        """
+        self._listening_placeholder = True
+        self._speech_bubble_timer.stop()
+        # Clear any leftover bubble so the user sees "he's reacting", not stale text.
+        if self._stickman_params.speech_bubble:
+            self._stickman_params.speech_bubble = None
         self._stickman_params.cheek_blush = True
-        self._stickman_params.eye_size = max(self._stickman_params.eye_size, 1.2)
-        self._stickman_params.mouth_angle = 8.0
-        self._sync_speech_bubble_auto_dismiss(before, "…")
-        # Keep the ellipsis visible a bit longer than a normal bubble while thinking.
-        self._speech_bubble_timer.start(max(get_runtime_settings().speech_bubble_ms, 6000))
+        self._stickman_params.eye_size = max(self._stickman_params.eye_size, 1.25)
+        self._stickman_params.mouth_angle = 12.0
+        self._stickman_params.eyebrow_angle = 8.0
+        self._sync_render_params()
+        self.update()
+
+    def _clear_listening_placeholder(self) -> None:
+        """Drop provisional listening UI before applying a real talk result."""
+        if not self._listening_placeholder and self._stickman_params.speech_bubble != "…":
+            return
+        self._listening_placeholder = False
+        self._speech_bubble_timer.stop()
+        if self._stickman_params.speech_bubble == "…":
+            self._stickman_params.speech_bubble = None
         self._sync_render_params()
         self.update()
 
@@ -1326,10 +1367,14 @@ class NagoWindow(QWidget):
         if self._is_on_stickman(pos):
             self._trigger_click_animation()
 
-        if (
+        # ONLY left-drag. Right-press opens the context menu; if we set
+        # _dragging here, the menu steals mouseRelease and the window sticks
+        # permanently to the cursor ("吸住").
+        if event.button() == Qt.MouseButton.LeftButton and (
             int(30 * RENDER_SCALE) <= pos.x() <= int(170 * RENDER_SCALE)
             and int(30 * RENDER_SCALE) <= pos.y() <= int(270 * RENDER_SCALE)
         ):
+            self._stop_approach_mouse()
             self._drag_offset = pos
             self._dragging = True
             return
@@ -1364,6 +1409,9 @@ class NagoWindow(QWidget):
 
     def contextMenuEvent(self, event) -> None:
         """Show the context menu for talking to Nago or quitting."""
+        # Right-click must never leave a sticky drag / chase-mouse state.
+        self._dragging = False
+        self._stop_approach_mouse()
         menu = QMenu(self)
         talk_action = QAction("跟他说…", self)
         talk_action.triggered.connect(self._prompt_user_message)
@@ -1373,9 +1421,14 @@ class NagoWindow(QWidget):
         exit_action.triggered.connect(QApplication.instance().quit)
         menu.addAction(exit_action)
         menu.exec(event.globalPos())
+        # Menu may have consumed the release — force-clear again.
+        self._dragging = False
 
     def _prompt_user_message(self) -> None:
         """Run one talk turn: capture → listen ACK → priority AI request."""
+        self._dragging = False
+        self._stop_approach_mouse()
+        self._ambient_pending = False
         self._talk.begin_capture()
         text, ok = TalkComposer.ask(anchor=self)
         if not ok:
@@ -1586,6 +1639,13 @@ class NagoWindow(QWidget):
         self._ai_route = None
         self._last_ai_route = finished_route
 
+        # Talk preempt: skip applying a stale ambient morph so the pipe frees ASAP.
+        if finished_route == "ambient" and self._discard_ambient_result:
+            self._discard_ambient_result = False
+            logger.info("Discarded ambient result — talk route waiting")
+            self._dispatch_next_ai()
+            return
+
         actions = result
         debug: dict = {}
         if isinstance(result, dict) and ("actions" in result or "debug" in result):
@@ -1606,23 +1666,70 @@ class NagoWindow(QWidget):
         if isinstance(actions, list) and actions:
             if finished_route == "talk" or self._talk.active:
                 self._talk.mark_speaking()
+                self._clear_listening_placeholder()
+                actions = self._ensure_talk_speech(actions)
             self._ai_result_ready.emit(actions)
         else:
             logger.warning(
                 "AI [%s] returned no valid actions → fade",
                 finished_route or "?",
             )
-            if self._stickman_params.speech_bubble == "…":
-                self._stickman_params.speech_bubble = None
-                self._speech_bubble_timer.stop()
-                self._sync_render_params()
-                self.update()
+            self._clear_listening_placeholder()
             if self._talk.active:
                 self._talk.finish()
             self._ai_fade_start.emit()
 
         # Dual-route drain: talk first, then ambient.
         self._dispatch_next_ai()
+
+    def _ensure_talk_speech(self, actions: list[dict]) -> list[dict]:
+        """Talk replies must show words the user can read.
+
+        Models often put the reply in ``comment`` (logs-only) and omit
+        ``speech_bubble``. Promote a usable comment into the bubble; otherwise
+        force ``speech_bubble=null`` so a provisional '…' cannot stick via patch.
+        """
+        out: list[dict] = []
+        saw_speech = False
+        for a in actions:
+            if not isinstance(a, dict):
+                continue
+            params = a.get("params") if isinstance(a.get("params"), dict) else {}
+            bubble = params.get("speech_bubble")
+            if isinstance(bubble, str) and bubble.strip() and bubble.strip() != "…":
+                saw_speech = True
+            # Never allow the model to "speak" the listening placeholder.
+            if bubble == "…":
+                params = dict(params)
+                params["speech_bubble"] = None
+                a = dict(a)
+                a["params"] = params
+            out.append(a)
+        if not out:
+            return actions
+        if saw_speech:
+            return out
+
+        first = dict(out[0])
+        params = dict(first.get("params") or {})
+        # Fallback: lift comment into the bubble when the model forgot speech_bubble.
+        comment = first.get("comment")
+        promoted = None
+        if isinstance(comment, str):
+            c = comment.strip()
+            if c and c not in ("…", "...") and len(c) <= 40:
+                promoted = c
+        if promoted:
+            params["speech_bubble"] = promoted
+            first["params"] = params
+            out[0] = first
+            logger.info("Talk reply promoted comment → speech_bubble: %r", promoted)
+        else:
+            params["speech_bubble"] = None
+            first["params"] = params
+            out[0] = first
+            logger.info("Talk reply had no speech_bubble — cleared placeholder, pose-only")
+        return out
 
     # ------------------------------------------------------------------
     # AI result → parameter update
@@ -1697,20 +1804,29 @@ class NagoWindow(QWidget):
                 logger.info("AI forgot %d long-term fact(s)", n)
 
     def _sanitize_speech_params(self, raw_params: dict) -> dict:
-        """Silence ambient chatter and throttle spontaneous bubbles client-side."""
+        """Silence ambient channel speech; clear listening placeholder on talk patches."""
         params = filter_generic_speech(raw_params)
         route = self._last_ai_route
         if route == "ambient":
             params = strip_speech_for_ambient(params)
+        elif route == "talk":
+            # Omitted speech_bubble must not keep a provisional "…".
+            if "speech_bubble" not in params and (
+                self._listening_placeholder or self._stickman_params.speech_bubble == "…"
+            ):
+                params = dict(params)
+                params["speech_bubble"] = None
+            bubble = params.get("speech_bubble")
+            if isinstance(bubble, str) and bubble.strip() == "…":
+                params = dict(params)
+                params["speech_bubble"] = None
         elif route != "talk":
-            # Unknown / legacy path: still respect cooldown for new bubbles.
             bubble = params.get("speech_bubble")
             if isinstance(bubble, str) and bubble.strip() and bubble.strip() != "…":
                 now = _time.time()
                 if now - self._last_speech_at < self._min_speech_gap_sec:
                     params = dict(params)
                     params["speech_bubble"] = None
-        # Talk route: allow speech; record timestamp when a real bubble lands.
         return params
 
     def _note_speech_if_any(self, bubble: str | None) -> None:

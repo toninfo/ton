@@ -953,10 +953,31 @@ class TestNagoWindow(unittest.TestCase):
         self.assertFalse(self.window._speech_bubble_timer.isActive())
 
     def test_listening_feedback_instant(self) -> None:
-        """Talking to Nago must show local ACK before the AI round-trip."""
+        """Talk ACK is pose-only — never a stuck '…' bubble."""
         self.window._show_listening_feedback()
-        self.assertEqual(self.window._stickman_params.speech_bubble, "…")
-        self.assertTrue(self.window._speech_bubble_timer.isActive())
+        self.assertTrue(self.window._listening_placeholder)
+        self.assertIsNone(self.window._stickman_params.speech_bubble)
+        self.assertTrue(self.window._stickman_params.cheek_blush)
+        self.window._clear_listening_placeholder()
+        self.assertFalse(self.window._listening_placeholder)
+
+    def test_ensure_talk_speech_promotes_comment(self) -> None:
+        actions = self.window._ensure_talk_speech([
+            {"action": "respond", "comment": "发呆呢", "params": {"mouth_angle": 12}},
+        ])
+        self.assertEqual(actions[0]["params"]["speech_bubble"], "发呆呢")
+
+    def test_ensure_talk_speech_clears_ellipsis(self) -> None:
+        self.window._stickman_params.speech_bubble = "…"
+        self.window._listening_placeholder = True
+        actions = self.window._ensure_talk_speech([
+            {"action": "respond", "params": {"mouth_angle": 20}},
+        ])
+        self.assertIsNone(actions[0]["params"].get("speech_bubble"))
+        self.window._clear_listening_placeholder()
+        self.window._last_ai_route = "talk"
+        self.window._apply_action_params(actions[0]["params"])
+        self.assertNotEqual(self.window._stickman_params.speech_bubble, "…")
 
     def test_heartbeat_yields_to_pending_user(self) -> None:
         self.window._session.queue_user_message("在吗")
@@ -979,19 +1000,88 @@ class TestNagoWindow(unittest.TestCase):
             def isRunning(self) -> bool:
                 return True
         self.window._ai_worker = _Busy()  # type: ignore[assignment]
+        self.window._ai_route = "ambient"
+        # New ambient round while busy → discard in-flight, keep only latest.
         self.window._request_ambient("heartbeat")
         self.assertTrue(self.window._ambient_pending)
+        self.assertTrue(self.window._discard_ambient_result)
+        self.assertEqual(self.window._ambient_reason, "heartbeat")
+        self.window._request_ambient("hover_enter")
+        self.assertTrue(self.window._ambient_pending)
+        self.assertEqual(self.window._ambient_reason, "hover_enter")  # replaced
         self.window._session.queue_user_message("嘿")
         self.window._talk.accept_text("嘿")
         self.window._request_talk()
         self.assertTrue(self.window._talk_pending)
+        self.assertTrue(self.window._discard_ambient_result)
+        self.assertFalse(self.window._ambient_pending)  # talk clears ambient queue
         self.window._request_ambient("hover_enter")
         self.assertTrue(self.window._talk_pending)
+        self.assertFalse(self.window._ambient_pending)  # dropped while talk owns turn
         self.window._ai_worker = None
+        self.window._ai_route = None
         self.window._talk_pending = False
         self.window._ambient_pending = False
+        self.window._discard_ambient_result = False
         self.window._session.consume_pending_user()
         self.window._talk.finish()
+
+    def test_ambient_latest_wins_clears_stale(self) -> None:
+        """A newer ambient round replaces any older queued reason."""
+        class _Busy:
+            def isRunning(self) -> bool:
+                return True
+        self.window._ai_worker = _Busy()  # type: ignore[assignment]
+        self.window._ai_route = "ambient"
+        self.window._request_ambient("heartbeat")
+        self.window._request_ambient("click")
+        self.assertEqual(self.window._ambient_reason, "click")
+        self.window._request_ambient("heartbeat")
+        self.assertEqual(self.window._ambient_reason, "heartbeat")
+        self.assertTrue(self.window._discard_ambient_result)
+        self.window._ai_worker = None
+        self.window._ai_route = None
+        self.window._ambient_pending = False
+        self.window._discard_ambient_result = False
+
+    def test_right_click_does_not_start_drag(self) -> None:
+        """Right-press must not stick the window to the cursor after the menu."""
+        from PySide6.QtCore import QPointF, Qt
+
+        class _Fake:
+            def __init__(self, button, x, y):
+                self._button = button
+                self._pos = QPointF(x, y)
+
+            def button(self):
+                return self._button
+
+            def position(self):
+                return self._pos
+
+        # Left press in body → drag.
+        self.window._dragging = False
+        self.window.mousePressEvent(_Fake(Qt.MouseButton.LeftButton, 80, 120))
+        self.assertTrue(self.window._dragging)
+        self.window.mouseReleaseEvent(_Fake(Qt.MouseButton.LeftButton, 80, 120))
+        self.assertFalse(self.window._dragging)
+
+        # Right press in body → no drag.
+        self.window.mousePressEvent(_Fake(Qt.MouseButton.RightButton, 80, 120))
+        self.assertFalse(self.window._dragging)
+
+    def test_discard_ambient_for_talk(self) -> None:
+        before = self.window._stickman_params.mouth_angle
+        self.window._discard_ambient_result = True
+        self.window._ai_route = "ambient"
+        self.window._talk_pending = False
+        self.window._ambient_pending = False
+        self.window._on_ai_worker_done([
+            {"action": "morph", "params": {"mouth_angle": 99}},
+        ])
+        self.assertFalse(self.window._discard_ambient_result)
+        # Stale ambient morph must not apply when talk preempted it.
+        self.assertEqual(self.window._stickman_params.mouth_angle, before)
 
     def test_talk_flow_phases(self) -> None:
         from talk_flow import TalkPhase, TalkTurnController

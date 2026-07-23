@@ -78,6 +78,7 @@ def get_ai_settings() -> NagoAISettings:
 def get_runtime_settings() -> NagoRuntimeSettings:
     """Return heartbeat, event debounce, and session-compression settings."""
     return NagoRuntimeSettings(
+        # Ambient pulse; pipe is single-slot — new rounds discard stale in-flight work.
         heartbeat_ms=int(os.environ.get("NAGO_HEARTBEAT_MS", "6000")),
         event_debounce_ms=int(os.environ.get("NAGO_EVENT_DEBOUNCE_MS", "400")),
         speech_bubble_ms=int(os.environ.get("NAGO_SPEECH_BUBBLE_MS", "3500")),
