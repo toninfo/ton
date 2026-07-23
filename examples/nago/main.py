@@ -42,6 +42,7 @@ from control import (
     filter_sticky_color,
     gate_ambient_speech,
     get_capabilities_for_context,
+    is_anger_emotion,
     params_snapshot,
     sanitize_anger_visuals,
     with_display_color,
@@ -1091,7 +1092,23 @@ class NagoWindow(QWidget):
         self._speech_bubble_timer.timeout.connect(self._on_speech_bubble_dismiss)
 
         self._blink_timer = QTimer(self)
-        self._blink_timer.timeout.connect(self._on_blink_tick)
+        self._blink_timer.timeout.connect(self._on_line_breathe_tick)
+        # Soft "breathing light" line pulse (anger blink) — not a hard on/off flash.
+        self._line_breathe_active: bool = False
+        self._line_breathe_started_at: float = 0.0
+        self._line_breathe_phase: float = 0.0
+        self._line_breathe_peak: tuple[int, int, int] = (220, 45, 45)
+        self._line_breathe_restore: tuple[int, int, int] = (0, 0, 0)
+        self._line_breathe_max_sec: float = float(
+            os.environ.get("NAGO_LINE_BREATHE_MAX_SEC", "10")
+        )
+        self._line_breathe_period_sec: float = 1.35  # one inhale+exhale cycle
+        self._line_breathe_tick_ms: int = 40
+        # After a tantrum pulse, refuse another for a long while — not a spoiled 大爷.
+        self._line_breathe_cooldown_sec: float = float(
+            os.environ.get("NAGO_LINE_BREATHE_COOLDOWN_SEC", "1200")
+        )
+        self._line_breathe_last_ended_at: float = 0.0
 
         # --- Window movement and AI-triggered animations ---
         self._walk_vx: float = 0.0
@@ -1610,33 +1627,40 @@ class NagoWindow(QWidget):
                 level = "high"
                 priority = 0.8
                 hint = "Just poked — acknowledge with a clear expression (not a blank morph)."
-        elif not self._ever_poked and since_ms >= 180_000:
-            level = "high"
-            priority = 0.75
-            hint = (
-                f"Still never poked (~{since_ms // 1000}s) — EXPLODE/tantrum ok: "
-                "angry face + punch/flail + short protest bubble if ambient_speech.allowed."
-            )
-        elif not self._ever_poked and since_ms >= 60_000:
+        elif not self._ever_poked and since_ms >= 1_500_000:
+            # ~25 min with zero pokes — rare comic tantrum only.
             level = "medium"
-            priority = 0.55
+            priority = 0.45
+            hint = (
+                f"Still never poked (~{since_ms // 1000}s). "
+                "EXPLODE allowed once as rare comic spice — then cool down. "
+                "Do not chain anger."
+            )
+        elif not self._ever_poked and since_ms >= 480_000:
+            # ~8 min — soft hello, not anger.
+            level = "low"
+            priority = 0.3
             hint = (
                 f"Nobody has poked you (~{since_ms // 1000}s). "
-                "Seek attention: silly face / cheer / short '嘿' bubble if ambient_speech.allowed."
+                "Soft seek only: silly face or short '嘿' if ambient_speech.allowed. "
+                "No angry blink."
             )
-        elif self._ever_poked and since_ms >= 300_000:
-            level = "high"
-            priority = 0.8
-            hint = (
-                f"Ignored for {since_ms // 1000}s after earlier attention — EXPLODE: "
-                "furious face + punch + protest bubble if allowed. Comic tantrum."
-            )
-        elif self._ever_poked and since_ms >= 120_000:
+        elif self._ever_poked and since_ms >= 1_800_000:
+            # ~30 min after last poke.
             level = "medium"
-            priority = 0.55
+            priority = 0.45
             hint = (
-                f"Ignored for {since_ms // 1000}s — sulky/annoyed: frown, restless, "
-                "maybe a short '理我一下' if ambient_speech.allowed."
+                f"Quiet for {since_ms // 1000}s after earlier attention. "
+                "EXPLODE allowed once as rare comic spice — then cool down. "
+                "Do not chain anger."
+            )
+        elif self._ever_poked and since_ms >= 900_000:
+            # ~15 min — mild sulk, still no explode.
+            level = "low"
+            priority = 0.28
+            hint = (
+                f"Quiet for {since_ms // 1000}s — mild restless/sulk pose ok. "
+                "No explode, no red blink."
             )
         else:
             level = "low"
@@ -2188,24 +2212,156 @@ class NagoWindow(QWidget):
         self._fade_opacity_anim.start()
         self._fade_color_anim.start()
 
-    def _on_blink_tick(self) -> None:
-        """Pulse stickman lines between blink color and a dimmed twin (not pure black)."""
+    @staticmethod
+    def _lerp_rgb(
+        a: tuple[int, int, int], b: tuple[int, int, int], t: float,
+    ) -> tuple[int, int, int]:
+        t = max(0.0, min(1.0, t))
+        # Smoothstep — softer than linear for a breathing-light feel.
+        t = t * t * (3.0 - 2.0 * t)
+        return (
+            int(a[0] + (b[0] - a[0]) * t),
+            int(a[1] + (b[1] - a[1]) * t),
+            int(a[2] + (b[2] - a[2]) * t),
+        )
+
+    def _line_breathe_on_cooldown(self) -> bool:
+        if self._line_breathe_last_ended_at <= 0:
+            return False
+        return (_time.time() - self._line_breathe_last_ended_at) < self._line_breathe_cooldown_sec
+
+    def _start_line_breathe(
+        self,
+        peak_rgb: tuple[int, int, int],
+        restore_rgb: tuple[int, int, int],
+    ) -> None:
+        """Begin a ≤10s soft red outline pulse; ignore restarts / cooldown rejects."""
+        if self._line_breathe_active:
+            # Already pulsing — do not reset the deadline (prevents endless anger loops).
+            return
+        if self._line_breathe_on_cooldown():
+            logger.info(
+                "Line breathe suppressed — cooldown %.0fs left",
+                self._line_breathe_cooldown_sec
+                - (_time.time() - self._line_breathe_last_ended_at),
+            )
+            self._stickman_params.blink = False
+            return
+        self._line_breathe_active = True
+        self._line_breathe_started_at = _time.time()
+        self._line_breathe_phase = 0.0
+        self._line_breathe_peak = (
+            max(0, min(255, int(peak_rgb[0]))),
+            max(0, min(255, int(peak_rgb[1]))),
+            max(0, min(255, int(peak_rgb[2]))),
+        )
+        self._line_breathe_restore = (
+            max(0, min(255, int(restore_rgb[0]))),
+            max(0, min(255, int(restore_rgb[1]))),
+            max(0, min(255, int(restore_rgb[2]))),
+        )
+        self._stickman_params.blink = True
+        self._stickman_params.start_blink(self._line_breathe_peak)
+        self._last_color = self._line_breathe_peak
         self._color_transition_anim.stop()
-        bright = self._last_color
-        r, g, b = bright
-        dim = (max(24, r // 4), max(12, g // 4), max(12, b // 4))
-        current = self._fade_animator.display_color
-        # Treat near-dim as the dim phase.
-        if (
-            abs(current.red() - dim[0]) <= 8
-            and abs(current.green() - dim[1]) <= 8
-            and abs(current.blue() - dim[2]) <= 8
-        ):
-            self._fade_animator.display_color = QColor(*bright)
-        else:
-            self._fade_animator.display_color = QColor(*dim)
+        self._fade_animator.display_color = QColor(*self._line_breathe_peak)
+        self._blink_timer.start(self._line_breathe_tick_ms)
+        logger.info(
+            "Line breathe start peak=%s restore=%s max=%.0fs",
+            self._line_breathe_peak,
+            self._line_breathe_restore,
+            self._line_breathe_max_sec,
+        )
+
+    def _stop_line_breathe(self, *, restore: bool = True) -> None:
+        """End outline pulse; optionally restore the pre-pulse line color."""
+        was = self._line_breathe_active
+        self._blink_timer.stop()
+        self._line_breathe_active = False
+        self._stickman_params.blink = False
+        self._stickman_params.stop_blink()
+        if restore:
+            rgb = self._line_breathe_restore
+            self._stickman_params.line_color = rgb
+            self._last_color = rgb
+            self._color_transition_anim.stop()
+            self._fade_animator.display_color = QColor(*rgb)
+        if was:
+            self._line_breathe_last_ended_at = _time.time()
+            logger.info(
+                "Line breathe stop restore=%s color=%s cooldown=%.0fs",
+                restore,
+                self._stickman_params.line_color,
+                self._line_breathe_cooldown_sec,
+            )
         self._sync_render_params()
         self.update()
+
+    def _on_line_breathe_tick(self) -> None:
+        """Sine-breathe the outline between soft and bright peak; auto-stop at max duration."""
+        if not self._line_breathe_active:
+            self._blink_timer.stop()
+            return
+        elapsed = _time.time() - self._line_breathe_started_at
+        if elapsed >= self._line_breathe_max_sec:
+            self._stop_line_breathe(restore=True)
+            return
+
+        dt = self._line_breathe_tick_ms / 1000.0
+        self._line_breathe_phase += dt * (2.0 * math.pi) / max(0.4, self._line_breathe_period_sec)
+        # 0..1 wave; keep a visible floor so lines never pop to near-black.
+        wave = 0.5 + 0.5 * math.sin(self._line_breathe_phase)
+        peak = self._line_breathe_peak
+        soft = (
+            max(36, peak[0] * 2 // 5),
+            max(18, peak[1] * 2 // 5),
+            max(18, peak[2] * 2 // 5),
+        )
+        rgb = self._lerp_rgb(soft, peak, wave)
+        self._color_transition_anim.stop()
+        self._fade_animator.display_color = QColor(*rgb)
+        # Keep logical line_color at peak so patches / snapshots stay stable.
+        self._stickman_params.line_color = peak
+        self._last_color = peak
+        self._sync_render_params()
+        self.update()
+
+    def _apply_line_breathe_from_patch(
+        self,
+        params: dict,
+        updated: StickmanParams,
+        pre_line: tuple[int, int, int],
+    ) -> None:
+        """Start/stop the breathing outline from a control patch."""
+        emotion = str(params.get("emotion") or "").strip().lower()
+        if "blink" in params and not bool(params.get("blink")):
+            self._stop_line_breathe(restore=True)
+            return
+        if emotion and not is_anger_emotion(emotion) and "emotion" in params:
+            # Leaving anger (or any non-anger labeled mood) ends the pulse.
+            if self._line_breathe_active or updated.blink:
+                self._stop_line_breathe(restore=True)
+            return
+        if params.get("blink") is True or (
+            is_anger_emotion(emotion) and params.get("blink", True)
+        ):
+            if self._line_breathe_on_cooldown() and not self._line_breathe_active:
+                # AI asked for another tantrum too soon — keep the buddy palette.
+                logger.info("Anger blink ignored — line-breathe cooldown active")
+                self._stickman_params.blink = False
+                self._stickman_params.line_color = pre_line
+                self._last_color = pre_line
+                self._color_transition_anim.stop()
+                self._fade_animator.display_color = QColor(*pre_line)
+                self._sync_render_params()
+                self.update()
+                return
+            peak = updated.line_color
+            restore = pre_line
+            # If pre-line was already the anger peak, fall back to a calm default.
+            if restore == peak:
+                restore = self._line_breathe_restore if self._line_breathe_restore != peak else (0, 0, 0)
+            self._start_line_breathe(peak, restore)
 
     def _on_ai_result(self, actions: list[dict]) -> None:
         """Receive AI control commands and queue them for faithful execution."""
@@ -2301,31 +2457,39 @@ class NagoWindow(QWidget):
         raw_params = self._sanitize_speech_params(raw_params)
 
         before_bubble = self._stickman_params.speech_bubble
+        pre_line = self._stickman_params.line_color
         updated, motion = apply_control_patch(raw_params, self._stickman_params)
         self._stickman_params = updated
         self._note_speech_if_any(updated.speech_bubble)
         self._sync_speech_bubble_auto_dismiss(before_bubble, updated.speech_bubble)
 
-        # Transition color only when the patch explicitly changes it.
-        if "color" in raw_params or "line_color" in raw_params:
-            target = updated.line_color
-            self._last_color = target
-            self._color_transition_anim.stop()
-            self._color_transition_anim.setStartValue(self._fade_animator.display_color)
-            self._color_transition_anim.setEndValue(QColor(*target))
-            self._color_transition_anim.start()
-        else:
-            # Keep display_color synchronized with the current line_color.
-            self._fade_animator.display_color = QColor(*updated.line_color)
-            self._last_color = updated.line_color
+        want_breathe = (
+            raw_params.get("blink") is True
+            or is_anger_emotion(str(raw_params.get("emotion") or ""))
+        )
+        stop_breathe = (
+            ("blink" in raw_params and not bool(raw_params.get("blink")))
+            or (
+                "emotion" in raw_params
+                and str(raw_params.get("emotion") or "").strip()
+                and not is_anger_emotion(str(raw_params.get("emotion") or ""))
+            )
+        )
 
-        if "blink" in raw_params:
-            if updated.blink:
-                self._stickman_params.start_blink(updated.line_color)
-                self._blink_timer.start(200)
-            else:
-                self._stickman_params.stop_blink()
-                self._blink_timer.stop()
+        # Color transitions fight the breathe pulse — skip while starting/holding pulse.
+        if stop_breathe or not want_breathe:
+            if "color" in raw_params or "line_color" in raw_params:
+                target = updated.line_color
+                self._last_color = target
+                self._color_transition_anim.stop()
+                self._color_transition_anim.setStartValue(self._fade_animator.display_color)
+                self._color_transition_anim.setEndValue(QColor(*target))
+                self._color_transition_anim.start()
+            elif not self._line_breathe_active:
+                self._fade_animator.display_color = QColor(*updated.line_color)
+                self._last_color = updated.line_color
+
+        self._apply_line_breathe_from_patch(raw_params, updated, pre_line)
 
         # Motion and animations are triggered exclusively by AI parameters.
         if "walk_dx" in motion or "walk_dy" in motion:
@@ -2441,20 +2605,19 @@ class NagoWindow(QWidget):
                 min_gap_sec=self._min_speech_gap_sec,
             )
         before_bubble = self._stickman_params.speech_bubble
+        pre_line = self._stickman_params.line_color
         updated, motion = apply_control_patch(params, self._stickman_params)
         self._stickman_params = updated
         self._note_speech_if_any(updated.speech_bubble)
         self._sync_speech_bubble_auto_dismiss(before_bubble, updated.speech_bubble)
-        if "color" in params or "line_color" in params:
+        want_breathe = (
+            params.get("blink") is True
+            or is_anger_emotion(str(params.get("emotion") or ""))
+        )
+        if not want_breathe and ("color" in params or "line_color" in params):
             self._last_color = updated.line_color
             self._fade_animator.display_color = QColor(*updated.line_color)
-        if "blink" in params:
-            if updated.blink:
-                self._stickman_params.start_blink(updated.line_color)
-                self._blink_timer.start(200)
-            else:
-                self._stickman_params.stop_blink()
-                self._blink_timer.stop()
+        self._apply_line_breathe_from_patch(params, updated, pre_line)
         if "walk_dx" in motion:
             self._walk_vx = float(motion["walk_dx"])
         if "walk_dy" in motion:

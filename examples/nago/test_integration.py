@@ -357,10 +357,10 @@ class TestControlPlane(unittest.TestCase):
         self.assertFalse(out.get("cheek_blush"))
         self.assertTrue(out.get("blink"))
         self.assertEqual(out.get("line_color"), [220, 45, 45])
-        # Non-anger moods are untouched.
+        # Non-anger moods force blink off so sticky pulse cannot linger.
         calm = sanitize_anger_visuals({"emotion": "happy", "cheek_blush": True})
         self.assertTrue(calm.get("cheek_blush"))
-        self.assertNotIn("blink", calm)
+        self.assertFalse(calm.get("blink"))
 
     def test_bubble_layout_avoids_head(self) -> None:
         from main import _compute_bubble_layout, _bubble_intersects_head
@@ -1041,8 +1041,75 @@ class TestNagoWindow(unittest.TestCase):
         self.assertEqual(self.window._stickman_params.arm_right_angle, 45.0)
 
     def test_apply_blink_param(self) -> None:
-        self.window._apply_action_params({"blink": True})
+        self.window._stop_line_breathe(restore=False)
+        self.window._line_breathe_last_ended_at = 0.0
+        self.window._line_breathe_max_sec = 10.0
+        self.window._apply_action_params({
+            "emotion": "angry",
+            "blink": True,
+            "line_color": [220, 45, 45],
+        })
         self.assertTrue(self.window._stickman_params.blink)
+        self.assertTrue(self.window._line_breathe_active)
+        self.assertTrue(self.window._blink_timer.isActive())
+        self.assertEqual(self.window._line_breathe_peak, (220, 45, 45))
+        self.window._stop_line_breathe(restore=True)
+
+    def test_line_breathe_auto_restores(self) -> None:
+        """Anger outline pulse restores pre-color and stops after max duration."""
+        from PySide6.QtGui import QColor
+        self.window._stop_line_breathe(restore=False)
+        self.window._line_breathe_last_ended_at = 0.0
+        self.window._stickman_params.line_color = (10, 20, 30)
+        self.window._last_color = (10, 20, 30)
+        self.window._fade_animator.display_color = QColor(10, 20, 30)
+        self.window._line_breathe_max_sec = 0.05
+        self.window._apply_action_params({
+            "emotion": "angry",
+            "eyebrow_angle": -20,
+            "line_color": [220, 45, 45],
+        })
+        self.assertTrue(self.window._line_breathe_active)
+        self.assertEqual(self.window._line_breathe_restore, (10, 20, 30))
+        # Expire by rewinding start time, then tick once.
+        self.window._line_breathe_started_at = _time.time() - 1.0
+        self.window._on_line_breathe_tick()
+        self.assertFalse(self.window._line_breathe_active)
+        self.assertFalse(self.window._stickman_params.blink)
+        self.assertEqual(self.window._stickman_params.line_color, (10, 20, 30))
+        self.assertFalse(self.window._blink_timer.isActive())
+        self.window._line_breathe_max_sec = 10.0
+
+    def test_leaving_anger_stops_breathe(self) -> None:
+        self.window._stop_line_breathe(restore=False)
+        self.window._line_breathe_last_ended_at = 0.0
+        self.window._line_breathe_max_sec = 10.0
+        self.window._stickman_params.line_color = (0, 0, 0)
+        self.window._last_color = (0, 0, 0)
+        self.window._apply_action_params({"emotion": "angry", "line_color": [220, 45, 45]})
+        self.assertTrue(self.window._line_breathe_active)
+        self.window._apply_action_params({"emotion": "happy", "mouth_angle": 28})
+        self.assertFalse(self.window._line_breathe_active)
+        self.assertFalse(self.window._stickman_params.blink)
+        self.assertEqual(self.window._stickman_params.line_color, (0, 0, 0))
+
+    def test_line_breathe_cooldown_blocks_chain(self) -> None:
+        """Back-to-back anger pulses are suppressed so he can't act like a 大爷."""
+        self.window._stop_line_breathe(restore=False)
+        self.window._line_breathe_last_ended_at = 0.0
+        self.window._line_breathe_cooldown_sec = 600.0
+        self.window._stickman_params.line_color = (0, 0, 0)
+        self.window._last_color = (0, 0, 0)
+        self.window._apply_action_params({"emotion": "angry", "line_color": [220, 45, 45]})
+        self.assertTrue(self.window._line_breathe_active)
+        self.window._stop_line_breathe(restore=True)
+        self.assertGreater(self.window._line_breathe_last_ended_at, 0)
+        self.window._apply_action_params({"emotion": "furious", "line_color": [220, 45, 45]})
+        self.assertFalse(self.window._line_breathe_active)
+        self.assertFalse(self.window._stickman_params.blink)
+        self.assertEqual(self.window._stickman_params.line_color, (0, 0, 0))
+        self.window._line_breathe_cooldown_sec = 1200.0
+        self.window._line_breathe_last_ended_at = 0.0
 
     def test_apply_invert_colors_param(self) -> None:
         self.window._apply_action_params({"emotion": "dramatic", "invert_colors": True})
