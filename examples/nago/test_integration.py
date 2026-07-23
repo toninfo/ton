@@ -176,7 +176,7 @@ class TestStickmanParams(unittest.TestCase):
         self.assertTrue(p.blink)
         self.assertEqual(p.line_color, (255, 0, 0))
         p.toggle_blink()
-        self.assertEqual(p.line_color, (0, 0, 0))
+        self.assertEqual(p.line_color, p._blink_dim_color())
         p.toggle_blink()
         self.assertEqual(p.line_color, (255, 0, 0))
         p.stop_blink()
@@ -321,6 +321,47 @@ class TestControlPlane(unittest.TestCase):
         self.assertIsNone(out.get("speech_bubble"))
         self.assertEqual(out.get("mouth_angle"), 10)
 
+    def test_ambient_speech_gated_by_cooldown(self) -> None:
+        from control import gate_ambient_speech
+        # Inside cooldown → drop bubble.
+        blocked = gate_ambient_speech(
+            {"speech_bubble": "嘿", "mouth_angle": 20},
+            last_speech_at=1_000.0,
+            min_gap_sec=90.0,
+            now=1_030.0,
+        )
+        self.assertIsNone(blocked.get("speech_bubble"))
+        self.assertEqual(blocked.get("mouth_angle"), 20)
+        # Past cooldown → keep bubble.
+        allowed = gate_ambient_speech(
+            {"speech_bubble": "嘿", "mouth_angle": 20},
+            last_speech_at=1_000.0,
+            min_gap_sec=90.0,
+            now=1_100.0,
+        )
+        self.assertEqual(allowed.get("speech_bubble"), "嘿")
+
+    def test_sanitize_anger_strips_head_paint(self) -> None:
+        from control import sanitize_anger_visuals
+        out = sanitize_anger_visuals({
+            "emotion": "furious",
+            "glow_color": [200, 0, 0],
+            "glow_strength": 0.8,
+            "fill_color": [180, 0, 0],
+            "cheek_blush": True,
+            "eyebrow_angle": -22,
+        })
+        self.assertIsNone(out.get("glow_color"))
+        self.assertEqual(out.get("glow_strength"), 0.0)
+        self.assertIsNone(out.get("fill_color"))
+        self.assertFalse(out.get("cheek_blush"))
+        self.assertTrue(out.get("blink"))
+        self.assertEqual(out.get("line_color"), [220, 45, 45])
+        # Non-anger moods are untouched.
+        calm = sanitize_anger_visuals({"emotion": "happy", "cheek_blush": True})
+        self.assertTrue(calm.get("cheek_blush"))
+        self.assertNotIn("blink", calm)
+
     def test_bubble_layout_avoids_head(self) -> None:
         from main import _compute_bubble_layout, _bubble_intersects_head
         head_x, head_y, hw, hh = 75.0, 30.0, 50.0, 60.0
@@ -416,6 +457,7 @@ class TestAIClient(unittest.TestCase):
         self.assertIn("Stay in character as Nago", prompt)
         self.assertIn("EXPRESSION RECIPES", prompt)
         self.assertIn("SOCIAL TOUCH", prompt)
+        self.assertIn("DESKTOP AWARENESS", prompt)
         self.assertIn("READ their words carefully", prompt)
 
     def test_build_system_prompt_single_source(self) -> None:
@@ -449,6 +491,21 @@ class TestLongTermMemory(unittest.TestCase):
         self.assertEqual(self.mem.facts[0]["category"], "boundary")
         self.assertFalse(self.mem.maybe_promote_from_user("今天天气不错"))
 
+    def test_promote_soft_preference(self) -> None:
+        # Soft path: preference without 记住 keyword.
+        self.assertTrue(self.mem.maybe_promote_from_user("我爱喝美式"))
+        self.assertEqual(self.mem.facts[0]["source"], "user_soft")
+        self.assertEqual(self.mem.facts[0]["category"], "preference")
+        # Pure questions should not soft-promote.
+        self.assertFalse(self.mem.maybe_promote_from_user("你喜欢什么？"))
+
+    def test_touch_mentioned_facts(self) -> None:
+        self.mem.upsert("用户喜欢安静", category="preference", importance=0.7)
+        before = self.mem.facts[0]["importance"]
+        n = self.mem.touch_mentioned_facts("对，我还是喜欢安静")
+        self.assertEqual(n, 1)
+        self.assertGreater(self.mem.facts[0]["importance"], before)
+
     def test_forget(self) -> None:
         self.mem.upsert("喜欢打拳", category="preference")
         self.assertEqual(self.mem.forget("打拳"), 1)
@@ -462,6 +519,42 @@ class TestLongTermMemory(unittest.TestCase):
         blob = self.mem.to_context_blob()
         self.assertEqual(blob["count"], 1)
         self.assertIn("Nago", blob["facts"][0])
+
+
+class TestUserProfile(unittest.TestCase):
+    """Passive habit / familiarity layer persists across sessions."""
+
+    def setUp(self) -> None:
+        import tempfile
+        from pathlib import Path
+        from profile import UserProfile
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._path = Path(self._tmpdir.name) / "nago.profile.json"
+        self.prof = UserProfile(self._path)
+
+    def tearDown(self) -> None:
+        self._tmpdir.cleanup()
+
+    def test_observe_and_distill(self) -> None:
+        for _ in range(5):
+            self.prof.observe_desktop(
+                activity_label="typing_likely",
+                foreground_class="cursor.Cursor",
+                foreground_title="main.py — ton",
+                hour=15,
+                is_desktop=False,
+            )
+        self.prof.observe_talk()
+        self.prof.observe_poke()
+        self.prof.save(force=True)
+        self.assertTrue(self._path.is_file())
+        reloaded = __import__("profile", fromlist=["UserProfile"]).UserProfile(self._path)
+        self.assertGreaterEqual(reloaded.talk_count, 1)
+        self.assertIn("Cursor", reloaded.app_ticks)
+        blob = reloaded.to_context_blob()
+        self.assertIn("familiarity", blob)
+        self.assertTrue(blob["summary_lines"])
+        self.assertIn("typing", " ".join(blob["summary_lines"]).lower())
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -800,21 +893,32 @@ class TestNagoWindow(unittest.TestCase):
         obs = ctx["observations"]
         for key in (
             "mouse_position_window", "mouse_position_global", "mouse_delta",
-            "clicks", "interaction", "wheel_delta", "hover", "time_since_last_input_ms",
-            "foreground_window", "is_desktop", "screen_resolution",
+            "clicks", "interaction", "motion_hint", "wheel_delta", "hover", "time_since_last_input_ms",
+            "time_since_last_nago_input_ms", "system_idle_ms", "clock", "global_mouse",
+            "foreground_window", "foreground_class", "foreground", "is_desktop",
+            "windows_sample", "activity", "screen_resolution",
             "available_geometry", "nago_window", "at_screen_edge", "screen_colors",
-            "user_message", "conversation", "long_term_memory", "memory_layers",
+            "user_message", "conversation", "long_term_memory", "user_profile",
+            "ambient_speech", "memory_layers",
         ):
             self.assertIn(key, obs, f"observations missing: {key}")
         self.assertIn("salience", obs["interaction"])
         self.assertIn("priority", obs["interaction"])
         self.assertIn("hint", obs["interaction"])
+        self.assertIn("label", obs["activity"])
+        self.assertIn("hour", obs["clock"])
+        self.assertIsInstance(obs["windows_sample"], list)
+        self.assertIn("title", obs["foreground"])
         self.assertIn("left", obs["at_screen_edge"])
         self.assertIn("right", obs["at_screen_edge"])
         self.assertIn("at_screen_edge", ctx["agent_state"]["motion"])
         self.assertIn("lines", obs["conversation"])
         self.assertIn("chars", obs["conversation"])
         self.assertIn("facts", obs["long_term_memory"])
+        self.assertIn("summary_lines", obs["user_profile"])
+        self.assertIn("familiarity", obs["user_profile"])
+        self.assertIn("profile", obs["memory_layers"])
+        self.assertIn("allowed", obs["ambient_speech"])
         self.assertIn("params", ctx["agent_state"])
         self.assertIn("motion", ctx["agent_state"])
         self.assertTrue(ctx["capabilities"].get("no_local_behavior"))
@@ -1048,14 +1152,18 @@ class TestNagoWindow(unittest.TestCase):
                 return True
         self.window._ai_worker = _Busy()  # type: ignore[assignment]
         self.window._ai_route = "ambient"
-        # New ambient round while busy → discard in-flight, keep only latest.
+        # Heartbeat while busy must NOT discard — that caused freeze storms.
         self.window._request_ambient("heartbeat")
-        self.assertTrue(self.window._ambient_pending)
-        self.assertTrue(self.window._discard_ambient_result)
-        self.assertEqual(self.window._ambient_reason, "heartbeat")
+        self.assertFalse(self.window._ambient_pending)
+        self.assertFalse(self.window._discard_ambient_result)
+        # Real event while busy → discard in-flight, keep only latest.
         self.window._request_ambient("hover_enter")
         self.assertTrue(self.window._ambient_pending)
-        self.assertEqual(self.window._ambient_reason, "hover_enter")  # replaced
+        self.assertTrue(self.window._discard_ambient_result)
+        self.assertEqual(self.window._ambient_reason, "hover_enter")
+        self.window._request_ambient("click")
+        self.assertTrue(self.window._ambient_pending)
+        self.assertEqual(self.window._ambient_reason, "click")  # replaced
         self.window._session.queue_user_message("嘿")
         self.window._talk.accept_text("嘿")
         self.window._request_talk()
@@ -1074,22 +1182,34 @@ class TestNagoWindow(unittest.TestCase):
         self.window._talk.finish()
 
     def test_ambient_latest_wins_clears_stale(self) -> None:
-        """A newer ambient round replaces any older queued reason."""
+        """A newer sensor event replaces any older queued reason; heartbeat does not."""
         class _Busy:
             def isRunning(self) -> bool:
                 return True
         self.window._ai_worker = _Busy()  # type: ignore[assignment]
         self.window._ai_route = "ambient"
-        self.window._request_ambient("heartbeat")
         self.window._request_ambient("click")
         self.assertEqual(self.window._ambient_reason, "click")
-        self.window._request_ambient("heartbeat")
-        self.assertEqual(self.window._ambient_reason, "heartbeat")
         self.assertTrue(self.window._discard_ambient_result)
+        self.window._request_ambient("heartbeat")  # must not clobber click pending
+        self.assertEqual(self.window._ambient_reason, "click")
+        self.window._request_ambient("hover_enter")
+        self.assertEqual(self.window._ambient_reason, "hover_enter")
         self.window._ai_worker = None
         self.window._ai_route = None
         self.window._ambient_pending = False
         self.window._discard_ambient_result = False
+
+    def test_motion_hint_when_stuck_on_edge(self) -> None:
+        self.window._walk_vx = 0.0
+        self.window._walk_vy = 0.0
+        self.window._at_screen_edge = {
+            "left": True, "right": False, "top": False, "bottom": False,
+        }
+        hint = self.window._build_motion_hint()
+        self.assertEqual(hint["stuck_at_edge"], ["left"])
+        self.assertGreaterEqual(hint["priority"], 0.7)
+        self.assertIn("walk_dx>0", hint["hint"])
 
     def test_right_click_does_not_start_drag(self) -> None:
         """Right-press must not stick the window to the cursor after the menu."""
@@ -1261,6 +1381,47 @@ class TestNagoWindow(unittest.TestCase):
 
 
 # ── Entry point ────────────────────────────────────────────────────────────
+
+class TestDesktopSensors(unittest.TestCase):
+    def test_clock_and_activity_labels(self) -> None:
+        from sensors import build_activity_summary, get_clock_context
+
+        clock = get_clock_context()
+        self.assertIn("hour", clock)
+        self.assertIn("day_part", clock)
+        typing = build_activity_summary(
+            system_idle_ms=400,
+            mouse_speed_px=2.0,
+            hover=False,
+            poke_salience="low",
+            foreground={"title": "main.py — Cursor", "class": "cursor", "is_desktop": False},
+        )
+        self.assertEqual(typing["label"], "typing_likely")
+        away = build_activity_summary(
+            system_idle_ms=200_000,
+            mouse_speed_px=0.0,
+            hover=False,
+            poke_salience="low",
+            foreground={"title": "", "class": "", "is_desktop": True},
+        )
+        self.assertEqual(away["label"], "away")
+
+    def test_collect_desktop_sensors_shape(self) -> None:
+        from sensors import collect_desktop_sensors
+
+        blob = collect_desktop_sensors(
+            prev_global_mouse=(10, 10),
+            global_mouse=(40, 50),
+            hover=False,
+            poke_salience="low",
+        )
+        self.assertIn("clock", blob)
+        self.assertIn("global_mouse", blob)
+        self.assertEqual(blob["global_mouse"]["delta_x"], 30)
+        self.assertIn("activity", blob)
+        self.assertIn("foreground", blob)
+        self.assertIsInstance(blob["windows_sample"], list)
+
 
 if __name__ == "__main__":
     # Use offscreen platform to avoid X11 dependency

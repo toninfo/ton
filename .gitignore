@@ -23,6 +23,7 @@ ton-stderr.log
 examples/nago/nago.local.env
 examples/nago/nago.session.json
 examples/nago/nago.memory.json
+examples/nago/nago.profile.json
 .superpowers/
 **/.ton/
 

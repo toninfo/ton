@@ -226,13 +226,21 @@ class StickmanParams:
         if self._blink_color is not None:
             self.line_color = self._blink_color
 
+    def _blink_dim_color(self) -> tuple[int, int, int]:
+        """Dimmed twin of blink color — keeps a hint of hue so lines 'flash' not vanish."""
+        if self._blink_color is None:
+            return (0, 0, 0)
+        r, g, b = self._blink_color
+        return (max(24, r // 4), max(12, g // 4), max(12, b // 4))
+
     def toggle_blink(self) -> None:
         if self._blink_color is None:
             return
-        if self.line_color == (0, 0, 0):
+        dim = self._blink_dim_color()
+        if self.line_color == dim:
             self.line_color = self._blink_color
         else:
-            self.line_color = (0, 0, 0)
+            self.line_color = dim
 
 
 def draw_stickman(painter: pygame.Surface, params: StickmanParams) -> None:

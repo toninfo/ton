@@ -40,16 +40,20 @@ from control import (
     clone_params,
     filter_generic_speech,
     filter_sticky_color,
+    gate_ambient_speech,
     get_capabilities_for_context,
     params_snapshot,
-    strip_speech_for_ambient,
+    sanitize_anger_visuals,
     with_display_color,
 )
 from memory import LongTermMemory
 from nago_config import get_runtime_settings
+from profile import UserProfile
+from sensors import collect_desktop_sensors, get_foreground_info
 from session import SessionMemory
-from talk_flow import TalkPhase, TalkTurnController
+from stickman import StickmanParams
 from talk_dialog import TalkComposer, ask_talk_text, configure_ime_env
+from talk_flow import TalkPhase, TalkTurnController
 from PySide6.QtCore import (
     QEasingCurve, QObject, QPoint, QPropertyAnimation, Property, QRect, QRectF, Qt, QThread, QTimer, Signal,
 )
@@ -60,7 +64,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication, QMenu, QSystemTrayIcon, QWidget,
 )
-from stickman import StickmanParams
 
 logger = logging.getLogger(__name__)
 
@@ -914,54 +917,13 @@ class _FadeAnimator(QObject):
 
 
 # ---------------------------------------------------------------------------
-# Step 13 — Foreground window detection (cross-platform)
+# Step 13 — Foreground window detection (implementation in sensors.py)
 # ---------------------------------------------------------------------------
 
 def _get_foreground_window_info() -> tuple[str, bool]:
     """Return (window_title, is_desktop) for the system foreground window."""
-    system = platform.system()
-    if system == "Windows":
-        return _fg_win_windows()
-    if system == "Linux":
-        return _fg_win_linux()
-    if system == "Darwin":
-        return _fg_win_macos()
-    return ("unknown", False)
-
-def _fg_win_windows() -> tuple[str, bool]:
-    try:
-        u32 = ctypes.windll.user32  # type: ignore[attr-defined]
-        hwnd = u32.GetForegroundWindow()
-        length = u32.GetWindowTextLengthW(hwnd)
-        buf = ctypes.create_unicode_buffer(length + 1)
-        u32.GetWindowTextW(hwnd, buf, length + 1)
-        class_buf = ctypes.create_unicode_buffer(256)
-        u32.GetClassNameW(hwnd, class_buf, 256)
-        return (buf.value, class_buf.value in ("Progman", "WorkerW"))
-    except Exception:
-        return ("", False)
-
-def _fg_win_linux() -> tuple[str, bool]:
-    _run = lambda args: subprocess.check_output(
-        args, text=True, stderr=subprocess.DEVNULL,
-    ).strip()
-    try:
-        wid = _run(["xdotool", "getactivewindow"])
-        if not wid:
-            return ("", False)
-        title = _run(["xdotool", "getwindowname", wid])
-        wm_class = _run(["xdotool", "getwindowclassname", wid])
-        is_desktop = wm_class in {"Desktop", "Nautilus", "nautilus", "pcmanfm"} or not title
-        return (title, is_desktop)
-    except Exception:
-        return ("", False)
-
-def _fg_win_macos() -> tuple[str, bool]:
-    """Placeholder for macOS foreground-window detection.
-
-    Not yet implemented — returns a static fallback string.
-    """
-    return ("macOS foreground", False)
+    info = get_foreground_info()
+    return str(info.get("title") or ""), bool(info.get("is_desktop"))
 
 
 # ---------------------------------------------------------------------------
@@ -1010,6 +972,9 @@ class NagoWindow(QWidget):
         self._session_started_at: float = _time.time()
         self._stickman_click_times: list[float] = []
         self._ever_poked: bool = False
+        # Global mouse sample between AI flushes (desktop activity, not just on-widget).
+        self._prev_global_mouse: tuple[int, int] | None = None
+        self._foreground_class: str = ""
 
         # --- Hover state (step 10) ---
         self._hover: bool = False
@@ -1101,6 +1066,7 @@ class NagoWindow(QWidget):
             keep_recent_chars=runtime.session_keep_recent_chars,
         )
         self._long_memory = LongTermMemory(max_facts=runtime.memory_max_facts)
+        self._profile = UserProfile()
         # Conversation turn state machine (see talk_flow.py).
         self._talk = TalkTurnController(timeout_sec=45.0)
 
@@ -1398,11 +1364,11 @@ class NagoWindow(QWidget):
         self._run_talk_request()
 
     def _request_ambient(self, reason: str = "heartbeat") -> None:
-        """Ambient route — single slot, latest wins.
+        """Ambient route — sensor events latest-wins; heartbeat never preempts.
 
-        A new round clears any older ambient queue entry. If an ambient call is
-        already in flight, its result is discarded so the fresh context runs next.
-        Talk always owns the pipe while a conversation turn is active.
+        Heartbeat used to discard in-flight ambient whenever RTT ≈ interval,
+        which produced a discard storm (AI replies never applied → frozen body).
+        Real events (click / hover / …) may still supersede an in-flight round.
         """
         if self._talk.active or self._talk_pending or self._session.peek_pending_user():
             # Conversation is live — do not let ambient backlog grow.
@@ -1415,7 +1381,11 @@ class NagoWindow(QWidget):
                 self._ambient_pending = False
                 logger.debug("Ambient [%s] dropped — talk in flight", reason)
                 return
-            # Ambient in flight: supersede it. Keep only this latest reason.
+            if reason == "heartbeat":
+                # Let the current ambient finish; next heartbeat fires when idle.
+                logger.debug("Ambient heartbeat skipped — ambient already in flight")
+                return
+            # Real sensor event: supersede in-flight ambient with fresher context.
             self._discard_ambient_result = True
             self._ambient_pending = True
             self._ambient_reason = reason
@@ -1607,6 +1577,7 @@ class NagoWindow(QWidget):
         self._stickman_click_times = [
             t for t in self._stickman_click_times if now - t <= 60.0
         ]
+        self._profile.observe_poke()
 
     def _build_interaction_salience(self) -> dict:
         """Derive high-priority poke / neglect cues for the next AI observation."""
@@ -1639,19 +1610,33 @@ class NagoWindow(QWidget):
                 level = "high"
                 priority = 0.8
                 hint = "Just poked — acknowledge with a clear expression (not a blank morph)."
-        elif not self._ever_poked and since_ms >= 90_000:
+        elif not self._ever_poked and since_ms >= 180_000:
+            level = "high"
+            priority = 0.75
+            hint = (
+                f"Still never poked (~{since_ms // 1000}s) — EXPLODE/tantrum ok: "
+                "angry face + punch/flail + short protest bubble if ambient_speech.allowed."
+            )
+        elif not self._ever_poked and since_ms >= 60_000:
             level = "medium"
             priority = 0.55
             hint = (
-                "Nobody has poked you (~"
-                f"{since_ms // 1000}s). Mild lonely/emo presence is ok."
+                f"Nobody has poked you (~{since_ms // 1000}s). "
+                "Seek attention: silly face / cheer / short '嘿' bubble if ambient_speech.allowed."
             )
-        elif self._ever_poked and since_ms >= 180_000:
-            level = "medium"
-            priority = 0.5
+        elif self._ever_poked and since_ms >= 300_000:
+            level = "high"
+            priority = 0.8
             hint = (
-                f"Ignored for {since_ms // 1000}s after earlier attention — "
-                "mild emo / restless ok."
+                f"Ignored for {since_ms // 1000}s after earlier attention — EXPLODE: "
+                "furious face + punch + protest bubble if allowed. Comic tantrum."
+            )
+        elif self._ever_poked and since_ms >= 120_000:
+            level = "medium"
+            priority = 0.55
+            hint = (
+                f"Ignored for {since_ms // 1000}s — sulky/annoyed: frown, restless, "
+                "maybe a short '理我一下' if ambient_speech.allowed."
             )
         else:
             level = "low"
@@ -1716,6 +1701,8 @@ class NagoWindow(QWidget):
 
         self._talk.accept_text(text)
         self._long_memory.maybe_promote_from_user(text)
+        self._long_memory.touch_mentioned_facts(text)
+        self._profile.observe_talk()
         logger.info("User message queued: %r", text[:80])
         self._show_listening_feedback()
         self._maybe_compress_session()
@@ -1769,18 +1756,26 @@ class NagoWindow(QWidget):
     # ------------------------------------------------------------------
 
     def _update_foreground_info(self, _qt_window: object = None) -> None:
-        """Refresh foreground window title and desktop detection.
+        """Refresh foreground window title/class and desktop detection.
 
-        Called by QApplication.activeWindowChanged (with the new active
-        QWidget) and by the flush timer every second for system-level
-        foreground changes that Qt cannot see.
+        Called by QApplication.activeWindowChanged and by the flush timer for
+        OS-level foreground changes that Qt cannot see.
         """
-        title, is_desktop = _get_foreground_window_info()
-        if title != self._foreground_window or is_desktop != self._is_desktop:
+        info = get_foreground_info()
+        title = str(info.get("title") or "")
+        is_desktop = bool(info.get("is_desktop"))
+        cls = str(info.get("class") or "")
+        if (
+            title != self._foreground_window
+            or is_desktop != self._is_desktop
+            or cls != self._foreground_class
+        ):
             logger.info(
-                "Foreground window changed → %r (desktop=%s)", title, is_desktop,
+                "Foreground window changed → %r class=%r (desktop=%s)",
+                title[:60], cls[:40], is_desktop,
             )
             self._foreground_window = title
+            self._foreground_class = cls
             self._is_desktop = is_desktop
             self._schedule_event_flush("foreground")
 
@@ -1832,6 +1827,39 @@ class NagoWindow(QWidget):
             self._stickman_params.leg_right_angle = 0.0
             self._sync_render_params()
             self.update()
+
+    def _build_motion_hint(self) -> dict:
+        """Nudge the model when stuck flush on a screen edge with no velocity."""
+        edges = self._at_screen_edge or {}
+        stuck = [k for k, v in edges.items() if v]
+        moving = abs(self._walk_vx) + abs(self._walk_vy) > 0.01
+        if not stuck or moving:
+            return {
+                "stuck_at_edge": stuck if stuck and not moving else [],
+                "priority": 0.0,
+                "hint": "",
+            }
+        away = []
+        if edges.get("left"):
+            away.append("walk_dx>0 (go right)")
+        if edges.get("right"):
+            away.append("walk_dx<0 (go left)")
+        if edges.get("top"):
+            away.append("walk_dy>0 (go down)")
+        if edges.get("bottom"):
+            away.append("walk_dy<0 (go up)")
+        return {
+            "stuck_at_edge": stuck,
+            "priority": 0.7,
+            "hint": (
+                "STUCK on edge "
+                + ",".join(stuck)
+                + " with vx=vy=0 — looks frozen. "
+                + "Leave via "
+                + " / ".join(away)
+                + "; gait=true. Do not only morph/look."
+            ),
+        }
 
     def _sample_screen_colors(self) -> dict[str, object]:
         """Sample a primary-screen color summary with a five-second cache."""
@@ -1902,6 +1930,39 @@ class NagoWindow(QWidget):
         pending_user = self._session.peek_pending_user()
         self._at_screen_edge = self._compute_screen_edges()
 
+        # Cheap desktop sensors (idle / fg class / window sample / activity label).
+        interaction = self._build_interaction_salience()
+        desktop = collect_desktop_sensors(
+            prev_global_mouse=self._prev_global_mouse,
+            global_mouse=(global_mouse[0], global_mouse[1]),
+            hover=self._hover,
+            poke_salience=str(interaction.get("salience") or "low"),
+        )
+        self._prev_global_mouse = (global_mouse[0], global_mouse[1])
+        fg = desktop.get("foreground") or {}
+        if fg.get("title"):
+            self._foreground_window = str(fg.get("title") or self._foreground_window)
+            self._foreground_class = str(fg.get("class") or self._foreground_class)
+            self._is_desktop = bool(fg.get("is_desktop"))
+
+        local_idle_ms = int((_time.time() - self._last_input_time) * 1000)
+        system_idle_ms = desktop.get("system_idle_ms")
+        # Prefer system-wide idle when available; keep local as a secondary signal.
+        input_idle_ms = (
+            int(system_idle_ms) if isinstance(system_idle_ms, int) else local_idle_ms
+        )
+
+        # Grow familiarity: apps, activity rhythm, time-of-day (passive).
+        act = desktop.get("activity") if isinstance(desktop.get("activity"), dict) else {}
+        clock = desktop.get("clock") if isinstance(desktop.get("clock"), dict) else {}
+        self._profile.observe_desktop(
+            activity_label=str(act.get("label") or "unknown"),
+            foreground_class=str(fg.get("class") or self._foreground_class),
+            foreground_title=str(fg.get("title") or self._foreground_window),
+            hour=clock.get("hour") if isinstance(clock.get("hour"), int) else None,
+            is_desktop=bool(fg.get("is_desktop")),
+        )
+
         return {
             "observations": {
                 "mouse_position_window": mouse_position,
@@ -1909,13 +1970,22 @@ class NagoWindow(QWidget):
                 "mouse_delta": mouse_delta,
                 "clicks": self._clicks_this_second.copy(),
                 # High-priority poke / neglect signal — read before idle morph habits.
-                "interaction": self._build_interaction_salience(),
+                "interaction": interaction,
+                "motion_hint": self._build_motion_hint(),
                 "wheel_delta": list(self._wheel_this_second),
                 "hover": self._hover,
                 "dragging": self._dragging,
-                "time_since_last_input_ms": int((_time.time() - self._last_input_time) * 1000),
+                "time_since_last_input_ms": input_idle_ms,
+                "time_since_last_nago_input_ms": local_idle_ms,
+                "system_idle_ms": system_idle_ms,
+                "clock": desktop.get("clock") or {},
+                "global_mouse": desktop.get("global_mouse") or {},
                 "foreground_window": self._foreground_window,
+                "foreground_class": self._foreground_class,
+                "foreground": fg,
                 "is_desktop": self._is_desktop,
+                "windows_sample": desktop.get("windows_sample") or [],
+                "activity": desktop.get("activity") or {},
                 "screen_resolution": screen_resolution,
                 "available_geometry": available_geometry,
                 "nago_window": {
@@ -1931,10 +2001,24 @@ class NagoWindow(QWidget):
                 "user_message": pending_user,
                 "conversation": self._session.to_context_blob(),
                 "long_term_memory": self._long_memory.to_context_blob(),
+                "user_profile": self._profile.to_context_blob(),
+                "ambient_speech": {
+                    "allowed": (_time.time() - self._last_speech_at)
+                    >= self._min_speech_gap_sec,
+                    "min_gap_sec": self._min_speech_gap_sec,
+                    "seconds_since_last": int(
+                        max(0.0, _time.time() - self._last_speech_at)
+                    ),
+                    "policy": (
+                        "Ambient may emit a short speech_bubble only when allowed=true; "
+                        "otherwise use face/play. Talk route ignores this gate."
+                    ),
+                },
                 "memory_layers": {
                     "working": "user_message + live observations",
                     "session": "conversation (compressible)",
                     "long_term": "long_term_memory (durable facts)",
+                    "profile": "user_profile (growing habits / familiarity)",
                 },
             },
             "agent_state": {
@@ -2105,17 +2189,23 @@ class NagoWindow(QWidget):
         self._fade_color_anim.start()
 
     def _on_blink_tick(self) -> None:
-        """Toggle the stickman's rendered colour between its assigned colour and black.
-
-        Drives the ``display_color`` property of ``_FadeAnimator`` directly.
-        The ``_blink_timer`` fires every 200 ms while blinking is active.
-        """
+        """Pulse stickman lines between blink color and a dimmed twin (not pure black)."""
         self._color_transition_anim.stop()
+        bright = self._last_color
+        r, g, b = bright
+        dim = (max(24, r // 4), max(12, g // 4), max(12, b // 4))
         current = self._fade_animator.display_color
-        if current.red() == 0 and current.green() == 0 and current.blue() == 0:
-            self._fade_animator.display_color = QColor(*self._last_color)
+        # Treat near-dim as the dim phase.
+        if (
+            abs(current.red() - dim[0]) <= 8
+            and abs(current.green() - dim[1]) <= 8
+            and abs(current.blue() - dim[2]) <= 8
+        ):
+            self._fade_animator.display_color = QColor(*bright)
         else:
-            self._fade_animator.display_color = QColor(0, 0, 0)
+            self._fade_animator.display_color = QColor(*dim)
+        self._sync_render_params()
+        self.update()
 
     def _on_ai_result(self, actions: list[dict]) -> None:
         """Receive AI control commands and queue them for faithful execution."""
@@ -2151,11 +2241,15 @@ class NagoWindow(QWidget):
                 logger.info("AI forgot %d long-term fact(s)", n)
 
     def _sanitize_speech_params(self, raw_params: dict) -> dict:
-        """Silence ambient channel speech; clear listening placeholder on talk patches."""
+        """Gate ambient spontaneous speech; clear listening placeholder on talk patches."""
         params = filter_generic_speech(raw_params)
         route = self._last_ai_route
         if route == "ambient":
-            params = strip_speech_for_ambient(params)
+            params = gate_ambient_speech(
+                params,
+                last_speech_at=self._last_speech_at,
+                min_gap_sec=self._min_speech_gap_sec,
+            )
         elif route == "talk":
             # Omitted speech_bubble must not keep a provisional "…".
             if "speech_bubble" not in params and (
@@ -2167,7 +2261,7 @@ class NagoWindow(QWidget):
             if isinstance(bubble, str) and bubble.strip() == "…":
                 params = dict(params)
                 params["speech_bubble"] = None
-        elif route != "talk":
+        else:
             bubble = params.get("speech_bubble")
             if isinstance(bubble, str) and bubble.strip() and bubble.strip() != "…":
                 now = _time.time()
@@ -2203,6 +2297,7 @@ class NagoWindow(QWidget):
         raw_params, self._last_emotion = filter_sticky_color(
             raw_params, self._stickman_params, self._last_emotion,
         )
+        raw_params = sanitize_anger_visuals(raw_params)
         raw_params = self._sanitize_speech_params(raw_params)
 
         before_bubble = self._stickman_params.speech_bubble
@@ -2336,10 +2431,15 @@ class NagoWindow(QWidget):
         params, self._last_emotion = filter_sticky_color(
             params, self._stickman_params, self._last_emotion,
         )
+        params = sanitize_anger_visuals(params)
         params = filter_generic_speech(params)
         # Prefer silence helpers used by the live action queue.
         if self._last_ai_route == "ambient":
-            params = strip_speech_for_ambient(params)
+            params = gate_ambient_speech(
+                params,
+                last_speech_at=self._last_speech_at,
+                min_gap_sec=self._min_speech_gap_sec,
+            )
         before_bubble = self._stickman_params.speech_bubble
         updated, motion = apply_control_patch(params, self._stickman_params)
         self._stickman_params = updated
@@ -2348,6 +2448,13 @@ class NagoWindow(QWidget):
         if "color" in params or "line_color" in params:
             self._last_color = updated.line_color
             self._fade_animator.display_color = QColor(*updated.line_color)
+        if "blink" in params:
+            if updated.blink:
+                self._stickman_params.start_blink(updated.line_color)
+                self._blink_timer.start(200)
+            else:
+                self._stickman_params.stop_blink()
+                self._blink_timer.stop()
         if "walk_dx" in motion:
             self._walk_vx = float(motion["walk_dx"])
         if "walk_dy" in motion:
