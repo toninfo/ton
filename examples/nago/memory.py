@@ -316,9 +316,9 @@ class LongTermMemory:
             "count": len(self.facts),
             "facts": lines,
             "policy": (
-                "Stable facts about THIS user. Use them for continuity and personal replies. "
-                "Actively params.remember durable prefs/identity/boundaries when learned; "
-                "params.memory_forget to drop outdated facts. "
-                "Getting to know them over time is part of your job."
+                "这是关于该用户的稳定事实。用它们保持连续性并给出个性化回复。"
+                "学到持久的偏好/身份/边界时，主动使用 params.remember；"
+                "用 params.memory_forget 删除过时事实。"
+                "随着时间了解对方是你职责的一部分。"
             ),
         }

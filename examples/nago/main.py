@@ -1609,45 +1609,45 @@ class NagoWindow(QWidget):
                 level = "critical"
                 priority = 0.95
                 hint = (
-                    f"POKE BURST: {max(c10, flush_n)} clicks recently — "
-                    "react now (annoyed / playful / flustered). Do not ignore."
+                    f"戳碰爆发：刚刚有 {max(c10, flush_n)} 次点击——"
+                    "立刻回应（烦躁 / 玩闹 / 手足无措）。不要忽略。"
                 )
             elif c10 >= 2 or flush_n >= 2:
                 level = "high"
                 priority = 0.85
                 hint = (
-                    f"Poked {max(c10, flush_n)}× — clear face+pose reaction required."
+                    f"被戳了 {max(c10, flush_n)} 次——必须用清晰的表情+姿势回应。"
                 )
             else:
                 level = "high"
                 priority = 0.8
-                hint = "Just poked — acknowledge with a clear expression (not a blank morph)."
+                hint = "刚被戳到——用清晰表情承认这一点（不要做空白变形）。"
         elif not self._ever_poked and since_ms >= 180_000:
             level = "medium"
             priority = 0.5
             hint = (
-                f"Still never poked (~{since_ms // 1000}s). "
-                "Long quiet stretch — comic EXPLODE/tantrum is on the table if it fits the moment."
+                f"至今从未被戳过（约 {since_ms // 1000} 秒）。"
+                "长时间安静——如果当下合适，可以来一次漫画式 EXPLODE/闹脾气。"
             )
         elif not self._ever_poked and since_ms >= 60_000:
             level = "low"
             priority = 0.3
             hint = (
-                f"Nobody has poked you (~{since_ms // 1000}s). "
-                "Soft seek / silly face / short '嘿' if ambient_speech.allowed."
+                f"没人戳过你（约 {since_ms // 1000} 秒）。"
+                "ambient_speech.allowed 时可温柔寻求关注 / 做鬼脸 / 短短说声“嘿”。"
             )
         elif self._ever_poked and since_ms >= 300_000:
             level = "medium"
             priority = 0.5
             hint = (
-                f"Quiet for {since_ms // 1000}s after earlier attention. "
-                "Long neglect — comic EXPLODE/tantrum is on the table if it fits."
+                f"此前被关注后已安静 {since_ms // 1000} 秒。"
+                "长时间被冷落——如果合适，可以来一次漫画式 EXPLODE/闹脾气。"
             )
         elif self._ever_poked and since_ms >= 120_000:
             level = "low"
             priority = 0.28
             hint = (
-                f"Quiet for {since_ms // 1000}s — mild restless/sulk pose fits."
+                f"已安静 {since_ms // 1000} 秒——轻微不安 / 闹别扭的姿势很合适。"
             )
         else:
             level = "low"
@@ -1852,23 +1852,23 @@ class NagoWindow(QWidget):
             }
         away = []
         if edges.get("left"):
-            away.append("walk_dx>0 (go right)")
+            away.append("walk_dx>0（向右走）")
         if edges.get("right"):
-            away.append("walk_dx<0 (go left)")
+            away.append("walk_dx<0（向左走）")
         if edges.get("top"):
-            away.append("walk_dy>0 (go down)")
+            away.append("walk_dy>0（向下走）")
         if edges.get("bottom"):
-            away.append("walk_dy<0 (go up)")
+            away.append("walk_dy<0（向上走）")
         return {
             "stuck_at_edge": stuck,
             "priority": 0.7,
             "hint": (
-                "STUCK on edge "
+                "卡在边缘 "
                 + ",".join(stuck)
-                + " with vx=vy=0 — looks frozen. "
-                + "Leave via "
+                + "，且 vx=vy=0——看起来像冻住了。"
+                + "请通过 "
                 + " / ".join(away)
-                + "; gait=true. Do not only morph/look."
+                + " 离开；gait=true。不要只做 morph/look。"
             ),
         }
 
@@ -2021,15 +2021,15 @@ class NagoWindow(QWidget):
                         max(0.0, _time.time() - self._last_speech_at)
                     ),
                     "policy": (
-                        "Ambient may emit a short speech_bubble only when allowed=true; "
-                        "otherwise use face/play. Talk route ignores this gate."
+                        "仅在 allowed=true 时，环境状态可发出简短 speech_bubble；"
+                        "否则使用表情/play。对话路由不受此限制。"
                     ),
                 },
                 "memory_layers": {
-                    "working": "user_message + live observations",
-                    "session": "conversation (compressible)",
-                    "long_term": "long_term_memory (durable facts)",
-                    "profile": "user_profile (growing habits / familiarity)",
+                    "working": "user_message + 实时观察",
+                    "session": "conversation（可压缩）",
+                    "long_term": "long_term_memory（持久事实）",
+                    "profile": "user_profile（逐渐形成的习惯 / 熟悉度）",
                 },
             },
             "agent_state": {

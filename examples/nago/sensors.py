@@ -397,19 +397,19 @@ def build_activity_summary(
     if poke_salience in ("critical", "high") or hover:
         label = "focused_nago"
         priority = 0.85 if poke_salience == "critical" else 0.75
-        hint = "User attention is on you — react; don't ignore."
+        hint = "用户正在关注你——立刻回应，不要忽略。"
     elif system_idle_ms is not None and system_idle_ms >= 180_000:
         label = "away"
         priority = 0.45
-        hint = f"No system input for ~{system_idle_ms // 1000}s — user may be away; soft idle ok."
+        hint = f"约 {system_idle_ms // 1000} 秒没有系统输入——用户可能离开了；可保持轻柔的空闲状态。"
     elif system_idle_ms is not None and system_idle_ms >= 45_000:
         label = "idle"
         priority = 0.35
-        hint = "User idle ~tens of seconds — quiet presence / mild bored ok."
+        hint = "用户已空闲约数十秒——可安静陪伴 / 轻微无聊。"
     elif mouse_speed_px >= 80:
         label = "mousing"
         priority = 0.55
-        hint = "Cursor moving a lot — user is navigating UI; glance / dodge ok, don't cling."
+        hint = "光标移动频繁——用户正在操作界面；可张望 / 闪躲，不要黏人。"
     elif (
         system_idle_ms is not None
         and system_idle_ms < 2000
@@ -419,17 +419,17 @@ def build_activity_summary(
         label = "typing_likely"
         priority = 0.6
         hint = (
-            "System input hot but mouse barely moved — likely typing in "
-            f"{fg_class or fg_title or 'an app'}. Don't interrupt; subtle watch ok."
+            "系统输入频繁但鼠标几乎不动——很可能正在 "
+            f"{fg_class or fg_title or '某个应用'} 中打字。不要打扰；可低调观察。"
         )
     elif system_idle_ms is not None and system_idle_ms < 8000:
         label = "active"
         priority = 0.4
-        hint = f"User active in {fg_title or fg_class or 'foreground app'}."
+        hint = f"用户正在 {fg_title or fg_class or '前台应用'} 中活动。"
     else:
         label = "unknown"
         priority = 0.2
-        hint = "Idle sensor unavailable or inconclusive — stay lightly aware."
+        hint = "空闲传感器不可用或结果不确定——保持轻度关注。"
 
     return {
         "label": label,

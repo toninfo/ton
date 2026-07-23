@@ -166,20 +166,20 @@ class UserProfile:
         fam = self.familiarity_score()
         age_days = max(0, int((time.time() - self.first_seen) / 86400.0))
         lines.append(
-            f"Familiarity {fam:.2f} — shared desk for {age_days}d; "
-            f"talks={self.talk_count}, pokes={self.poke_count}, watches={self.observe_count}."
+            f"熟悉度 {fam:.2f}——共用桌面 {age_days} 天；"
+            f"对话={self.talk_count}，戳碰={self.poke_count}，观察={self.observe_count}。"
         )
 
         top_apps = [a for a, _ in self.app_ticks.most_common(4) if a]
         if top_apps:
-            lines.append("Often hangs out in: " + ", ".join(top_apps) + ".")
+            lines.append("经常使用的应用：" + "、".join(top_apps) + "。")
 
         # Peak active hours
         if self.hour_ticks:
             top_hours = [h for h, _ in self.hour_ticks.most_common(3)]
             top_hours.sort()
             span = ", ".join(f"{h:02d}:00" for h in top_hours)
-            lines.append(f"Usually most active around {span}.")
+            lines.append(f"通常在 {span} 左右最活跃。")
 
         # Dominant activity modes (exclude focused_nago noise if tiny)
         modes = [
@@ -189,19 +189,19 @@ class UserProfile:
         ]
         if modes:
             bits = [f"{k}×{v}" for k, v in modes[:4]]
-            lines.append("Recent desk rhythm: " + ", ".join(bits) + ".")
+            lines.append("最近的桌面节奏：" + "，".join(bits) + "。")
 
         if self.poke_count >= 15 and self.talk_count >= 3:
-            lines.append("Likes physical pokes as well as chat — playful contact is normal.")
+            lines.append("既喜欢戳碰也喜欢聊天——玩闹式互动很正常。")
         elif self.talk_count >= 8 and self.poke_count < 5:
-            lines.append("Prefers talking over poking — lean conversational.")
+            lines.append("比起戳碰更偏好聊天——可以更偏对话式互动。")
         elif self.poke_count >= 20 and self.talk_count < 3:
-            lines.append("Mostly silent company + pokes — don't force chatter.")
+            lines.append("主要是安静陪伴加戳碰——不要强行闲聊。")
 
         typing = self.activity_ticks.get("typing_likely", 0)
         if typing >= 8:
             lines.append(
-                "Often typing while you're around — default to quiet watch, not interruption."
+                "你在身边时对方经常打字——默认安静看着，不要打扰。"
             )
 
         return lines[:limit]
@@ -218,9 +218,9 @@ class UserProfile:
                 "days_together": int((time.time() - self.first_seen) / 86400.0),
             },
             "policy": (
-                "Growing familiarity with THIS user. Treat summary_lines as soft habits "
-                "(not hard rules). Prefer continuity: remember names/prefs via "
-                "params.remember; refine wrong habits with memory_forget. "
-                "The longer you share the desk, the more personal your reactions should feel."
+                "这是与该用户逐渐增长的熟悉度。summary_lines 是软习惯（不是硬规则）。"
+                "用它调节陪伴节奏，不要拿 top_apps 去盘问用户在干什么。"
+                "名字/偏好用 params.remember；错误习惯用 memory_forget。"
+                "共享桌面越久可以越亲切——但别变成复读机。"
             ),
         }

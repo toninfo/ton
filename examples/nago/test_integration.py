@@ -396,6 +396,23 @@ class TestControlPlane(unittest.TestCase):
         self.assertEqual(result.body_offset_x, 5.0)
         self.assertEqual(result.eye_offset, 10)
 
+    def test_system_prompt_contains_critical_constraints(self) -> None:
+        from main import _STICKMAN_SYSTEM_PROMPT
+        prompt = _STICKMAN_SYSTEM_PROMPT
+        self.assertIn("json.loads()", prompt)
+        self.assertIn("你是谁 — Nago", prompt)
+        self.assertIn("温暖、爱玩、带点小淘气", prompt)
+        self.assertIn("head_scale 基准值是 2.0", prompt)
+        self.assertIn("控制字段", prompt)
+        self.assertIn("绝不擅自编造", prompt)
+        self.assertIn("不要使用 emoji", prompt)
+        self.assertIn("walk_dx", prompt)
+        self.assertIn("保持 Nago 的角色", prompt)
+        self.assertIn("表情配方", prompt)
+        self.assertIn("社交触碰", prompt)
+        self.assertIn("桌面感知", prompt)
+        self.assertIn("仔细阅读对方的话", prompt)
+
 
 class TestAIClient(unittest.TestCase):
     """Verify the AI client's JSON parsing and response normalization."""
@@ -442,23 +459,6 @@ class TestAIClient(unittest.TestCase):
         self.assertEqual(_parse_hex_color("#00ff00"), (0, 255, 0))
         self.assertIsNone(_parse_hex_color("bad"))
         self.assertIsNone(_parse_hex_color("#GGG"))
-
-    def test_system_prompt_contains_critical_constraints(self) -> None:
-        from main import _STICKMAN_SYSTEM_PROMPT
-        prompt = _STICKMAN_SYSTEM_PROMPT
-        self.assertIn("json.loads()", prompt)
-        self.assertIn("WHO YOU ARE — Nago", prompt)
-        self.assertIn("Warm, playful", prompt)
-        self.assertIn("head_scale is 2.0", prompt)
-        self.assertIn("CONTROL FIELDS", prompt)
-        self.assertIn("NEVER invent", prompt)
-        self.assertIn("DO NOT use emoji", prompt)
-        self.assertIn("walk_dx", prompt)
-        self.assertIn("Stay in character as Nago", prompt)
-        self.assertIn("EXPRESSION RECIPES", prompt)
-        self.assertIn("SOCIAL TOUCH", prompt)
-        self.assertIn("DESKTOP AWARENESS", prompt)
-        self.assertIn("READ their words carefully", prompt)
 
     def test_build_system_prompt_single_source(self) -> None:
         from control import build_system_prompt
@@ -536,7 +536,7 @@ class TestUserProfile(unittest.TestCase):
         self._tmpdir.cleanup()
 
     def test_observe_and_distill(self) -> None:
-        for _ in range(5):
+        for _ in range(8):
             self.prof.observe_desktop(
                 activity_label="typing_likely",
                 foreground_class="cursor.Cursor",
@@ -554,7 +554,7 @@ class TestUserProfile(unittest.TestCase):
         blob = reloaded.to_context_blob()
         self.assertIn("familiarity", blob)
         self.assertTrue(blob["summary_lines"])
-        self.assertIn("typing", " ".join(blob["summary_lines"]).lower())
+        self.assertIn("打字", "".join(blob["summary_lines"]))
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -585,14 +585,14 @@ class TestSessionMemory(unittest.TestCase):
         ])
         self.assertIn("punch", s)
         self.assertIn("好的老板", s)
-        self.assertIn('says "好的老板"', s)
+        self.assertIn('说“好的老板”', s)
 
-    def test_fallback_compression_uses_english_archival_labels(self) -> None:
+    def test_fallback_compression_uses_chinese_archival_labels(self) -> None:
         for i in range(80):
             self.mem.append("user", f"message {i:02d} with extra text for compression")
         self.assertTrue(self.mem.compress())
-        self.assertIn("(auto-compressed) User said:", self.mem.entries[0]["text"])
-        self.assertIn(" | Recent activity:", self.mem.entries[0]["text"])
+        self.assertIn("（自动压缩）用户说：", self.mem.entries[0]["text"])
+        self.assertIn(" | 最近活动：", self.mem.entries[0]["text"])
 
     def test_compress_over_limit(self) -> None:
         for i in range(80):

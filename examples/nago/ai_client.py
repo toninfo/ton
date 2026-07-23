@@ -457,12 +457,9 @@ def compress_session_text(old_log: str) -> str | None:
 
     settings = get_ai_settings()
     system = (
-        "You are a session compressor. Summarize the prior conversation log "
-        "between the desktop stickman companion Nago and the user. Write the "
-        "summary in Simplified Chinese, using no more than 400 Chinese "
-        "characters. Preserve user preferences, unresolved topics, emotional "
-        "tone, and important agreements. Output only the summary body: no JSON "
-        "and no heading."
+        "你是会话压缩器。请总结桌面火柴人伙伴 Nago 与用户先前的对话日志。"
+        "用简体中文撰写摘要，不超过 400 个汉字。保留用户偏好、未解决的话题、"
+        "情绪基调和重要约定。只输出摘要正文：不要 JSON，也不要标题。"
     )
     body = {
         "model": settings.model,

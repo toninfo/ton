@@ -30,14 +30,14 @@ def summarize_actions(actions: list[dict] | None) -> str:
     for a in actions[:6]:
         if not isinstance(a, dict):
             continue
-        name = str(a.get("action") or "cmd")
+        name = str(a.get("action") or "命令")
         params = a.get("params") if isinstance(a.get("params"), dict) else {}
         bits: list[str] = [name]
         if params.get("play"):
             bits.append(f"play={params['play']}")
         bubble = params.get("speech_bubble")
         if isinstance(bubble, str) and bubble.strip():
-            bits.append(f'says "{bubble.strip()[:16]}"')
+            bits.append(f'说“{bubble.strip()[:16]}”')
         emo = params.get("emotion")
         if isinstance(emo, str) and emo.strip():
             bits.append(f"emotion={emo.strip()}")
@@ -46,7 +46,7 @@ def summarize_actions(actions: list[dict] | None) -> str:
                 f"walk=({params.get('walk_dx', 0)},{params.get('walk_dy', 0)})"
             )
         parts.append("/".join(bits))
-    more = f" +{len(actions) - 6}" if len(actions) > 6 else ""
+    more = f" 另有 {len(actions) - 6} 项" if len(actions) > 6 else ""
     return "; ".join(parts) + more
 
 
@@ -212,9 +212,9 @@ class SessionMemory:
             user_bits = [e["text"] for e in old if e["role"] == "user"][-8:]
             tail = [e["text"] for e in old[-5:]]
             summary = (
-                "(auto-compressed) User said: "
-                + "; ".join(user_bits[-5:] or ["(none)"])
-                + " | Recent activity: "
+                "（自动压缩）用户说："
+                + "；".join(user_bits[-5:] or ["（无）"])
+                + " | 最近活动："
                 + " / ".join(tail)
             )
         summary = str(summary).strip()
