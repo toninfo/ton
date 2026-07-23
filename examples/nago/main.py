@@ -49,7 +49,7 @@ from memory import LongTermMemory
 from nago_config import get_runtime_settings
 from session import SessionMemory
 from talk_flow import TalkPhase, TalkTurnController
-from talk_dialog import TalkComposer
+from talk_dialog import TalkComposer, ask_talk_text, configure_ime_env
 from PySide6.QtCore import (
     QEasingCurve, QObject, QPoint, QPropertyAnimation, Property, QRect, QRectF, Qt, QThread, QTimer, Signal,
 )
@@ -154,8 +154,14 @@ def _draw_stickman_qt(
     else:
         hw, hh = int(50 * hs), int(60 * hs)
 
-    head_x = 100 + ox + hx_off - hw // 2
-    head_y = 60 + oy - hh // 2
+    # Anchor head so large scales stay on-canvas; face features are head-relative.
+    head_cx = 100 + ox + hx_off
+    head_cy = 60 + oy
+    head_x = head_cx - hw // 2
+    head_y = head_cy - hh // 2
+    if head_y < 4 + oy:
+        head_y = 4 + oy
+        head_cy = head_y + hh // 2
 
     if p.glow_color and p.glow_strength > 0.01:
         glow_a = max(0, min(255, int(alpha * p.glow_strength * 0.6)))
@@ -178,21 +184,21 @@ def _draw_stickman_qt(
     painter.drawEllipse(head_x, head_y, hw, hh)
 
     es = max(0.3, min(3.0, float(p.eye_size)))
-    eye_dot = max(2, int(3 * es))
+    eye_dot = max(2, int(3 * es * max(1.0, hs * 0.55)))
     eye_pen = QPen(color, max(1, p.line_width - 1))
     eye_pen.setStyle(_pen_style(p.line_style))
     painter.setPen(eye_pen)
-    eye_y = 55 + oy - int((hs - 1.0) * 8) + p.pupil_offset_y
-    eye_spread = int(5 * hs)
-    for ex in (100 + ox + hx_off - eye_spread + p.eye_offset,
-               100 + ox + hx_off + eye_spread + p.eye_offset):
+    eye_y = head_y + int(hh * 0.38) + p.pupil_offset_y
+    eye_spread = max(4, int(hw * 0.18))
+    for ex in (head_cx - eye_spread + p.eye_offset,
+               head_cx + eye_spread + p.eye_offset):
         painter.drawEllipse(ex, eye_y, eye_dot, eye_dot)
 
     if abs(p.eyebrow_angle) > 0.5:
         brow_y = eye_y - max(3, int(4 * es))
-        brow_w = max(4, int(6 * es))
-        for side, ex in ((-1, 100 + ox + hx_off - eye_spread + p.eye_offset),
-                         (1, 100 + ox + hx_off + eye_spread + p.eye_offset)):
+        brow_w = max(4, int(6 * es * max(1.0, hs * 0.5)))
+        for side, ex in ((-1, head_cx - eye_spread + p.eye_offset),
+                         (1, head_cx + eye_spread + p.eye_offset)):
             tilt = p.eyebrow_angle * side
             painter.drawLine(ex - brow_w, brow_y + int(tilt * 0.2),
                              ex + brow_w, brow_y - int(tilt * 0.2))
@@ -201,23 +207,23 @@ def _draw_stickman_qt(
         blush = QColor(255, 140, 160, max(40, alpha // 2))
         painter.setPen(QPen(Qt.PenStyle.NoPen))
         painter.setBrush(blush)
-        cr = max(2, int(4 * es))
-        painter.drawEllipse(100 + ox + hx_off - eye_spread - 8, eye_y + 4, cr * 2, cr)
-        painter.drawEllipse(100 + ox + hx_off + eye_spread - cr, eye_y + 4, cr * 2, cr)
+        cr = max(2, int(4 * es * max(1.0, hs * 0.5)))
+        painter.drawEllipse(head_cx - eye_spread - 8, eye_y + 4, cr * 2, cr)
+        painter.drawEllipse(head_cx + eye_spread - cr, eye_y + 4, cr * 2, cr)
 
     if p.eyelid_offset > 0:
-        lid_h = max(1, round(p.eyelid_offset * 6 / 10))
+        lid_h = max(1, round(p.eyelid_offset * 6 / 10 * max(1.0, hs * 0.5)))
         painter.setPen(QPen(Qt.PenStyle.NoPen))
         painter.setBrush(color)
-        for ex in (100 + ox + hx_off - eye_spread + p.eye_offset,
-                   100 + ox + hx_off + eye_spread + p.eye_offset):
+        for ex in (head_cx - eye_spread + p.eye_offset,
+                   head_cx + eye_spread + p.eye_offset):
             painter.fillRect(ex - eye_dot, eye_y, eye_dot * 2 + 1, lid_h, color)
 
     painter.setPen(pen)
     mws = max(0.5, min(2.0, float(p.mouth_width_scale)))
-    mouth_width = int(12 * mws)
-    mouth_x = 94 + ox + hx_off
-    mouth_y = 67 + oy + int((hs - 1.0) * 6)
+    mouth_width = max(8, int(12 * mws * max(1.0, hs * 0.55)))
+    mouth_x = head_cx - mouth_width // 2
+    mouth_y = head_y + int(hh * 0.62)
     angle = max(-90.0, min(90.0, p.mouth_angle))
     opening = max(0.0, min(100.0, p.mouth_opening))
     mouth_pen = QPen(color, max(1, p.line_width))
@@ -228,7 +234,7 @@ def _draw_stickman_qt(
         if angle == 0.0:
             painter.drawLine(mouth_x, mouth_y, mouth_x + mouth_width, mouth_y)
         else:
-            arc_h = 10.0 * mws
+            arc_h = 10.0 * mws * max(1.0, hs * 0.5)
             arc_deg = min(abs(angle), 85.0)
             path = QPainterPath()
             if angle > 0:
@@ -242,7 +248,7 @@ def _draw_stickman_qt(
             path.arcTo(float(mouth_x), rect_y, float(mouth_width), arc_h, start, sweep)
             painter.drawPath(path)
     else:
-        ellipse_h = max(2.0, (opening / 100.0) * 15.0 * mws)
+        ellipse_h = max(2.0, (opening / 100.0) * 15.0 * mws * max(1.0, hs * 0.5))
         corner_shift = (angle / 90.0) * (ellipse_h * 0.4)
         painter.drawEllipse(mouth_x, int(mouth_y - ellipse_h / 2 + corner_shift),
                             mouth_width, int(ellipse_h))
@@ -252,7 +258,8 @@ def _draw_stickman_qt(
     ls = max(0.4, min(2.5, float(p.limb_scale)))
     ars = max(0.3, min(2.5, float(p.arm_scale)))
     lgs = max(0.3, min(2.5, float(p.leg_scale)))
-    neck = (100 + ox + hx_off, int(90 + oy - (hs - 1.0) * 10))
+    # Neck attaches to the chin so big heads don't float off the torso.
+    neck = (head_cx, head_y + hh)
     hip = (100 + ox, int(neck[1] + 50 * bs))
     painter.drawLine(neck[0], neck[1], hip[0], hip[1])
 
@@ -306,8 +313,12 @@ def _head_bounds(
         hw, hh = float(int(62 * hs)), float(int(52 * hs))
     else:
         hw, hh = float(int(50 * hs)), float(int(60 * hs))
-    head_x = 100.0 + ox + hx_off - hw / 2.0
-    head_y = 60.0 + oy - hh / 2.0
+    head_cx = 100.0 + ox + hx_off
+    head_cy = 60.0 + oy
+    head_x = head_cx - hw / 2.0
+    head_y = head_cy - hh / 2.0
+    if head_y < 4.0 + oy:
+        head_y = 4.0 + oy
     return head_x, head_y, hw, hh, hx_off
 
 
@@ -454,7 +465,7 @@ def _build_punch_play_frames(eye: int, pupil_y: int) -> tuple[list[dict], list[i
             "eye_offset": eye, "pupil_offset_y": pupil_y,
             "mouth_angle": 28, "mouth_opening": 18, "eyebrow_angle": 12,
             "arm_left_angle": -80, "arm_right_angle": 20,
-            "body_offset_y": -4, "head_scale": 1.05,
+            "body_offset_y": -4, "head_scale": 2.1,
         },
         {
             "eye_offset": eye, "pupil_offset_y": pupil_y,
@@ -467,11 +478,58 @@ def _build_punch_play_frames(eye: int, pupil_y: int) -> tuple[list[dict], list[i
             "eye_offset": eye // 2, "pupil_offset_y": pupil_y // 2,
             "mouth_angle": 14, "mouth_opening": 12,
             "arm_left_angle": -55, "arm_right_angle": 25,
-            "body_offset_y": 0, "body_offset_x": 0, "head_scale": 1.0,
+            "body_offset_y": 0, "body_offset_x": 0, "head_scale": 2.0,
         },
     ]
     durations = [110, 95, 75, 130]
     return frames, durations
+
+
+def _measure_speech_bubble_text(
+    text: str,
+    *,
+    font: QFont | None = None,
+    max_bubble_w: float = float(STICKMAN_CANVAS_W) - 8.0,
+    pad_x: float = 12.0,
+    pad_y: float = 8.0,
+) -> tuple[float, float, int]:
+    """Size a speech bubble so text is never clipped by the canvas.
+
+    Returns ``(bw, bh, text_flags)``. Long CJK lines wrap inside ``max_bubble_w``.
+    """
+    if font is None:
+        font = QFont()
+        font.setPointSize(18)
+        font.setBold(True)
+    fm = QFontMetrics(font)
+    # Keep a usable inner column; never let padding eat the whole canvas.
+    max_text_w = max(40.0, max_bubble_w - pad_x * 2)
+    advance = fm.horizontalAdvance(text)
+    if advance <= max_text_w:
+        # Single line — add a small CJK/bold slack so glyphs are not flush to the edge.
+        tw = float(advance) + 4.0
+        th = float(fm.height())
+        flags = int(
+            Qt.TextFlag.TextSingleLine
+            | Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignVCenter
+        )
+    else:
+        flags = int(
+            Qt.TextFlag.TextWordWrap
+            | Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignVCenter
+        )
+        br = fm.boundingRect(
+            QRect(0, 0, int(max_text_w), 2000),
+            flags,
+            text,
+        )
+        tw = float(min(max(br.width(), 1), int(max_text_w)))
+        th = float(max(br.height(), fm.height()))
+    bw = min(max(tw + pad_x * 2, 30.0), max_bubble_w)
+    bh = th + pad_y * 2
+    return bw, bh, flags
 
 
 def _draw_speech_bubble_qt(
@@ -488,21 +546,13 @@ def _draw_speech_bubble_qt(
     font.setPointSize(18)
     font.setBold(True)
     painter.setFont(font)
-    fm = QFontMetrics(font)
 
-    text = p.speech_bubble
-    # QFontMetrics.boundingRect requires QRect rather than QRectF; otherwise a
-    # TypeError can leave the painter in an invalid state and cause a crash.
-    text_br = fm.boundingRect(
-        QRect(0, 0, 200, 100),
-        int(Qt.TextFlag.TextSingleLine | Qt.AlignmentFlag.AlignLeft),
-        text,
-    )
-
-    pad_x, pad_y = 14.0, 10.0
+    text = p.speech_bubble or ""
+    pad_x, pad_y = 12.0, 8.0
     tail_len = 8.0
-    bw = max(text_br.width() + pad_x * 2, 30.0)
-    bh = text_br.height() + pad_y * 2
+    bw, bh, text_flags = _measure_speech_bubble_text(
+        text, font=font, pad_x=pad_x, pad_y=pad_y,
+    )
 
     head_x, head_y, hw, hh, _hx_off = _head_bounds(p, ox, oy)
     preferred = getattr(p, "speech_side", "right") or "right"
@@ -562,7 +612,7 @@ def _draw_speech_bubble_qt(
     painter.setPen(QPen(text_color))
     painter.drawText(
         QRectF(bx + pad_x, by + pad_y, bw - pad_x * 2, bh - pad_y * 2),
-        Qt.TextFlag.TextSingleLine | Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        text_flags,
         text,
     )
 
@@ -592,6 +642,8 @@ class AIWorker(QThread):
     """Runs a synchronous AI call on a background QThread.
 
     Emits ``result_ready`` with ``{"actions": list|None, "debug": dict}``.
+    Carries ``route`` + ``generation`` so the UI can ignore stale completions
+    when a newer worker has already taken the pipe (zenity/modal races).
     """
 
     result_ready = Signal(object)
@@ -600,11 +652,16 @@ class AIWorker(QThread):
         self,
         context: dict,
         system_prompt: str,
+        *,
+        route: str = "ambient",
+        generation: int = 0,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._context = context
         self._system_prompt = system_prompt
+        self.route = route
+        self.generation = generation
 
     def run(self) -> None:
         """Execute the blocking AI call and emit the result."""
@@ -912,6 +969,7 @@ class NagoWindow(QWidget):
         # --- AI worker (single HTTP pipe; two logical routes share it) ---
         self._ai_worker: AIWorker | None = None
         self._ai_route: str | None = None  # "talk" | "ambient" while running
+        self._ai_generation: int = 0  # monotonic id; stale workers must be ignored
         # Talk route queue (never overwritten by heartbeat).
         self._talk_pending: bool = False
         # Ambient route queue (heartbeat / hover / click / …).
@@ -930,6 +988,10 @@ class NagoWindow(QWidget):
         self._listening_placeholder: bool = False
         # When talk is queued behind an in-flight ambient call, drop that result.
         self._discard_ambient_result: bool = False
+        # Last edge-contact snapshot (updated by locomotor / sensors).
+        self._at_screen_edge: dict[str, bool] = {
+            "left": False, "right": False, "top": False, "bottom": False,
+        }
 
         runtime = get_runtime_settings()
 
@@ -1110,7 +1172,9 @@ class NagoWindow(QWidget):
         self._swipe_this_second = None
 
     def _ai_busy(self) -> bool:
-        return self._ai_worker is not None and self._ai_worker.isRunning()
+        # Hold the slot until result_ready is drained — a finished-but-pending
+        # worker must not be overwritten (modal dialog / event-queue races).
+        return self._ai_worker is not None
 
     def _start_ai_worker(self, context: dict, route: str, reason: str) -> None:
         obs = context.get("observations", {})
@@ -1126,9 +1190,30 @@ class NagoWindow(QWidget):
         # Consume pending talk text only when the talk request actually starts.
         if route == "talk" and obs.get("user_message"):
             self._session.consume_pending_user()
+        # Never overwrite a live worker — that orphans a QThread and races
+        # result_ready against the new route (classic zenity-block crash).
+        if self._ai_busy():
+            logger.error(
+                "Refusing to start AI [%s] while [%s] still running",
+                route,
+                self._ai_route or "?",
+            )
+            if route == "talk":
+                self._talk_pending = True
+            else:
+                self._ambient_pending = True
+                self._ambient_reason = reason
+            return
+        self._ai_generation += 1
         self._ai_route = route
         # parent=None: avoid "QThread destroyed while still running" on window teardown.
-        self._ai_worker = AIWorker(context, _STICKMAN_SYSTEM_PROMPT, parent=None)
+        self._ai_worker = AIWorker(
+            context,
+            _STICKMAN_SYSTEM_PROMPT,
+            route=route,
+            generation=self._ai_generation,
+            parent=None,
+        )
         self._ai_worker.result_ready.connect(self._on_ai_worker_done)
         self._ai_worker.finished.connect(self._ai_worker.deleteLater)
         self._ai_worker.start()
@@ -1430,7 +1515,7 @@ class NagoWindow(QWidget):
         self._stop_approach_mouse()
         self._ambient_pending = False
         self._talk.begin_capture()
-        text, ok = TalkComposer.ask(anchor=self)
+        text, ok = ask_talk_text(anchor=self)
         if not ok:
             self._talk.cancel()
             return
@@ -1512,6 +1597,55 @@ class NagoWindow(QWidget):
             self._is_desktop = is_desktop
             self._schedule_event_flush("foreground")
 
+    def _compute_screen_edges(self, *, slack: int = 2) -> dict[str, bool]:
+        """Return which sides of the window are flush with the available desktop."""
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return {"left": False, "right": False, "top": False, "bottom": False}
+        geo = screen.availableGeometry()
+        max_x = geo.x() + geo.width() - self.width()
+        max_y = geo.y() + geo.height() - self.height()
+        x, y = self.x(), self.y()
+        return {
+            "left": x <= geo.x() + slack,
+            "right": x >= max_x - slack,
+            "top": y <= geo.y() + slack,
+            "bottom": y >= max_y - slack,
+        }
+
+    def _block_velocity_into_edges(
+        self, vx: float, vy: float, edges: dict[str, bool] | None = None,
+    ) -> tuple[float, float, bool]:
+        """Zero velocity components that push further into a contacted edge."""
+        if edges is None:
+            edges = self._compute_screen_edges()
+        blocked = False
+        if edges.get("left") and vx < 0:
+            vx = 0.0
+            blocked = True
+        if edges.get("right") and vx > 0:
+            vx = 0.0
+            blocked = True
+        if edges.get("top") and vy < 0:
+            vy = 0.0
+            blocked = True
+        if edges.get("bottom") and vy > 0:
+            vy = 0.0
+            blocked = True
+        return vx, vy, blocked
+
+    def _stop_walk_if_blocked(self) -> None:
+        """Clear gait when there is no remaining free motion (e.g. fully at edge)."""
+        if abs(self._walk_vx) + abs(self._walk_vy) > 0.01:
+            return
+        if self._gait_enabled:
+            self._gait_enabled = False
+            # Settle legs so we do not freeze mid-stride against the wall.
+            self._stickman_params.leg_left_angle = 0.0
+            self._stickman_params.leg_right_angle = 0.0
+            self._sync_render_params()
+            self.update()
+
     def _sample_screen_colors(self) -> dict[str, object]:
         """Sample a primary-screen color summary with a five-second cache."""
         now = _time.time()
@@ -1579,6 +1713,7 @@ class NagoWindow(QWidget):
 
         # User message for this turn: peek now and consume after the worker starts.
         pending_user = self._session.peek_pending_user()
+        self._at_screen_edge = self._compute_screen_edges()
 
         return {
             "observations": {
@@ -1600,6 +1735,8 @@ class NagoWindow(QWidget):
                     "w": self.width(),
                     "h": self.height(),
                 },
+                # Explicit edge contact — do not make the model infer from x/y alone.
+                "at_screen_edge": dict(self._at_screen_edge),
                 "swipe": self._swipe_this_second,
                 "screen_colors": self._sample_screen_colors(),
                 "user_message": pending_user,
@@ -1617,6 +1754,7 @@ class NagoWindow(QWidget):
                     "walk_dx": self._walk_vx,
                     "walk_dy": self._walk_vy,
                     "gait": self._gait_enabled,
+                    "at_screen_edge": dict(self._at_screen_edge),
                 },
                 "emotion": self._last_emotion,
                 "play_active": self._play_active,
@@ -1634,15 +1772,35 @@ class NagoWindow(QWidget):
 
     def _on_ai_worker_done(self, result: object) -> None:
         """Slot: receive QThread result, then drain talk/ambient queues."""
-        finished_route = self._ai_route
+        worker = self.sender()
+        # Stale completion: a newer worker owns the pipe, or this signal was
+        # queued while the event loop was blocked (e.g. external talk dialog).
+        if isinstance(worker, AIWorker):
+            if worker is not self._ai_worker or worker.generation != self._ai_generation:
+                logger.info(
+                    "Ignoring stale AI [%s] gen=%s (current gen=%s)",
+                    worker.route,
+                    worker.generation,
+                    self._ai_generation,
+                )
+                return
+            finished_route = worker.route
+        else:
+            # Tests / direct calls without a live QThread sender.
+            finished_route = self._ai_route
+
         self._ai_worker = None
         self._ai_route = None
         self._last_ai_route = finished_route
 
-        # Talk preempt: skip applying a stale ambient morph so the pipe frees ASAP.
+        # Talk preempt / latest-wins: skip applying a stale ambient morph.
         if finished_route == "ambient" and self._discard_ambient_result:
             self._discard_ambient_result = False
-            logger.info("Discarded ambient result — talk route waiting")
+            logger.info(
+                "Discarded ambient result — next route pending (talk=%s ambient=%s)",
+                self._talk_pending or self._talk.active,
+                self._ambient_pending,
+            )
             self._dispatch_next_ai()
             return
 
@@ -1892,18 +2050,30 @@ class NagoWindow(QWidget):
             self._walk_vx = float(motion["walk_dx"])
         if "walk_dy" in motion:
             self._walk_vy = float(motion["walk_dy"])
+        # Refuse to walk further into a wall the window is already flush with.
+        if "walk_dx" in motion or "walk_dy" in motion:
+            self._at_screen_edge = self._compute_screen_edges()
+            self._walk_vx, self._walk_vy, blocked = self._block_velocity_into_edges(
+                self._walk_vx, self._walk_vy, self._at_screen_edge,
+            )
+            if blocked:
+                logger.info(
+                    "Walk into edge blocked at %s → vx=%.2f vy=%.2f",
+                    self._at_screen_edge, self._walk_vx, self._walk_vy,
+                )
         if "gait" in motion:
             self._gait_enabled = bool(motion["gait"])
         elif "walk_dx" in motion or "walk_dy" in motion:
             moving = abs(self._walk_vx) + abs(self._walk_vy) > 0.01
             self._gait_enabled = moving
+        self._stop_walk_if_blocked()
         if motion.get("play"):
             self._dispatch_play_animation(str(motion["play"]))
         self._apply_memory_side_effects(motion)
 
         logger.info(
-            "Motion state vx=%.2f vy=%.2f gait=%s",
-            self._walk_vx, self._walk_vy, self._gait_enabled,
+            "Motion state vx=%.2f vy=%.2f gait=%s edge=%s",
+            self._walk_vx, self._walk_vy, self._gait_enabled, self._at_screen_edge,
         )
 
         self._sync_render_params()
@@ -1950,11 +2120,16 @@ class NagoWindow(QWidget):
                 self._walk_vy = 0.0
                 hit_edge = True
 
-            if hit_edge and self._approach_mouse_active:
-                logger.info("approach_mouse finished (screen edge)")
-                self._stop_approach_mouse()
-
             self.move(nx, ny)
+            self._at_screen_edge = self._compute_screen_edges()
+
+            if hit_edge:
+                if self._approach_mouse_active:
+                    logger.info("approach_mouse finished (screen edge)")
+                    self._stop_approach_mouse()
+                # Fully blocked → stop gait so legs do not keep cycling in place.
+                self._stop_walk_if_blocked()
+                moving = abs(self._walk_vx) + abs(self._walk_vy) > 0.01
 
         # Mechanical gait runs only while the AI has enabled it and movement continues.
         if self._gait_enabled and moving:
@@ -1988,6 +2163,14 @@ class NagoWindow(QWidget):
             self._walk_vx = float(motion["walk_dx"])
         if "walk_dy" in motion:
             self._walk_vy = float(motion["walk_dy"])
+        if "walk_dx" in motion or "walk_dy" in motion:
+            self._at_screen_edge = self._compute_screen_edges()
+            self._walk_vx, self._walk_vy, _ = self._block_velocity_into_edges(
+                self._walk_vx, self._walk_vy, self._at_screen_edge,
+            )
+            if "gait" not in motion:
+                self._gait_enabled = abs(self._walk_vx) + abs(self._walk_vy) > 0.01
+            self._stop_walk_if_blocked()
         if "gait" in motion:
             self._gait_enabled = bool(motion["gait"])
         if motion.get("play"):
@@ -2217,6 +2400,10 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    # MUST run before QApplication: pip PySide6 often lacks fcitx IM plugin.
+    talk_backend = configure_ime_env()
+    logger.info("Talk input backend=%s QT_IM_MODULE=%s", talk_backend, os.environ.get("QT_IM_MODULE"))
 
     lock_fh = _acquire_single_instance()
     if lock_fh is None:

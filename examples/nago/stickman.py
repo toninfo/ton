@@ -169,8 +169,8 @@ class StickmanParams:
     background_gradient: tuple[tuple[int, int, int], tuple[int, int, int]] | None = None
     speech_bubble: str | None = None  # Text inside a speech bubble; None hides the bubble
     emoji: str | None = None  # Deprecated: no longer rendered.
-    # Shape controls set through the AI control plane; 1.0 retains original proportions.
-    head_scale: float = 1.0
+    # Shape controls; default head is 2× so facial expressions read on the tiny overlay.
+    head_scale: float = 2.0
     limb_scale: float = 1.0
     body_scale: float = 1.0
     arm_scale: float = 1.0
@@ -179,7 +179,7 @@ class StickmanParams:
     rotation: float = 0.0           # Degrees of rotation around the center.
     flip_horizontal: bool = False
     # Facial detail extensions.
-    eye_size: float = 1.0
+    eye_size: float = 1.15
     pupil_offset_y: int = 0         # Vertical pupil offset; eye_offset controls horizontal movement.
     eyebrow_angle: float = 0.0      # Positive raises brows; negative furrows them.
     mouth_width_scale: float = 1.0
@@ -199,7 +199,7 @@ class StickmanParams:
     glow_strength: float = 0.0
     # Line style and speech-bubble placement.
     line_style: str = "solid"       # solid | dash | dot
-    speech_side: str = "right"      # left | right | top
+    speech_side: str = "top"        # big head → prefer above; left/right often clip
 
     _ARM_ANGLE_MIN: float = -90.0
     _ARM_ANGLE_MAX: float = 90.0

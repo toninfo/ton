@@ -1,22 +1,27 @@
 """
-Apple-minimal talk composer for Nago.
+Talk input for Nago — frosted Qt composer by default (Apple-style capsule).
 
-Frameless, borderless, translucent floating field — no title bar, no chrome.
-Enter submits, Escape cancels, click-away dismisses (IME-safe).
-Anchored near the stickman.
-
-Chinese IME notes:
-  Tool + focusOut dismiss kills candidate windows (pinyin leaks as ASCII).
-  Use a real Dialog window, keep WA_InputMethodEnabled, and dismiss only on
-  outside mouse press — never on focusOut during composition.
+IME note (Linux + pip PySide6):
+  Bundled Qt often ships without an fcitx plugin, so pinyin may commit as ASCII
+  inside Qt widgets. We still prefer the frosted composer for UX; set
+  ``NAGO_TALK_INPUT=external`` to force zenity/kdialog when you need the
+  system IM stack more than the UI.
 """
 
 from __future__ import annotations
+
+import logging
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
     QEventLoop,
+    QLibraryInfo,
     QObject,
     QPropertyAnimation,
     QRectF,
@@ -42,6 +47,118 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# IME / backend selection (must run before QApplication when possible)
+# ---------------------------------------------------------------------------
+
+def pyside_has_fcitx_plugin() -> bool:
+    """Return True if the PySide6-bundled Qt tree contains a fcitx IM plugin."""
+    try:
+        root = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
+    except Exception:
+        return False
+    im_dir = root / "platforminputcontexts"
+    if not im_dir.is_dir():
+        return False
+    return any(im_dir.glob("*fcitx*"))
+
+
+def configure_ime_env() -> str:
+    """Pick a workable Qt IM module. Call before ``QApplication`` is created.
+
+    Returns the talk-input backend: ``qt`` (default) or ``external``.
+    """
+    forced = (os.environ.get("NAGO_TALK_INPUT") or "qt").strip().lower()
+    if forced in ("external", "zenity", "kdialog", "yad"):
+        # Soften Qt IM for any residual Qt fields; GTK dialogs keep fcitx.
+        if sys.platform.startswith("linux") and not pyside_has_fcitx_plugin():
+            if os.environ.get("QT_IM_MODULE", "fcitx") in ("fcitx", "fcitx5", ""):
+                os.environ["QT_IM_MODULE"] = "xim"
+        return "external"
+
+    # Default / auto / qt → frosted TalkComposer.
+    if sys.platform.startswith("linux") and not pyside_has_fcitx_plugin():
+        if os.environ.get("QT_IM_MODULE", "fcitx") in ("fcitx", "fcitx5", ""):
+            os.environ["QT_IM_MODULE"] = "xim"
+            logger.info(
+                "PySide6 Qt has no fcitx IM plugin — QT_IM_MODULE=xim; "
+                "talk uses Qt composer (set NAGO_TALK_INPUT=external for zenity)"
+            )
+    return "qt"
+
+
+def _ask_external(prompt: str = "跟 Nago 说点什么…") -> tuple[str, bool]:
+    """System entry dialog that speaks the desktop IME (fcitx via GTK/Qt-distro).
+
+    Blocks the calling thread. Prefer Qt composer; this is opt-in for IME.
+    """
+    title = "跟 Nago 说"
+    env = os.environ.copy()
+    env.setdefault("GTK_IM_MODULE", "fcitx")
+    env.setdefault("XMODIFIERS", "@im=fcitx")
+
+    candidates: list[list[str]] = []
+    if shutil.which("zenity"):
+        candidates.append([
+            "zenity", "--entry",
+            f"--title={title}",
+            f"--text={prompt}",
+            "--width=360",
+        ])
+    if shutil.which("kdialog"):
+        candidates.append(["kdialog", "--title", title, "--inputbox", prompt])
+    if shutil.which("yad"):
+        candidates.append([
+            "yad", "--entry",
+            f"--title={title}",
+            f"--text={prompt}",
+            "--width=360",
+            "--center",
+        ])
+
+    for cmd in candidates:
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                env=env,
+                check=False,
+            )
+        except OSError as exc:
+            logger.warning("External talk dialog failed (%s): %s", cmd[0], exc)
+            continue
+        if proc.returncode != 0:
+            return "", False
+        text = (proc.stdout or "").strip()
+        if not text:
+            return "", False
+        logger.info("Talk text via %s: %r", cmd[0], text[:80])
+        return text, True
+
+    logger.warning("No zenity/kdialog/yad — falling back to Qt TalkComposer")
+    return "", False
+
+
+def ask_talk_text(anchor: QWidget | None = None) -> tuple[str, bool]:
+    """Public entry: frosted Qt composer unless ``NAGO_TALK_INPUT=external``."""
+    forced = (os.environ.get("NAGO_TALK_INPUT") or "qt").strip().lower()
+    if forced in ("external", "zenity", "kdialog", "yad"):
+        text, ok = _ask_external()
+        if ok:
+            return text, True
+        # Missing tool → fall through to Qt; cancel stays cancel.
+        if shutil.which("zenity") or shutil.which("kdialog") or shutil.which("yad"):
+            return text, ok
+    return TalkComposer.ask(anchor=anchor)
+
+
+# ---------------------------------------------------------------------------
+# Qt frosted composer
+# ---------------------------------------------------------------------------
 
 class _ImeAwareLineEdit(QLineEdit):
     """QLineEdit that tracks IME preedit so Enter does not submit mid-composition."""
@@ -50,37 +167,28 @@ class _ImeAwareLineEdit(QLineEdit):
         super().__init__(parent)
         self._composing = False
         self.setAttribute(Qt.WidgetAttribute.WA_InputMethodEnabled, True)
-        self.setInputMethodHints(
-            Qt.InputMethodHint.ImhNone
-            | Qt.InputMethodHint.ImhPreferLowercase
-        )
+        self.setInputMethodHints(Qt.InputMethodHint.ImhNone)
 
     @property
     def composing(self) -> bool:
         return self._composing
 
     def inputMethodEvent(self, event) -> None:  # noqa: N802
-        # Non-empty preedit = candidate / composition in progress.
         preedit = event.preeditString() if event is not None else ""
         self._composing = bool(preedit)
         super().inputMethodEvent(event)
-        # After commit, preedit clears — refresh flag from leftover preedit.
         if not preedit:
             self._composing = False
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        # Swallow Return/Enter while composing so pinyin is not submitted raw.
-        if (
-            self._composing
-            and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
-        ):
+        if self._composing and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             event.accept()
             return
         super().keyPressEvent(event)
 
 
 class _OutsideClickFilter(QObject):
-    """Dismiss composer on real outside clicks without fighting the IME panel."""
+    """Dismiss composer on outside clicks without fighting the IME panel."""
 
     def __init__(self, composer: "TalkComposer") -> None:
         super().__init__(composer)
@@ -93,15 +201,12 @@ class _OutsideClickFilter(QObject):
             return False
         if not self._composer._allow_focus_dismiss:
             return False
-        # Clicks inside the composer (or its children) are fine.
         try:
             gp = event.globalPosition().toPoint()  # type: ignore[attr-defined]
         except Exception:
             return False
         if self._composer.frameGeometry().contains(gp):
             return False
-        # IME candidate windows usually live outside our geometry — do not
-        # dismiss while composition is active or the input method panel is up.
         if self._composer._field.composing:
             return False
         im = QGuiApplication.inputMethod()
@@ -120,7 +225,7 @@ class TalkComposer(QWidget):
     _WIDTH = 328
     _HEIGHT = 48
     _RADIUS = 14
-    _PAD = 16  # outer padding for painted soft shadow
+    _PAD = 16
 
     def __init__(self, anchor: QWidget | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -129,10 +234,10 @@ class TalkComposer(QWidget):
         self._allow_focus_dismiss = False
         self._outside_filter: _OutsideClickFilter | None = None
 
-        # Dialog (not Tool): Tool windows often fail to attach fcitx/ibus/IME.
+        # Plain Window (not Tool/Dialog): better XIM / focus attachment on X11.
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Dialog
+            | Qt.WindowType.Window
             | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -150,9 +255,6 @@ class TalkComposer(QWidget):
         font = QFont()
         font.setFamilies([
             "SF Pro Text",
-            "SF Pro Display",
-            ".AppleSystemUIFont",
-            "Segoe UI Variable",
             "Segoe UI",
             "Microsoft YaHei UI",
             "Microsoft YaHei",
@@ -163,7 +265,6 @@ class TalkComposer(QWidget):
             "sans-serif",
         ])
         font.setPixelSize(15)
-        font.setWeight(QFont.Weight.Normal)
         self._field.setFont(font)
         self._field.setStyleSheet(
             """
@@ -189,19 +290,13 @@ class TalkComposer(QWidget):
         self._fade.setDuration(180)
         self._fade.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def popup(self) -> None:
-        """Show near the stickman with a short fade-in."""
         self._position_near_anchor()
         self.setWindowOpacity(0.0)
         self.show()
         self.raise_()
         self.activateWindow()
         self._field.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
-        # Re-assert focus after the window manager settles (helps IME attach).
         QTimer.singleShot(0, self._refocus_field)
         QTimer.singleShot(50, self._refocus_field)
         self._fade.stop()
@@ -209,7 +304,6 @@ class TalkComposer(QWidget):
         self._fade.setEndValue(1.0)
         self._fade.start()
         self._install_outside_filter()
-        # Avoid instant cancel from the activating click that opened the menu.
         QTimer.singleShot(320, self._enable_focus_dismiss)
 
     def _refocus_field(self) -> None:
@@ -240,10 +334,9 @@ class TalkComposer(QWidget):
 
     @staticmethod
     def ask(anchor: QWidget | None = None) -> tuple[str, bool]:
-        """Blocking helper compatible with ``QInputDialog.getText`` return shape."""
+        """Blocking Qt composer (local event loop — does not freeze AI slots)."""
         dlg = TalkComposer(anchor=anchor)
         result: dict[str, object] = {"text": "", "ok": False}
-
         loop = QEventLoop(dlg)
 
         def _ok(text: str) -> None:
@@ -266,10 +359,6 @@ class TalkComposer(QWidget):
         dlg.deleteLater()
         return str(result["text"] or ""), bool(result["ok"])
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
-
     def _position_near_anchor(self) -> None:
         screen = QGuiApplication.primaryScreen()
         geo = screen.availableGeometry() if screen else None
@@ -291,7 +380,6 @@ class TalkComposer(QWidget):
     def _accept(self) -> None:
         if self._done:
             return
-        # Never submit raw pinyin while the IME still owns the keystroke.
         if self._field.composing:
             return
         text = self._field.text().strip()
@@ -324,7 +412,6 @@ class TalkComposer(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        # Soft elliptical shadow under the capsule (no QGraphicsEffect — safer with translucency).
         shadow_rect = QRectF(
             self._PAD + 10,
             self._PAD + self._HEIGHT - 6,
@@ -342,17 +429,14 @@ class TalkComposer(QWidget):
         path = QPainterPath()
         path.addRoundedRect(rect, self._RADIUS, self._RADIUS)
 
-        # Frosted white fill.
         painter.setBrush(QColor(255, 255, 255, 220))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawPath(path)
 
-        # Hairline border.
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(QColor(0, 0, 0, 22), 1.0))
         painter.drawPath(path)
 
-        # Top glass highlight.
         hi = QRectF(rect.left() + 1.5, rect.top() + 1.5, rect.width() - 3, rect.height() * 0.42)
         hi_path = QPainterPath()
         hi_path.addRoundedRect(hi, self._RADIUS - 1, self._RADIUS - 1)

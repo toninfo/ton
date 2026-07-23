@@ -154,6 +154,8 @@ class TestStickmanParams(unittest.TestCase):
         self.assertFalse(p.invert_colors)
         self.assertIsNone(p.background_gradient)
         self.assertIsNone(p.speech_bubble)
+        self.assertEqual(p.head_scale, 2.0)
+        self.assertGreaterEqual(p.eye_size, 1.0)
 
     def test_clamping(self) -> None:
         from stickman import StickmanParams  # noqa: F811
@@ -405,12 +407,14 @@ class TestAIClient(unittest.TestCase):
         prompt = _STICKMAN_SYSTEM_PROMPT
         self.assertIn("json.loads()", prompt)
         self.assertIn("WHO YOU ARE — Nago", prompt)
-        self.assertIn("Playful", prompt)
+        self.assertIn("Warm, playful", prompt)
+        self.assertIn("head_scale is 2.0", prompt)
         self.assertIn("CONTROL FIELDS", prompt)
         self.assertIn("NEVER invent", prompt)
         self.assertIn("DO NOT use emoji", prompt)
         self.assertIn("walk_dx", prompt)
         self.assertIn("Stay in character as Nago", prompt)
+        self.assertIn("READ their words carefully", prompt)
 
     def test_build_system_prompt_single_source(self) -> None:
         from control import build_system_prompt
@@ -796,10 +800,13 @@ class TestNagoWindow(unittest.TestCase):
             "mouse_position_window", "mouse_position_global", "mouse_delta",
             "clicks", "wheel_delta", "hover", "time_since_last_input_ms",
             "foreground_window", "is_desktop", "screen_resolution",
-            "available_geometry", "nago_window", "screen_colors",
+            "available_geometry", "nago_window", "at_screen_edge", "screen_colors",
             "user_message", "conversation", "long_term_memory", "memory_layers",
         ):
             self.assertIn(key, obs, f"observations missing: {key}")
+        self.assertIn("left", obs["at_screen_edge"])
+        self.assertIn("right", obs["at_screen_edge"])
+        self.assertIn("at_screen_edge", ctx["agent_state"]["motion"])
         self.assertIn("lines", obs["conversation"])
         self.assertIn("chars", obs["conversation"])
         self.assertIn("facts", obs["long_term_memory"])
@@ -952,6 +959,21 @@ class TestNagoWindow(unittest.TestCase):
         self.assertIsNone(self.window._stickman_params.speech_bubble)
         self.assertFalse(self.window._speech_bubble_timer.isActive())
 
+    def test_speech_bubble_fits_canvas_without_clipping(self) -> None:
+        """Long CJK lines must wrap — never wider than the stickman canvas."""
+        from main import STICKMAN_CANVAS_W, _measure_speech_bubble_text
+        from PySide6.QtCore import Qt
+
+        bw, bh, flags = _measure_speech_bubble_text("你好呀，我在发呆")
+        self.assertLessEqual(bw, STICKMAN_CANVAS_W - 8.0)
+        self.assertGreater(bh, 20.0)
+        # This phrase is wider than the inner column → expect wrap.
+        self.assertTrue(flags & int(Qt.TextFlag.TextWordWrap))
+
+        bw2, _bh2, flags2 = _measure_speech_bubble_text("嗨")
+        self.assertLess(bw2, bw)
+        self.assertFalse(flags2 & int(Qt.TextFlag.TextWordWrap))
+
     def test_listening_feedback_instant(self) -> None:
         """Talk ACK is pose-only — never a stuck '…' bubble."""
         self.window._show_listening_feedback()
@@ -1097,6 +1119,67 @@ class TestNagoWindow(unittest.TestCase):
         t.finish()
         self.assertEqual(t.phase, TalkPhase.IDLE)
         self.assertFalse(t.should_skip_heartbeat())
+
+    def test_talk_backend_defaults_to_qt(self) -> None:
+        """Frosted composer is the default; external is opt-in for IME."""
+        import os
+        from talk_dialog import configure_ime_env, pyside_has_fcitx_plugin
+
+        self.assertIsInstance(pyside_has_fcitx_plugin(), bool)
+        prev = os.environ.pop("NAGO_TALK_INPUT", None)
+        try:
+            self.assertEqual(configure_ime_env(), "qt")
+            os.environ["NAGO_TALK_INPUT"] = "external"
+            self.assertEqual(configure_ime_env(), "external")
+        finally:
+            if prev is None:
+                os.environ.pop("NAGO_TALK_INPUT", None)
+            else:
+                os.environ["NAGO_TALK_INPUT"] = prev
+
+    def test_stale_ai_worker_result_ignored(self) -> None:
+        """A late result_ready from an overwritten worker must not steal the route."""
+        from main import AIWorker
+
+        stale = AIWorker({}, "sys", route="ambient", generation=1, parent=None)
+        live = AIWorker({}, "sys", route="talk", generation=2, parent=None)
+        self.window._ai_generation = 2
+        self.window._ai_worker = live
+        self.window._ai_route = "talk"
+        self.window._talk.accept_text("在吗")
+        # Simulate stale ambient completing after talk already owns the slot.
+        stale.result_ready.connect(self.window._on_ai_worker_done)
+        stale.result_ready.emit({
+            "actions": [{"action": "morph", "params": {}, "comment": "stale morph"}],
+            "debug": {},
+        })
+        self.assertIs(self.window._ai_worker, live)
+        self.assertEqual(self.window._ai_route, "talk")
+        self.assertTrue(self.window._talk.active)
+        self.window._talk.finish()
+        self.window._ai_worker = None
+        self.window._ai_route = None
+
+    def test_block_velocity_into_edges(self) -> None:
+        """Walking further into a contacted screen edge must be zeroed."""
+        self.window._at_screen_edge = {
+            "left": False, "right": True, "top": False, "bottom": False,
+        }
+        vx, vy, blocked = self.window._block_velocity_into_edges(
+            4.0, -2.0, self.window._at_screen_edge,
+        )
+        self.assertTrue(blocked)
+        self.assertEqual(vx, 0.0)
+        self.assertEqual(vy, -2.0)
+
+    def test_stop_walk_clears_gait_when_blocked(self) -> None:
+        self.window._walk_vx = 0.0
+        self.window._walk_vy = 0.0
+        self.window._gait_enabled = True
+        self.window._stickman_params.leg_left_angle = 20.0
+        self.window._stop_walk_if_blocked()
+        self.assertFalse(self.window._gait_enabled)
+        self.assertEqual(self.window._stickman_params.leg_left_angle, 0.0)
 
     def test_apply_play_punch(self) -> None:
         self.window._apply_action_params({"play": "punch"})
