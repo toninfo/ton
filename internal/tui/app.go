@@ -1114,6 +1114,44 @@ func (c *SessionController) Stop(ctx context.Context, mode string) error {
 	}
 }
 
+// DriverChoices returns switchable names from the discover cache (preference order) plus "auto".
+// Uses cached scan results (TTL); does not force a PATH rescan on every slash-menu keystroke.
+func (c *SessionController) DriverChoices() []string {
+	if c == nil {
+		return []string{"auto"}
+	}
+	r := discover.New(c.cfg)
+	d, _ := r.Resolve(false)
+	cache := d.Cache
+	if len(cache.Agents) == 0 {
+		if loaded, err := r.LoadCache(); err == nil {
+			cache = loaded
+		}
+	}
+	available := make(map[string]bool, len(cache.Agents))
+	for _, e := range cache.Agents {
+		if e.Available {
+			available[e.Name] = true
+		}
+	}
+	out := make([]string, 0, len(available)+1)
+	seen := make(map[string]bool, len(available)+1)
+	for _, name := range discover.PreferenceOrder() {
+		if available[name] && !seen[name] {
+			out = append(out, name)
+			seen[name] = true
+		}
+	}
+	for _, e := range cache.Agents {
+		if e.Available && !seen[e.Name] {
+			out = append(out, e.Name)
+			seen[e.Name] = true
+		}
+	}
+	out = append(out, "auto")
+	return out
+}
+
 // SetDriver switches backends before execution begins.
 // When name is auto (or empty), it forces a rescan and makes an independent decision; other values ​​only nail this session (without overwriting cfg.Driver.Default).
 func (c *SessionController) SetDriver(name string) error {

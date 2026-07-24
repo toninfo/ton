@@ -35,6 +35,11 @@ type Model struct {
 	width, height int
 	chat          []chatTurn // Visible conversation history
 	nextChatID    int        // Monotonically increasing, give number to rememberUserTurn
+
+	// Slash command popup (OpenCode-style): open while typing `/foo` before arguments.
+	cmdMenuOpen  bool
+	cmdMenuIndex int
+	cmdMenuItems []slashSpec
 }
 
 // NewModel creates a focused, minimal input-first interface.

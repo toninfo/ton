@@ -47,3 +47,78 @@ func TestParseCommandRejectsNaturalLanguageAndMalformedArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterSlashCatalogByPrefix(t *testing.T) {
+	all := filterSlashCatalog("/")
+	if len(all) != len(slashCatalog()) {
+		t.Fatalf("filterSlashCatalog(\"/\") len=%d, want %d", len(all), len(slashCatalog()))
+	}
+	got := filterSlashCatalog("/dr")
+	if len(got) != 1 || got[0].Name != "/driver" {
+		t.Fatalf("filterSlashCatalog(\"/dr\") = %#v, want [/driver]", got)
+	}
+	got = filterSlashCatalog("/st")
+	// /start, /status, /stop
+	if len(got) != 3 {
+		t.Fatalf("filterSlashCatalog(\"/st\") len=%d, want 3 (/start,/status,/stop)", len(got))
+	}
+	if len(filterSlashCatalog("/zzz")) != 0 {
+		t.Fatal("expected empty filter for /zzz")
+	}
+}
+
+func TestEnrichDriverSlashSpecListsDetectedOptions(t *testing.T) {
+	items := filterSlashCatalog("/driver")
+	got := enrichDriverSlashSpec(items, []string{"opencode", "claude", "auto"}, "opencode")
+	if len(got) != 1 {
+		t.Fatalf("len=%d", len(got))
+	}
+	if got[0].Usage != "/driver <name>" {
+		t.Fatalf("Usage should stay stable for column align, got %q", got[0].Usage)
+	}
+	if got[0].Desc != "options: opencode*, claude, auto" {
+		t.Fatalf("Desc=%q", got[0].Desc)
+	}
+}
+
+func TestDriverSlashDescMarksCurrent(t *testing.T) {
+	if got := driverSlashDesc(nil, ""); got != "Switch coding agent (or auto)" {
+		t.Fatalf("empty choices: %q", got)
+	}
+	if got := driverSlashDesc([]string{"claude", "auto"}, "Claude"); got != "options: claude*, auto" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSyncAndCompleteCmdMenuOption1(t *testing.T) {
+	m := Model{}
+	m.input.SetValue("/dr")
+	m.syncCmdMenu()
+	if !m.cmdMenuOpen || len(m.cmdMenuItems) != 1 || m.cmdMenuItems[0].Name != "/driver" {
+		t.Fatalf("menu after /dr: open=%v items=%#v", m.cmdMenuOpen, m.cmdMenuItems)
+	}
+	m.completeCmdMenu()
+	// NeedsArg: complete with trailing space; menu closes so user can type args then Enter to submit.
+	if m.input.Value() != "/driver " {
+		t.Fatalf("complete = %q, want %q", m.input.Value(), "/driver ")
+	}
+	if m.cmdMenuOpen {
+		t.Fatal("menu should close after complete")
+	}
+
+	m.input.SetValue("/start")
+	m.syncCmdMenu()
+	if !m.cmdMenuOpen {
+		t.Fatal("expected menu open for /start")
+	}
+	m.completeCmdMenu()
+	if m.input.Value() != "/start" {
+		t.Fatalf("no-arg complete = %q, want /start", m.input.Value())
+	}
+
+	m.input.SetValue("/driver foo")
+	m.syncCmdMenu()
+	if m.cmdMenuOpen {
+		t.Fatal("menu must close once arguments begin")
+	}
+}

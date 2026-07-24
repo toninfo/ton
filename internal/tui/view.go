@@ -65,10 +65,76 @@ func (m Model) View() string {
 	if body != "" {
 		parts = append(parts, body)
 	}
+	// Slash popup sits directly above the input (OpenCode-style); input stays last for IME row math.
+	if menu := m.renderCmdMenu(width); menu != "" {
+		parts = append(parts, menu)
+	}
 	// Input lines are rendered individually; Windows uses framePrefix to clear the screen to avoid overlapping frames.
 	view := framePrefix() + strings.Join(parts, "\n") + "\n" + m.input.View()
 	// Registers the insertion point; the true cursor is overwritten by imeFixWriter and the start of line reset (\r or AltScreen CUP) at the end of flush.
 	return view + imeCursorSuffix(view, m.input.Prompt, m.inputValueBeforeCursor(), m.height)
+}
+
+// renderCmdMenu draws the filtered slash catalog above the prompt.
+func (m Model) renderCmdMenu(width int) string {
+	if !m.cmdMenuOpen || len(m.cmdMenuItems) == 0 {
+		return ""
+	}
+	if width < 40 {
+		width = 40
+	}
+	// Name column width from the longest Usage (or Name) so descriptions align.
+	nameW := 0
+	for _, spec := range m.cmdMenuItems {
+		label := spec.Usage
+		if label == "" {
+			label = spec.Name
+		}
+		if w := runewidth.StringWidth(label); w > nameW {
+			nameW = w
+		}
+	}
+	if nameW < 8 {
+		nameW = 8
+	}
+	if nameW > 28 {
+		nameW = 28
+	}
+	descW := width - nameW - 3 // "  " + gap
+	if descW < 12 {
+		descW = 12
+	}
+
+	var b strings.Builder
+	for i, spec := range m.cmdMenuItems {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		label := spec.Usage
+		if label == "" {
+			label = spec.Name
+		}
+		label = padDisplay(label, nameW)
+		desc := truncateToWidth(spec.Desc, descW)
+		line := label + "  " + desc
+		if i == m.cmdMenuIndex {
+			b.WriteString(cmdMenuSelectedStyle.Render(line))
+		} else {
+			b.WriteString(cmdMenuNameStyle.Render(label))
+			b.WriteString("  ")
+			b.WriteString(cmdMenuDescStyle.Render(desc))
+		}
+	}
+	return b.String()
+}
+
+// padDisplay pads s with spaces to the given terminal display width.
+func padDisplay(s string, width int) string {
+	w := runewidth.StringWidth(s)
+	if w >= width {
+		return truncateToWidth(s, width)
+	}
+	return s + strings.Repeat(" ", width-w)
 }
 
 // renderMainColumn Main conversation column: conversation + Progress/Decide + notice/footer.

@@ -75,4 +75,14 @@ var (
 			Foreground(cRed)
 	todoPendingStyle = lipgloss.NewStyle().
 				Foreground(cDim)
+	// Slash popup: selected row inverted; idle rows keep name + muted description.
+	cmdMenuSelectedStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#0B1220"}).
+				Background(cBlue).
+				Bold(true)
+	cmdMenuNameStyle = lipgloss.NewStyle().
+				Foreground(cBlue).
+				Bold(true)
+	cmdMenuDescStyle = lipgloss.NewStyle().
+				Foreground(cMuted)
 )

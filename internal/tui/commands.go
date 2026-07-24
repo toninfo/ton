@@ -25,6 +25,84 @@ type command struct {
 	argument string
 }
 
+// slashSpec describes one slash command for the `/` popup catalog.
+type slashSpec struct {
+	Name     string // e.g. "/driver"
+	Usage    string // e.g. "/driver <name>"
+	Desc     string
+	NeedsArg bool // when true, completion inserts a trailing space
+}
+
+// slashCatalog is the OpenCode-style menu surface (aliases omitted; /review → /docs).
+func slashCatalog() []slashSpec {
+	return []slashSpec{
+		{Name: "/start", Usage: "/start", Desc: "Plan and run the session", NeedsArg: false},
+		{Name: "/docs", Usage: "/docs [preview|open|req|design]", Desc: "Review requirements and design", NeedsArg: false},
+		{Name: "/status", Usage: "/status", Desc: "Show phase, queue, driver, and why", NeedsArg: false},
+		{Name: "/todos", Usage: "/todos", Desc: "Toggle the plan sidebar", NeedsArg: false},
+		{Name: "/stop", Usage: "/stop [soft|hard]", Desc: "Soft-stop or hard interrupt", NeedsArg: false},
+		{Name: "/driver", Usage: "/driver <name>", Desc: "Switch coding agent (or auto)", NeedsArg: true},
+		{Name: "/model", Usage: "/model <name>", Desc: "Switch clarify/plan model", NeedsArg: true},
+		{Name: "/key", Usage: "/key <api_key>", Desc: "Save LLM API key", NeedsArg: true},
+		{Name: "/queue", Usage: "/queue", Desc: "Show queued input during execute", NeedsArg: false},
+		{Name: "/brief", Usage: "/brief <text>", Desc: "Queue a next-step brief", NeedsArg: true},
+		{Name: "/skip", Usage: "/skip", Desc: "Queue skip for the current step", NeedsArg: false},
+		{Name: "/export", Usage: "/export", Desc: "Re-export todos.md / report", NeedsArg: false},
+	}
+}
+
+// filterSlashCatalog returns commands whose name starts with typed prefix (with or without leading /).
+func filterSlashCatalog(typed string) []slashSpec {
+	typed = strings.TrimSpace(typed)
+	if typed == "" {
+		return slashCatalog()
+	}
+	if !strings.HasPrefix(typed, "/") {
+		typed = "/" + typed
+	}
+	low := strings.ToLower(typed)
+	out := make([]slashSpec, 0, 8)
+	for _, spec := range slashCatalog() {
+		if strings.HasPrefix(strings.ToLower(spec.Name), low) {
+			out = append(out, spec)
+		}
+	}
+	return out
+}
+
+// enrichDriverSlashSpec injects detected driver options into /driver's description.
+// current marks the session driver with '*' so the menu doubles as a switcher cheat-sheet.
+func enrichDriverSlashSpec(items []slashSpec, choices []string, current string) []slashSpec {
+	if len(items) == 0 || len(choices) == 0 {
+		return items
+	}
+	desc := driverSlashDesc(choices, current)
+	for i := range items {
+		if items[i].Name != "/driver" {
+			continue
+		}
+		items[i].Desc = desc
+	}
+	return items
+}
+
+// driverSlashDesc builds the menu blurb, e.g. "options: opencode*, claude, auto".
+func driverSlashDesc(choices []string, current string) string {
+	if len(choices) == 0 {
+		return "Switch coding agent (or auto)"
+	}
+	cur := strings.ToLower(strings.TrimSpace(current))
+	parts := make([]string, len(choices))
+	for i, name := range choices {
+		if cur != "" && name != "auto" && strings.EqualFold(name, cur) {
+			parts[i] = name + "*"
+		} else {
+			parts[i] = name
+		}
+	}
+	return "options: " + strings.Join(parts, ", ")
+}
+
 // parseCommand accepts only the small, documented slash command surface.
 func parseCommand(input string) (command, bool) {
 	fields := strings.Fields(input)

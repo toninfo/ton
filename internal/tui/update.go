@@ -23,7 +23,36 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			// best-effort: If the arrangement is still running, hard stop and then exit TUI.
 			_ = m.controller.Stop(context.Background(), "hard")
 			return m, tea.Quit
+		case tea.KeyEsc:
+			if m.cmdMenuOpen {
+				m.cmdMenuOpen = false
+				return m, nil
+			}
+		case tea.KeyUp:
+			if m.cmdMenuOpen && len(m.cmdMenuItems) > 0 {
+				if m.cmdMenuIndex > 0 {
+					m.cmdMenuIndex--
+				}
+				return m, nil
+			}
+		case tea.KeyDown:
+			if m.cmdMenuOpen && len(m.cmdMenuItems) > 0 {
+				if m.cmdMenuIndex < len(m.cmdMenuItems)-1 {
+					m.cmdMenuIndex++
+				}
+				return m, nil
+			}
+		case tea.KeyTab:
+			if m.cmdMenuOpen {
+				m.completeCmdMenu()
+				return m, nil
+			}
 		case tea.KeyEnter:
+			// Popup open: complete into the input only (option 1) — do not submit yet.
+			if m.cmdMenuOpen {
+				m.completeCmdMenu()
+				return m, nil
+			}
 			value := strings.TrimSpace(m.input.Value())
 			if value == "" {
 				return m, nil
@@ -34,6 +63,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.input.SetValue("")
+			m.cmdMenuOpen = false
 			chatID := m.rememberUserTurn(value)
 			if parsed, ok := parseCommand(value); ok && parsed.kind == commandTodos {
 				m.showTodos = !m.showTodos
@@ -113,7 +143,59 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 	var command tea.Cmd
 	m.input, command = m.input.Update(message)
+	m.syncCmdMenu()
 	return m, command
+}
+
+// syncCmdMenu opens/filters the slash popup while the value looks like `/cmd` (no args yet).
+func (m *Model) syncCmdMenu() {
+	value := m.input.Value()
+	if !strings.HasPrefix(value, "/") {
+		m.cmdMenuOpen = false
+		m.cmdMenuItems = nil
+		m.cmdMenuIndex = 0
+		return
+	}
+	// Once the user starts typing arguments, hide the menu.
+	if strings.Contains(value[1:], " ") {
+		m.cmdMenuOpen = false
+		m.cmdMenuItems = nil
+		m.cmdMenuIndex = 0
+		return
+	}
+	items := filterSlashCatalog(value)
+	// Fold discover-cache drivers into /driver so the popup lists real switch targets.
+	if m.controller != nil {
+		items = enrichDriverSlashSpec(items, m.controller.DriverChoices(), m.session.Driver)
+	}
+	m.cmdMenuItems = items
+	m.cmdMenuOpen = len(items) > 0
+	if m.cmdMenuIndex >= len(items) {
+		m.cmdMenuIndex = len(items) - 1
+	}
+	if m.cmdMenuIndex < 0 {
+		m.cmdMenuIndex = 0
+	}
+}
+
+// completeCmdMenu inserts the selected slash command into the input (trailing space if it needs args).
+func (m *Model) completeCmdMenu() {
+	if !m.cmdMenuOpen || len(m.cmdMenuItems) == 0 {
+		return
+	}
+	if m.cmdMenuIndex < 0 || m.cmdMenuIndex >= len(m.cmdMenuItems) {
+		m.cmdMenuIndex = 0
+	}
+	spec := m.cmdMenuItems[m.cmdMenuIndex]
+	val := spec.Name
+	if spec.NeedsArg {
+		val += " "
+	}
+	m.input.SetValue(val)
+	m.input.CursorEnd()
+	m.cmdMenuOpen = false
+	m.cmdMenuItems = nil
+	m.cmdMenuIndex = 0
 }
 
 func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
