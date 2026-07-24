@@ -39,6 +39,9 @@ export TON_LLM_API_KEY=dummy
 | `internal/clarify` | Clarification + Ready gate |
 | `internal/store` | `.ton` persistence |
 | `docs/CONFIGURATION.md` | Config field reference |
+| `docs/ARCHITECTURE.md` | Session loop + package map |
+| `examples/nago` | Optional desktop companion demo (not the CLI) |
+| `examples/web` | Static marketing landing page |
 
 ## Pull requests
 

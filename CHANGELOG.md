@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- OpenCode-style slash-command popup in the TUI (`/` filter; Tab/Enter completes).
+- `/driver` menu description lists agents detected from the discover cache.
+- `docs/ARCHITECTURE.md` and `examples/nago/README.md`.
+
+### Changed
+
+- Repo hygiene: ignore/untrack `.omo/`, `__pycache__/`, `.playwright-mcp/`.
+- Removed orphan root pygame pet experiment (`main.py` / `pet.py`); nago is the companion demo.
+- Config docs: `prompts.bilingual` marked reserved under the English-only core policy.
+
 ## [0.1.3] - 2026-07-21
 
 ### Added

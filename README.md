@@ -104,6 +104,11 @@ automation-first: **sandbox off**, optional **git auto-commit**, and some
 drivers use elevated flags (e.g. Cursor `--force --trust`). Only use trusted
 workspaces; see [SECURITY.md](SECURITY.md).
 
+## Architecture
+
+Session loop, package map, and what belongs in `examples/` →
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Configuration
 
 Load order:

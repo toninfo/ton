@@ -175,7 +175,7 @@ Agent write boundaries. Disabled by default (full permissions).
 
 | Field | Default | Purpose |
 | --- | --- | --- |
-| `bilingual` | `true` | **Reserved** — prompts ship bilingual; switch not yet wired |
+| `bilingual` | `true` | **Reserved** — core prompts are English-only; switch not wired |
 
 ## `log`
 
