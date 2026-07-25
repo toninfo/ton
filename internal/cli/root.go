@@ -129,9 +129,9 @@ func rootLong() string {
 First run:
   1. ton setup --api-key …
   2. ton doctor
-  3. cd into a writable project directory (ton creates .ton/ there)
-  4. ton
-     # or: ton -w /path/to/project
+  3. ton -w /path/to/writable/project
+     # or: cd into that project, then ton
+     # if cwd is not writable, ton falls back to ~/ton-workspace
 
 LLM needs one OpenAI-compatible triad: base_url + model + API key.
 Details: ton setup --help · ton config`
@@ -171,7 +171,25 @@ func resolveWorkspace(cfg config.Config, flag string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return cwd, nil
+	// Prefer cwd when the user can write there (normal project workflow).
+	if err := store.ProbeWorkspaceWritable(cwd); err == nil {
+		return cwd, nil
+	}
+	// Root-owned parents like /home/work: keep `ton` usable via a home fallback.
+	fallback, err := store.DefaultFallbackWorkspace()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(fallback, 0o755); err != nil {
+		return "", fmt.Errorf("create fallback workspace %q: %w", fallback, err)
+	}
+	fmt.Fprintf(os.Stderr,
+		"note: cwd %q is not writable; using fallback workspace %q\n"+
+			"      pick a real project with:  ton -w /path/to/project\n"+
+			"      (do not use sudo)\n\n",
+		cwd, fallback,
+	)
+	return fallback, nil
 }
 
 // resolveSessionWorkspace uses the global index to correct the workspace when -s continues.

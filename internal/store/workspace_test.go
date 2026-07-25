@@ -20,6 +20,20 @@ func TestEnsureWorkspaceWritable_OK(t *testing.T) {
 	}
 }
 
+func TestProbeAndFallbackWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	if err := store.ProbeWorkspaceWritable(dir); err != nil {
+		t.Fatal(err)
+	}
+	fb, err := store.DefaultFallbackWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(fb) || filepath.Base(fb) != "ton-workspace" {
+		t.Fatalf("fallback = %q", fb)
+	}
+}
+
 func TestEnsureWorkspaceWritable_PermissionDenied(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("chmod 0555 is not a reliable permission probe on Windows")
@@ -38,7 +52,7 @@ func TestEnsureWorkspaceWritable_PermissionDenied(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	msg := err.Error()
-	for _, want := range []string{"not writable", "ton -w", "Do not run ton with sudo"} {
+	for _, want := range []string{"not writable", "ton -w", "never sudo ton", "~/ton-workspace"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("error missing %q:\n%s", want, msg)
 		}

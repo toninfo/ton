@@ -77,15 +77,19 @@ Manual archives (linux / darwin / windows × amd64 / arm64) are attached to each
 `ton` needs **two engines**: an OpenAI-compatible LLM (clarify docs/cards +
 conductor) and a local coding-agent CLI (plan/execute/repair after `/start`).
 
-Always start inside a **writable project directory** — ton creates
-`<workspace>/.ton/` for session state. Do not run it as root / with `sudo`.
+Always prefer a **writable project directory** — ton creates `<workspace>/.ton/`
+and the coding agent mutates files there. Do not run with `sudo`.
 
 ```bash
 ton setup --api-key …             # once: writes ~/.config/ton/llm.env
 ton doctor                        # scan agents + print config paths
-cd /path/to/your/project          # must be writable by your user
+cd /path/to/your/project          # directory your user can write
 ton                               # or: ton -w /path/to/your/project
 ```
+
+If you launch `ton` from a root-owned path (e.g. `/home/work`) without `-w`,
+it **falls back** to `~/ton-workspace` and prints a note — still usable, but
+point `-w` at the real repo when you care where files land.
 
 Optional: pin driver; unset → scan opencode/claude/agent and choose
 

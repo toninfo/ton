@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that `go install` alone does not add `$(go env GOPATH)/bin` to PATH.
 - Clearer startup error when the workspace is not writable (no more opaque
   `mkdir … permission denied`; guides `cd` / `ton -w`, warns against `sudo`).
+- If cwd is not writable and `-w` / `TON_WORKSPACE` were not set, fall back to
+  `~/ton-workspace` with a stderr note (so root-owned parents like `/home/work`
+  still launch ton).
 
 ## [0.2.0] - 2026-07-24
 
