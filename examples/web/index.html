@@ -152,7 +152,7 @@
                 aria-haspopup="listbox"
                 aria-expanded="false"
               >
-                <span class="select-label" id="installLabel" data-i18n="install.curl">Install (curl)</span>
+                <span class="select-label" id="installLabel" data-i18n="install.curl">Linux / macOS</span>
                 <svg viewBox="0 0 12 12" aria-hidden="true">
                   <path
                     d="M2.5 4.5L6 8l3.5-3.5"
@@ -166,16 +166,16 @@
               </button>
               <div class="install-menu" id="installMenu" role="listbox" hidden>
                 <button type="button" data-cmd="curl" class="active" role="option" data-i18n="install.curl">
-                  Install (curl)
+                  Linux / macOS
                 </button>
                 <button type="button" data-cmd="ps1" role="option" data-i18n="install.ps1">
-                  Install (Windows)
+                  Windows
                 </button>
                 <button type="button" data-cmd="go" role="option" data-i18n="install.go">
-                  Install TON (Go)
+                  Go (add PATH)
                 </button>
                 <button type="button" data-cmd="build" role="option" data-i18n="install.build">
-                  Build from source
+                  From source
                 </button>
                 <button type="button" data-cmd="setup" role="option" data-i18n="install.setup">
                   Configure LLM key
@@ -203,6 +203,11 @@
               </button>
             </div>
           </div>
+          <p class="install-hint" data-i18n-html="install.hint">
+            After install, open a new terminal and run <code>ton doctor</code>. The curl/Windows
+            installers put <code>ton</code> on your user PATH; plain <code>go install</code> does
+            not unless you add <code>$(go env GOPATH)/bin</code>.
+          </p>
         </div>
       </section>
 
@@ -348,7 +353,7 @@
         <div class="feature-install install-options">
           <div class="install-input">
             <button class="install-select" type="button" tabindex="-1" aria-hidden="true">
-              <span class="select-label" data-i18n="install.curl">Install (curl)</span>
+              <span class="select-label" data-i18n="install.curl">Linux / macOS</span>
             </button>
             <div class="command-display">
               <code class="command-text">curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash</code>

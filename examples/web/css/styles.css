@@ -359,6 +359,27 @@ button {
   justify-content: center;
 }
 
+.install-options {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.install-hint {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--Labels-Tertiary, #8e8e93);
+}
+
+.install-hint code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--Labels-Secondary, #aeaeb2);
+}
+
 .install-input {
   width: 100%;
   display: flex;

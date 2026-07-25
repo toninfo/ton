@@ -34,40 +34,43 @@ milestone-first UI, and persists the full audit trail under
 
 ## Install
 
-No Go toolchain required for the release binary. Pick one:
+Preferred: install the **release binary** onto your user PATH (no Go required).
 
 ```bash
-# Linux / macOS — puts ton on ~/.local/bin and prints a PATH hint if needed
+# Linux / macOS → ~/.local/bin (prints a PATH hint if that dir is missing)
 curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 ```
 
 ```powershell
-# Windows (PowerShell) — installs to %LOCALAPPDATA%\ton\bin and updates User PATH
+# Windows PowerShell → %LOCALAPPDATA%\ton\bin and updates your User PATH
 irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ```
 
-Then open a **new** terminal and run `ton doctor`.
+Open a **new** terminal, then:
 
-### From Go / source
+```bash
+ton doctor
+```
 
-`go install` drops the binary in `$(go env GOPATH)/bin` (often `~/go/bin` or
-`%USERPROFILE%\go\bin`). That directory is **not** on PATH by default on many
-machines — add it, or use the curl/irm installers above.
+### Alternative: Go / source
+
+`go install` writes to `$(go env GOPATH)/bin` (often `~/go/bin` or
+`%USERPROFILE%\go\bin`). That directory is frequently **not** on `PATH`, so
+`ton` will appear “not installed” until you add it — prefer the installers
+above unless you already manage a Go bin directory.
 
 ```bash
 # Requires Go 1.24+
 go install github.com/toninfo/ton/cmd/ton@latest
-# Ensure the install dir is on PATH (bash example):
-export PATH="$(go env GOPATH)/bin:$PATH"
+export PATH="$(go env GOPATH)/bin:$PATH"   # bash/zsh; reopen shell after
 
-# Or from a checkout → ~/.local/bin
+# From a checkout → ~/.local/bin
 git clone https://github.com/toninfo/ton.git
-cd ton
-make install
+cd ton && make install
 ```
 
-Release archives (linux / darwin / windows × amd64 / arm64) are also attached
-to each [GitHub Release](https://github.com/toninfo/ton/releases).
+Manual archives (linux / darwin / windows × amd64 / arm64) are attached to each
+[GitHub Release](https://github.com/toninfo/ton/releases).
 
 ## Quick start
 
