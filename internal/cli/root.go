@@ -129,7 +129,9 @@ func rootLong() string {
 First run:
   1. ton setup --api-key …
   2. ton doctor
-  3. ton
+  3. cd into a writable project directory (ton creates .ton/ there)
+  4. ton
+     # or: ton -w /path/to/project
 
 LLM needs one OpenAI-compatible triad: base_url + model + API key.
 Details: ton setup --help · ton config`

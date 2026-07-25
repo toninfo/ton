@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/toninfo/ton/internal/brand"
 )
 
 const lockFilename = "lock.json"
@@ -26,6 +28,9 @@ func (s *Store) TryLock(sessionID string) error {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if isPermissionError(err) {
+			return workspaceNotWritableError(s.workspace, brand.WorkspaceStateDir(s.workspace), err)
+		}
 		return fmt.Errorf("create lock directory: %w", err)
 	}
 

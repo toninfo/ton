@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - README and landing install UX lead with release-binary installers; document
   that `go install` alone does not add `$(go env GOPATH)/bin` to PATH.
+- Clearer startup error when the workspace is not writable (no more opaque
+  `mkdir … permission denied`; guides `cd` / `ton -w`, warns against `sudo`).
 
 ## [0.2.0] - 2026-07-24
 

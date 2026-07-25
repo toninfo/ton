@@ -98,6 +98,9 @@ func NewSessionController(cfg config.Config, workspace, sessionID string) (*Sess
 		return nil, fmt.Errorf("resolve launch workspace: %w", err)
 	}
 	st := store.New(launch)
+	if err := store.EnsureWorkspaceWritable(launch); err != nil {
+		return nil, err
+	}
 	c := &SessionController{
 		cfg:             cfg,
 		store:           st,
