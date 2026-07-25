@@ -2,9 +2,11 @@
 # install.sh — install the `ton` binary from GitHub Releases into PATH.
 #
 #   curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
+#   # mirror if raw.githubusercontent.com is blocked:
+#   curl -fsSL https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.sh | bash
 #
 # Env overrides:
-#   TON_VERSION      e.g. v0.2.0 (default: latest release)
+#   TON_VERSION      e.g. v0.2.1 (default: latest release)
 #   TON_INSTALL_DIR  install directory (default: ~/.local/bin)
 #   TON_REPO         owner/repo (default: toninfo/ton)
 #
@@ -48,6 +50,7 @@ detect_arch() {
   esac
 }
 
+# Prefer github.com redirect (no API quota). API is a fallback only.
 resolve_tag() {
   if [ -n "${TON_VERSION:-}" ]; then
     case "$TON_VERSION" in
@@ -57,11 +60,30 @@ resolve_tag() {
     return
   fi
   need curl
-  tag="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' \
-    | head -n1)"
-  [ -n "$tag" ] || die "could not resolve latest release for ${REPO}"
-  echo "$tag"
+
+  # Follow /releases/latest → .../tag/vX.Y.Z (works when api.github.com is 403/rate-limited).
+  effective="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    "https://github.com/${REPO}/releases/latest" 2>/dev/null || true)"
+  tag="${effective##*/}"
+  case "$tag" in
+    v[0-9]*)
+      echo "$tag"
+      return
+      ;;
+  esac
+
+  # Fallback: GitHub API (may 403 on shared IPs / CI NAT).
+  body="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)"
+  tag="$(printf '%s' "$body" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+  case "$tag" in
+    v[0-9]*)
+      echo "$tag"
+      return
+      ;;
+  esac
+
+  die "could not resolve latest release for ${REPO}
+  (github.com redirect and api.github.com both failed — set TON_VERSION=v0.2.1 and retry)"
 }
 
 main() {
@@ -87,6 +109,7 @@ main() {
   cleanup() { rm -rf "$TMP"; }
   trap cleanup EXIT
 
+  info "Resolved ${TAG}"
   info "Downloading ${URL}"
   curl -fsSL "$URL" -o "${TMP}/${ARCHIVE}" || die "download failed (check tag ${TAG} / network)"
 

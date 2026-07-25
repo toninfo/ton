@@ -121,8 +121,8 @@
   };
 
   const COMMANDS = {
-    curl: "curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash",
-    ps1: "irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex",
+    curl: "curl -fsSL https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.sh | bash",
+    ps1: "irm https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.ps1 | iex",
     go: "go install github.com/toninfo/ton/cmd/ton@latest && export PATH=\"$(go env GOPATH)/bin:$PATH\"",
     build: "git clone https://github.com/toninfo/ton.git && cd ton && make install",
     setup: "ton setup --api-key <YOUR_KEY>",

@@ -29,9 +29,25 @@ function Resolve-Tag([string]$ver) {
         if ($ver -notmatch '^v') { return "v$ver" }
         return $ver
     }
-    $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
-    if (-not $rel.tag_name) { throw "could not resolve latest release for $Repo" }
-    return $rel.tag_name
+    # Prefer /releases/latest redirect — api.github.com is often 403/rate-limited.
+    try {
+        $resp = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" `
+            -MaximumRedirection 0 -ErrorAction SilentlyContinue -UseBasicParsing
+    } catch {
+        $resp = $_.Exception.Response
+    }
+    if ($resp -and $resp.Headers["Location"]) {
+        $loc = [string]$resp.Headers["Location"]
+        $tag = ($loc -split "/")[-1]
+        if ($tag -match '^v\d') { return $tag }
+    }
+    try {
+        $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+        if ($rel.tag_name) { return $rel.tag_name }
+    } catch {
+        # ignore — fall through
+    }
+    throw "could not resolve latest release for $Repo (set TON_VERSION=v0.2.1 and retry)"
 }
 
 $arch = Get-Arch

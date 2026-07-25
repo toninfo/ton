@@ -39,11 +39,19 @@ Preferred: install the **release binary** onto your user PATH (no Go required).
 ```bash
 # Linux / macOS → ~/.local/bin (prints a PATH hint if that dir is missing)
 curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
+
+# If raw.githubusercontent.com returns 403, use the jsDelivr mirror:
+curl -fsSL https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.sh | bash
+
+# Pin a version when GitHub API is rate-limited (optional):
+# TON_VERSION=v0.2.1 bash <(curl -fsSL https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.sh)
 ```
 
 ```powershell
 # Windows PowerShell → %LOCALAPPDATA%\ton\bin and updates your User PATH
 irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
+# mirror:
+irm https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.ps1 | iex
 ```
 
 Open a **new** terminal, then:

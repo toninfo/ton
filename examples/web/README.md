@@ -11,8 +11,8 @@ The install picker defaults to the release-binary one-liners:
 
 | Platform | Command |
 | --- | --- |
-| Linux / macOS | `curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh \| bash` |
-| Windows | `irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 \| iex` |
+| Linux / macOS | `curl -fsSL https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.sh \| bash` |
+| Windows | `irm https://cdn.jsdelivr.net/gh/toninfo/ton@main/install.ps1 \| iex` |
 
 Also offers Go / source / `ton setup` variants. After install, users must open a
 **new** terminal — documented in the on-page hint.

@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If cwd is not writable and `-w` / `TON_WORKSPACE` were not set, fall back to
   `~/ton-workspace` with a stderr note (so root-owned parents like `/home/work`
   still launch ton).
+- `install.sh` / `install.ps1` resolve latest via `github.com/.../releases/latest`
+  redirect (avoid `api.github.com` 403/rate-limit); document jsDelivr mirror.
 
 ## [0.2.0] - 2026-07-24
 
