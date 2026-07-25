@@ -25,6 +25,8 @@
       "hero.subtitle":
         "AI Engineering Session — a local TUI orchestrator that folds long-running coding agents<br />into an auditable session loop: align faster, finish steadier",
       "install.go": "Install TON",
+      "install.curl": "Install (curl)",
+      "install.ps1": "Install (Windows)",
       "install.build": "Build from source",
       "install.setup": "Configure LLM key",
       "install.copy": "Copy command",
@@ -74,7 +76,9 @@
       "banner.cta": "立即开始",
       "hero.subtitle":
         "AI Engineering Session —— 本地 TUI 编排器，把长跑 coding agent<br />收进可审计的会话循环：更快对齐目标，更稳完成任务",
-      "install.go": "安装 TON",
+      "install.go": "安装 TON (Go)",
+      "install.curl": "安装 (curl)",
+      "install.ps1": "安装 (Windows)",
       "install.build": "从源码构建",
       "install.setup": "配置 LLM Key",
       "install.copy": "复制命令",
@@ -113,13 +117,15 @@
   };
 
   const COMMANDS = {
-    go: "go install github.com/toninfo/ton/cmd/ton@latest",
-    build: "git clone https://github.com/toninfo/ton.git && cd ton && make build",
+    curl: "curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash",
+    ps1: "irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex",
+    go: "go install github.com/toninfo/ton/cmd/ton@latest && export PATH=\"$(go env GOPATH)/bin:$PATH\"",
+    build: "git clone https://github.com/toninfo/ton.git && cd ton && make install",
     setup: "ton setup --api-key <YOUR_KEY>",
   };
 
   let currentLang = "en";
-  let currentCmd = "go";
+  let currentCmd = "curl";
 
   function t(key) {
     return I18N[currentLang]?.[key] ?? I18N.en[key] ?? key;

@@ -152,7 +152,7 @@
                 aria-haspopup="listbox"
                 aria-expanded="false"
               >
-                <span class="select-label" id="installLabel" data-i18n="install.go">Install TON</span>
+                <span class="select-label" id="installLabel" data-i18n="install.curl">Install (curl)</span>
                 <svg viewBox="0 0 12 12" aria-hidden="true">
                   <path
                     d="M2.5 4.5L6 8l3.5-3.5"
@@ -165,8 +165,14 @@
                 </svg>
               </button>
               <div class="install-menu" id="installMenu" role="listbox" hidden>
-                <button type="button" data-cmd="go" class="active" role="option" data-i18n="install.go">
-                  Install TON
+                <button type="button" data-cmd="curl" class="active" role="option" data-i18n="install.curl">
+                  Install (curl)
+                </button>
+                <button type="button" data-cmd="ps1" role="option" data-i18n="install.ps1">
+                  Install (Windows)
+                </button>
+                <button type="button" data-cmd="go" role="option" data-i18n="install.go">
+                  Install TON (Go)
                 </button>
                 <button type="button" data-cmd="build" role="option" data-i18n="install.build">
                   Build from source
@@ -178,7 +184,7 @@
             </div>
             <div class="command-display">
               <code class="command-text" id="commandText"
-                >go install github.com/toninfo/ton/cmd/ton@latest</code
+                >curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash</code
               >
               <button
                 class="copy-btn"
@@ -342,10 +348,10 @@
         <div class="feature-install install-options">
           <div class="install-input">
             <button class="install-select" type="button" tabindex="-1" aria-hidden="true">
-              <span class="select-label" data-i18n="install.go">Install TON</span>
+              <span class="select-label" data-i18n="install.curl">Install (curl)</span>
             </button>
             <div class="command-display">
-              <code class="command-text">go install github.com/toninfo/ton/cmd/ton@latest</code>
+              <code class="command-text">curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash</code>
               <button
                 class="copy-btn"
                 type="button"

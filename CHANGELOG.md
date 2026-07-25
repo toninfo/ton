@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `install.sh` / `install.ps1` — one-liner installers that place `ton` on a user
+  PATH directory (`~/.local/bin` / `%LOCALAPPDATA%\ton\bin`).
+- `make install` builds and installs into `~/.local/bin` (override with `BINDIR=`).
+
+### Changed
+
+- README and landing install UX lead with release-binary installers; document
+  that `go install` alone does not add `$(go env GOPATH)/bin` to PATH.
+
 ## [0.2.0] - 2026-07-24
 
 ### Added

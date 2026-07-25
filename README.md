@@ -34,20 +34,40 @@ milestone-first UI, and persists the full audit trail under
 
 ## Install
 
-Requires Go 1.24+.
+No Go toolchain required for the release binary. Pick one:
 
 ```bash
-# From the module (after a tagged release is published)
-go install github.com/toninfo/ton/cmd/ton@latest
-
-# From a checkout
-git clone https://github.com/toninfo/ton.git
-cd ton
-make build
+# Linux / macOS — puts ton on ~/.local/bin and prints a PATH hint if needed
+curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 ```
 
-Release binaries (on `v*` tags) are built with GoReleaser for linux / darwin /
-windows on amd64 and arm64.
+```powershell
+# Windows (PowerShell) — installs to %LOCALAPPDATA%\ton\bin and updates User PATH
+irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
+```
+
+Then open a **new** terminal and run `ton doctor`.
+
+### From Go / source
+
+`go install` drops the binary in `$(go env GOPATH)/bin` (often `~/go/bin` or
+`%USERPROFILE%\go\bin`). That directory is **not** on PATH by default on many
+machines — add it, or use the curl/irm installers above.
+
+```bash
+# Requires Go 1.24+
+go install github.com/toninfo/ton/cmd/ton@latest
+# Ensure the install dir is on PATH (bash example):
+export PATH="$(go env GOPATH)/bin:$PATH"
+
+# Or from a checkout → ~/.local/bin
+git clone https://github.com/toninfo/ton.git
+cd ton
+make install
+```
+
+Release archives (linux / darwin / windows × amd64 / arm64) are also attached
+to each [GitHub Release](https://github.com/toninfo/ton/releases).
 
 ## Quick start
 
