@@ -1,5 +1,7 @@
 # ton
 
+**English** | [简体中文](README.zh-CN.md)
+
 [![CI](https://github.com/toninfo/ton/actions/workflows/ci.yml/badge.svg)](https://github.com/toninfo/ton/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
