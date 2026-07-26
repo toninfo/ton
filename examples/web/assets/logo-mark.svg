@@ -1,24 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="tonMarkTitle tonMarkDesc">
   <!--
-    TON mark — curved T (reference lockup)
-    Red square + white T deformation:
-    - crescent crossbar (umbrella canopy), thick center → sharp tips
-    - rice-grain stem (session drop), clear air gap under the arc
-    Optical padding tuned for 28px header + 40px mockup sizes.
+    TON mark — curved T (matches logo-mark.png lockup)
+    Red field + white crescent canopy + rice-grain stem.
   -->
   <title id="tonMarkTitle">TON</title>
-  <desc id="tonMarkDesc">
-    A white curved T on red: arched crescent crossbar over an elongated oval stem.
-  </desc>
+  <desc id="tonMarkDesc">White curved T on red: crescent crossbar over oval stem.</desc>
   <rect width="64" height="64" fill="#BC181E"/>
-  <!-- Crescent: outer arch high, inner arch lower → plump center, needle tips -->
+  <!-- Filled crescent canopy (thick center → sharp tips) -->
   <path
     fill="#FFFFFF"
-    d="M9.6 28.4
-       C19.4 14.2 44.6 14.2 54.4 28.4
-       C42.8 22.2 21.2 22.2 9.6 28.4
+    d="M14.5 30.5
+       C22 16.5 42 16.5 49.5 30.5
+       C40.5 23.8 23.5 23.8 14.5 30.5
        Z"
   />
-  <!-- Rice-grain stem; top sits just under crescent for a readable gap at 28px -->
-  <ellipse cx="32" cy="42.2" rx="5.8" ry="11.8" fill="#FFFFFF"/>
+  <!-- Rice-grain stem -->
+  <ellipse cx="32" cy="41.5" rx="3.2" ry="11.2" fill="#FFFFFF"/>
 </svg>

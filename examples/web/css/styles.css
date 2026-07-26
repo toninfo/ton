@@ -101,13 +101,13 @@ button {
   color: var(--Labels-Primary);
 }
 
-/* Logo mark: curved T asset (red field temporary; size tuned vs. TON wordmark) */
+/* Logo mark: curved T PNG (red field temporary; 32px balances TON wordmark) */
 .ton-logo-mark {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   display: block;
-  border-radius: 6px; /* 顶栏小尺寸略圆角，避免硬直角抢字重 */
+  border-radius: 7px;
   object-fit: cover;
 }
 
