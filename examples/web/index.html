@@ -18,8 +18,19 @@
       <!-- Header: Kimi-style chrome, no login / membership / console -->
       <header class="ton-header">
         <nav class="ton-nav">
+          <!--
+            Logo mark: curved T lockup (red field · white crescent + rice-grain stem).
+            Asset: ./assets/logo-mark.svg — keep header size optically balanced with wordmark.
+          -->
           <a class="ton-logo" href="./" aria-label="TON">
-            <span class="ton-logo-mark" aria-hidden="true"></span>
+            <img
+              class="ton-logo-mark"
+              src="./assets/logo-mark.svg"
+              width="28"
+              height="28"
+              alt=""
+              decoding="async"
+            />
             <span>TON</span>
           </a>
           <div class="ton-nav-right">
@@ -261,9 +272,16 @@
               <div class="window-content">
                 <div class="welcome-box">
                   <div class="box-row">
+                    <!-- 与顶栏同一套 curved-T 标，演示窗内略放大 -->
                     <div class="ton-logo-box" aria-hidden="true">
-                      <span class="logo-dot left"></span>
-                      <span class="logo-dot right"></span>
+                      <img
+                        class="ton-logo-mark"
+                        src="./assets/logo-mark.svg"
+                        width="40"
+                        height="40"
+                        alt=""
+                        decoding="async"
+                      />
                     </div>
                     <div class="welcome-text">
                       <p>Welcome to TON — AI Engineering Session</p>

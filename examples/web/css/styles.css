@@ -101,33 +101,14 @@ button {
   color: var(--Labels-Primary);
 }
 
+/* Logo mark: curved T asset (red field temporary; size tuned vs. TON wordmark) */
 .ton-logo-mark {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
-  background: var(--Colors-KMBlue);
-  position: relative;
   flex-shrink: 0;
-}
-
-.ton-logo-mark::before,
-.ton-logo-mark::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 5px;
-  height: 8px;
-  background: #fff;
-  transform: translateY(-50%);
-  border-radius: 1px;
-}
-
-.ton-logo-mark::before {
-  left: calc(50% - 6px);
-}
-
-.ton-logo-mark::after {
-  left: calc(50% + 4px);
+  display: block;
+  border-radius: 6px; /* 顶栏小尺寸略圆角，避免硬直角抢字重 */
+  object-fit: cover;
 }
 
 .ton-nav-right {
@@ -724,29 +705,19 @@ button {
 }
 
 .ton-logo-box {
-  width: 71px;
+  width: 48px;
   height: 48px;
-  border-radius: 7px;
-  background: var(--Colors-KMBlue);
-  position: relative;
+  border-radius: 10px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.ton-logo-box .logo-dot {
-  position: absolute;
-  top: 50%;
-  width: 9px;
-  height: 13px;
-  background: #fff;
-  transform: translate(-50%, -50%);
-}
-
-.ton-logo-box .logo-dot.left {
-  left: calc(50% - 5px);
-}
-
-.ton-logo-box .logo-dot.right {
-  left: calc(50% + 21px);
+.ton-logo-box .ton-logo-mark {
+  width: 40px;
+  height: 40px;
 }
 
 .welcome-text {
