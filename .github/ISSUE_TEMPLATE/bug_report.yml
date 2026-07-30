@@ -1,0 +1,46 @@
+name: Bug report
+description: Something in ton misbehaved
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please run `ton doctor` and redact secrets before pasting output.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Expected vs actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps or workspace notes
+      placeholder: |
+        1. ton setup …
+        2. ton -w …
+        3. /start …
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Linux / macOS / Windows
+    validations:
+      required: true
+  - type: input
+    id: driver
+    attributes:
+      label: Driver
+      placeholder: opencode / claude / cursor / fake
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: ton doctor (redacted)
+      render: shell

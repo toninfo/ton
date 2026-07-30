@@ -1,0 +1,90 @@
+# Example ~/.config/ton/config.yaml
+# Secrets must NOT be placed here — use environment variables instead.
+#   TON_LLM_API_KEY, CURSOR_API_KEY, …
+
+llm:
+  # OpenAI-compatible endpoint used by clarify + plan.
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4.1-mini"
+
+driver:
+  # Empty or auto: scan PATH for opencode/claude/agent and cache the selected driver.
+  # Explicit values pin the driver: opencode | claude | cursor | fake
+  # default: auto
+  discover_ttl_hours: 24
+  opencode:
+    cmd: opencode
+    manage_serve: true
+    serve_host: "127.0.0.1"
+    serve_port: 4096
+    timeout_sec: 14400
+    stop_on_session_end: false
+  claude:
+    # Set cmd: "" to skip optional PATH checks for unused drivers.
+    cmd: claude
+    permission_mode: dontAsk
+    timeout_sec: 14400
+  cursor:
+    cmd: agent
+    enabled: true
+    force: true
+    timeout_sec: 14400
+
+execute:
+  max_repairs: 2
+  on_exhausted: abort_session # or skip_step / continue_best_effort
+  stop: soft # default for bare /stop; override with /stop hard
+  queue_user_input: true
+  plan_max_retries: 3
+  min_steps: 1
+  max_steps: 40
+
+verify:
+  max_gate_repairs: 3
+  on_gate_exhausted: finish_with_failure_report
+  default_timeout_sec: 1800
+  shell: bash
+  log_max_bytes: 5242880
+
+git:
+  commit_required: false
+  push_failure: continue_report # or abort_session
+  allow_dirty_default: true # false → require dirty_confirmed before /start
+
+# Clarify never asks about driver / sandbox / auto-confirm / git commit —
+# ton applies those automatically (git.commit=true per successful step).
+
+budget:
+  max_usd: 0 # 0 = unlimited
+  max_tokens: 0
+  on_exceeded: abort_session
+
+ui:
+  show_todos: false      # Expand the todo panel at startup.
+  locale: en             # Reserved: TUI localization is not wired yet.
+  milestones_only: true  # Reserved: the current UI always prioritizes milestones.
+
+orchestrate:
+  conduct_clarify: true     # clarify: LLM conductor + Clarifier (no coding agent)
+  agent_plan: true          # after /start: LLM constraints → agent writes todos.json
+  conduct_verify: true
+  conduct_execute: true     # step exhaust asks conductor within on_exhausted
+  conduct_plan: true        # planning boundary constraints from conductor
+  conduct_summarize: true   # LLM narrative paragraph in report.md
+  contract_strict: false    # true: no stdout / LLM-planner fallbacks
+  ready_preflight: true
+  inject_repo_context: true
+
+# Full permissions are the default (enabled: false). Enable this to restrict them:
+sandbox:
+  enabled: false
+  # enabled: true
+  # workspace_only: true
+  # deny_home_dot_config: true
+
+# Playwright MCP defaults to a visible browser; ton forces headless for unattended runs.
+browser:
+  headless: true   # set false only when you want to watch the agent drive a GUI browser
+
+log:
+  level: info  # Reserved: structured logging is not implemented yet.

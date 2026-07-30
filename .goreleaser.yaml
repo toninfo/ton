@@ -1,0 +1,63 @@
+# Local: goreleaser release --snapshot --clean
+# Tags v*: .github/workflows/release.yml
+version: 2
+project_name: ton
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ton
+    main: ./cmd/ton
+    binary: ton
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    ids:
+      - ton
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  # git log (not GitHub compare) — survives deleting older release tags.
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^chore"
+      - "^docs"
+      - "^test"
+
+release:
+  draft: false
+  prerelease: auto
+  name_template: "ton {{.Tag}}"

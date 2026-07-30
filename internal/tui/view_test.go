@@ -1,0 +1,333 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/toninfo/ton/internal/clarify"
+	"github.com/toninfo/ton/internal/domain"
+)
+
+func TestDisplayMilestoneHidesConductor(t *testing.T) {
+	if got := displayMilestone("Conductor: update_cards — vague"); got != "" {
+		t.Fatal("conductor milestone should be hidden")
+	}
+	if got := displayMilestone("Ready preflight warn: missing"); got != "" {
+		t.Fatal("agent soft-fail should be hidden")
+	}
+	if got := displayMilestone("Planning complete"); got != "Planning complete" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAssistantReplyHidesThinkingDump(t *testing.T) {
+	got := clarify.ProgressReply(&clarify.ReqState{
+		Understanding: clarify.Understanding{
+			Summary: "The user greeted us but has not stated a feature, so ask for the goal.",
+		},
+	}, "hello", "", "")
+	if strings.Contains(strings.ToLower(got), "the user") {
+		t.Fatalf("thinking leaked: %q", got)
+	}
+	if !strings.Contains(got, "Describe the feature") {
+		t.Fatalf("want feature prompt fallback, got %q", got)
+	}
+}
+
+func TestChatKeepsPriorReplies(t *testing.T) {
+	m := Model{}
+	m.rememberUserTurn("hello")
+	m.chat[0].Reply = "Hello, what would you like to build?"
+	m.rememberUserTurn("what do you mean")
+	m.chat[1].Reply = "Please describe the goal."
+	got := m.chatView()
+	if !strings.Contains(got, "Hello, what would you like to build?") || !strings.Contains(got, "Please describe the goal.") {
+		t.Fatalf("prior replies lost: %q", got)
+	}
+}
+
+func TestApplyChatReplyMatchesByIDNotLast(t *testing.T) {
+	m := Model{}
+	idA := m.rememberUserTurn("send this first")
+	idB := m.rememberUserTurn("send this second")
+	// Simulate a slow request and return first: it must be written back to A and cannot be written to B.
+	if !m.applyChatReply(idA, "reply to the first message") {
+		t.Fatal("apply idA failed")
+	}
+	if m.chat[0].Reply != "reply to the first message" {
+		t.Fatalf("turn A reply = %q", m.chat[0].Reply)
+	}
+	if m.chat[1].Reply != "" {
+		t.Fatalf("turn B should still be empty, got %q", m.chat[1].Reply)
+	}
+	if !m.applyChatReply(idB, "reply to the second message") {
+		t.Fatal("apply idB failed")
+	}
+	got := m.chatView()
+	// Sequence: you A → ton A → you B → ton B
+	idxAUser := strings.Index(got, "send this first")
+	idxAReply := strings.Index(got, "reply to the first message")
+	idxBUser := strings.Index(got, "send this second")
+	idxBReply := strings.Index(got, "reply to the second message")
+	if !(idxAUser < idxAReply && idxAReply < idxBUser && idxBUser < idxBReply) {
+		t.Fatalf("chat order broken:\n%s", got)
+	}
+}
+
+func TestApplyChatReplyIgnoresUnknownID(t *testing.T) {
+	m := Model{}
+	m.rememberUserTurn("only one message")
+	if m.applyChatReply(999, "ghost reply") {
+		t.Fatal("unknown id should not apply")
+	}
+	if m.chat[0].Reply != "" {
+		t.Fatalf("should not blind-write last turn, got %q", m.chat[0].Reply)
+	}
+}
+
+func TestMainContentHidesStaleDecideWhileBusy(t *testing.T) {
+	m := Model{
+		busy:    true,
+		session: domain.Session{Phase: domain.PhaseClarifying},
+		clarify: clarify.ReqState{
+			Decide: clarify.Decide{Items: []clarify.Decision{
+				{Question: "What kind of website is it?", Blocking: true},
+			}},
+		},
+	}
+	if got := m.mainContent(); got != "" {
+		t.Fatalf("busy clarify should hide stale decide card, got %q", got)
+	}
+	m.busy = false
+	if got := m.mainContent(); !strings.Contains(got, "What kind of website is it?") {
+		t.Fatalf("idle should show decide, got %q", got)
+	}
+}
+
+func TestTodosSidebarDuringPlanningShowsWritingPlan(t *testing.T) {
+	m := Model{
+		showTodos: true,
+		width:     120,
+		height:    40,
+		session:   domain.Session{Phase: domain.PhasePlanning, Subphase: "planning"},
+	}
+	if !m.useTodoSidebar(120) {
+		t.Fatal("planning with empty todos should still use sidebar")
+	}
+	got := m.todosContentCompact(10)
+	if !strings.Contains(got, "Writing plan") {
+		t.Fatalf("want Writing plan hint, got %q", got)
+	}
+	if strings.Contains(got, "No plan has been generated") {
+		t.Fatalf("stale empty-plan copy during planning: %q", got)
+	}
+}
+
+func TestClarifyContentSoftAlignPanelNotHardGate(t *testing.T) {
+	req, des := clarifyAdequateDocs(t)
+	state := clarify.ReqState{
+		Requirements: req,
+		Design:       des,
+		Readiness: clarify.Readiness{
+			Ready: false,
+			Gaps:  []string{"UI layout unset", "acceptance command missing"},
+		},
+	}
+	got := clarifyContent(state, "")
+	if strings.Contains(got, "Not long-run ready") {
+		t.Fatalf("hard-gate wording must not appear in soft panel: %q", got)
+	}
+	if !strings.Contains(got, "Still aligning") {
+		t.Fatalf("want soft align panel, got %q", got)
+	}
+	if !strings.Contains(got, "UI layout unset") {
+		t.Fatalf("product gaps should remain visible for discussion: %q", got)
+	}
+}
+
+func clarifyAdequateDocs(t *testing.T) (string, string) {
+	t.Helper()
+	req := strings.Repeat("# Goal\nBuild something real.\n\n## Features\n- a\n- b\n- c\n\n## Non-goals\n- x\n\n## Acceptance\n- y\n", 2)
+	des := strings.Repeat("# Design\n## Stack\n- go\n\n## UI\n- page\n\n## Verify\n- test\n", 2)
+	state := clarify.ReqState{Requirements: req, Design: des}
+	if !clarify.DocsReady(&state) {
+		req = strings.Repeat(req, 3)
+		des = strings.Repeat(des, 3)
+	}
+	return req, des
+}
+
+func TestClarifyContentOmitsOpsNoise(t *testing.T) {
+	state := clarify.ReqState{
+		Understanding: clarify.Understanding{
+			Summary: "This feature adds Chinese localization to ton — automatically detecting…",
+		},
+		Assumptions: clarify.Assumptions{Items: []string{"Workspace is cloned locally"}},
+		Decide: clarify.Decide{Items: []clarify.Decision{
+			{Question: "Which coding agent driver?", Blocking: true},
+			{Question: "OAuth or API keys for end users?", Blocking: true},
+		}},
+		Fallback: clarify.Fallback{
+			Confirmed:      true,
+			PermissionMode: "dontAsk",
+			Git:            clarify.FallbackGitPolicy{Commit: true, Branch: "main"},
+		},
+		Acceptance: clarify.Acceptance{Confirmed: false},
+	}
+	clarify.ApplyAutomationDefaults(&state, clarify.AutomationDefaults{PermissionMode: "dontAsk", GitBranch: "main"})
+
+	got := clarifyContent(state, "")
+	if strings.Contains(got, "Chinese localization") || strings.Contains(got, "This feature") {
+		t.Fatalf("understanding summary should not render (looks like thinking): %q", got)
+	}
+	if strings.Contains(got, "driver") {
+		t.Fatalf("ops decision leaked: %q", got)
+	}
+	if !strings.Contains(got, "OAuth") {
+		t.Fatalf("product decision missing: %q", got)
+	}
+}
+
+
+
+func TestWrapNotice(t *testing.T) {
+	long := "Error: clarify: decode LLM card JSON: json: cannot unmarshal string into Go struct field AcceptanceGate.acceptance.gate"
+	got := wrapNotice(long, 40)
+	if got == long {
+		t.Fatal("expected wrapping")
+	}
+	if !containsLineBreak(got) {
+		t.Fatalf("want newline, got %q", got)
+	}
+}
+
+func containsLineBreak(s string) bool {
+	for _, r := range s {
+		if r == '\n' {
+			return true
+		}
+	}
+	return false
+}
+
+func TestMilestoneLogShowsProgressTrail(t *testing.T) {
+	m := Model{
+		session: domain.Session{Phase: domain.PhaseExecuting},
+	}
+	m.appendMilestoneLog("Planning…")
+	m.appendMilestoneLog("Execute 1/2 — login.html")
+	m.appendMilestoneLog("Conductor: skip me")
+	m.appendMilestoneLog("Verify running")
+	m.appendMilestoneLog("Done")
+	got := m.mainContent()
+	if !strings.Contains(got, "Progress") {
+		t.Fatalf("want Progress section, got %q", got)
+	}
+	if !strings.Contains(got, "Execute 1/2") || !strings.Contains(got, "Verify running") || !strings.Contains(got, "Done") {
+		t.Fatalf("want key milestones, got %q", got)
+	}
+	if strings.Contains(got, "Conductor:") {
+		t.Fatalf("conductor noise leaked: %q", got)
+	}
+}
+
+func TestStartFinishReplyIncludesArtifacts(t *testing.T) {
+	got := startFinishReply("Session finished.", []string{"Planning…", "Verify passed", "Done"}, domain.Session{
+		ID:             "ses-9",
+		TerminalStatus: domain.TerminalDone,
+	}, domain.TodoList{})
+	if strings.Contains(got, "Progress:") || strings.Contains(got, "Artifacts:") || strings.Contains(got, "Resume:") {
+		t.Fatalf("done reply should stay short (no progress/resume wall), got %q", got)
+	}
+	if !strings.Contains(got, "Session completed") && !strings.Contains(got, "/start") {
+		t.Fatalf("want short done follow-up, got %q", got)
+	}
+	if strings.Contains(got, "Verify passed") {
+		t.Fatalf("progress lines should not enter chat, got %q", got)
+	}
+}
+
+func TestStartFinishReplyAbortedPromptsRestart(t *testing.T) {
+	todos := domain.TodoList{Items: []domain.TodoItem{
+		{ID: "1", Status: domain.TodoDone},
+		{ID: "2", Status: domain.TodoPending},
+		{ID: "3", Status: domain.TodoPending},
+	}}
+	got := startFinishReply("Session aborted.", nil, domain.Session{
+		ID:             "ses-9",
+		TerminalStatus: domain.TerminalAborted,
+	}, todos)
+	if !strings.Contains(got, "/start") || !strings.Contains(got, "2 steps") {
+		t.Fatalf("want continue hint with pending count, got %q", got)
+	}
+	if strings.Contains(got, "Resume:") || strings.Contains(got, "Artifacts:") {
+		t.Fatalf("aborted continue should not dump resume wall, got %q", got)
+	}
+}
+
+func TestTerminalFollowUpHint(t *testing.T) {
+	got := terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseDone}, 0)
+	if !strings.Contains(got, "has ended") || !strings.Contains(got, "/start") {
+		t.Fatalf("want warm done hint, got %q", got)
+	}
+	if strings.Contains(got, "Artifacts:") {
+		t.Fatalf("follow-up hint should not dump artifacts wall, got %q", got)
+	}
+	got = terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseAborted}, 3)
+	if !strings.Contains(got, "3 steps") || !strings.Contains(got, "/start") {
+		t.Fatalf("want aborted pending hint, got %q", got)
+	}
+}
+
+func TestTodoSidebarUsesWindowNotFullList(t *testing.T) {
+	items := make([]domain.TodoItem, 40)
+	for i := range items {
+		items[i] = domain.TodoItem{Title: fmt.Sprintf("step-%02d-a-long-title-used-to-test-truncation", i+1), Status: domain.TodoPending}
+	}
+	for i := 0; i < 7; i++ {
+		items[i].Status = domain.TodoDone
+	}
+	items[7].Status = domain.TodoRunning
+	m := Model{
+		width:     120,
+		height:    30,
+		showTodos: true,
+		session:   domain.Session{Phase: domain.PhaseExecuting},
+		todos:     domain.TodoList{Items: items},
+	}
+	if !m.useTodoSidebar(m.viewWidth()) {
+		t.Fatal("expected sidebar on wide terminal")
+	}
+	side := m.todosSidebar(30, 12)
+	if !strings.Contains(side, "Todos 7/40") {
+		t.Fatalf("want counts, got %q", side)
+	}
+	// Windowing: All 40 items should not be typed out
+	if strings.Count(side, "\n") > 14 {
+		t.Fatalf("sidebar too tall: %q", side)
+	}
+	if !strings.Contains(side, "step-08") {
+		t.Fatalf("focus running item missing: %q", side)
+	}
+	got := m.View()
+	if !strings.Contains(got, "│") {
+		t.Fatalf("want column separator in dual layout, got %q", got)
+	}
+}
+
+func TestStackedTodosAreWindowed(t *testing.T) {
+	items := make([]domain.TodoItem, 30)
+	for i := range items {
+		items[i] = domain.TodoItem{Title: fmt.Sprintf("t%d", i), Status: domain.TodoPending}
+	}
+	items[10].Status = domain.TodoRunning
+	m := Model{todos: domain.TodoList{Items: items}}
+	got := m.todosContentCompact(8)
+	if strings.Count(got, "\n") > 10 {
+		t.Fatalf("compact list too long: %q", got)
+	}
+	if !strings.Contains(got, "t10") {
+		t.Fatalf("running focus missing: %q", got)
+	}
+}

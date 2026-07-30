@@ -1,0 +1,52 @@
+# Local build artifacts
+/ton
+/ton.exe
+dist/
+*.exe
+*.exe~
+*~
+*.tmp
+*.test
+*.out
+coverage
+coverage.out
+coverage.html
+
+# Runtime logs
+*.log
+ton-stdout.log
+ton-stderr.log
+
+# Local environment and session artifacts (do not commit secrets or session logs).
+.env
+.env.*
+examples/nago/nago.local.env
+examples/nago/nago.session.json
+examples/nago/nago.memory.json
+examples/nago/nago.profile.json
+.superpowers/
+**/.ton/
+
+# Tool / agent session caches (never ship)
+.omo/
+**/.omo/
+.playwright-mcp/
+
+# Python bytecode
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local-only helper scripts (machine-specific paths)
+run-demo.bat
+
+# Scratch / agent-created project dirs under the ton repo (never ship)
+/tmp/
