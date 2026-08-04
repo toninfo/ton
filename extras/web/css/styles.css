@@ -1,30 +1,32 @@
-/* TON product site — visual system aligned with kimi.com/code (dark theme). */
+/* TON product site — dark theme with brand motion + mobile-first layout. */
 
 :root {
   color-scheme: dark;
 
   --Colors-KMBlue: #1a88ff;
   --Colors-KMBlue-hover: rgba(37, 142, 255, 1);
+  --Colors-Brand: #ff4756;
+  --Colors-Brand-soft: rgba(255, 71, 86, 0.14);
   --Colors-Yellow: #ffd230;
   --Colors-Red: #ff4756;
   --Colors-PositiveGreen: #16c456;
   --Others-KMBlue10: rgba(26, 136, 255, 0.12);
 
-  --Bg-Primary: #121212;
-  --Bg-Secondary: #1f1f1f;
-  --Bg-Tertiary: #292929;
+  --Bg-Primary: #0c0c0e;
+  --Bg-Secondary: #161618;
+  --Bg-Tertiary: #222226;
   --Bg-Quaternary: #4d4d4d;
-  --Bg-Ground: #181817;
+  --Bg-Ground: #121214;
 
-  --Labels-Primary: rgba(255, 255, 255, 0.84);
-  --Labels-Primary-solid: #f2f2f2;
-  --Labels-Secondary: rgba(255, 255, 255, 0.56);
-  --Labels-Tertiary: rgba(255, 255, 255, 0.42);
-  --Labels-Quaternary: rgba(255, 255, 255, 0.26);
+  --Labels-Primary: rgba(255, 255, 255, 0.92);
+  --Labels-Primary-solid: #f4f4f5;
+  --Labels-Secondary: rgba(255, 255, 255, 0.62);
+  --Labels-Tertiary: rgba(255, 255, 255, 0.44);
+  --Labels-Quaternary: rgba(255, 255, 255, 0.28);
 
-  --Fills-F1: rgba(255, 255, 255, 0.05);
+  --Fills-F1: rgba(255, 255, 255, 0.06);
   --Fills-F2: rgba(255, 255, 255, 0.1);
-  --Separators-S1: rgba(255, 255, 255, 0.12);
+  --Separators-S1: rgba(255, 255, 255, 0.1);
   --Always-White: #ffffff;
 
   --font-sans: "PingFang SC", "SF Pro Text", "Segoe UI", "Noto Sans SC",
@@ -32,8 +34,10 @@
   --font-mono: "Geist Mono", "SF Mono", "JetBrains Mono", "Cascadia Code",
     ui-monospace, Menlo, Consolas, monospace;
 
-  --max: 1440px;
-  --pad-x: 80px;
+  --max: 1200px;
+  --pad-x: clamp(16px, 4vw, 80px);
+  --radius-lg: 16px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 *,
@@ -55,21 +59,37 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button {
-  font: inherit;
-}
-
+/* Ambient mesh — keeps the page from feeling flat */
 .page {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow-x: hidden;
+  position: relative;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -8%, rgba(255, 71, 86, 0.12), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 85% 15%, rgba(26, 136, 255, 0.1), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 10% 25%, rgba(26, 136, 255, 0.06), transparent 45%),
+    var(--Bg-Primary);
+}
+
+.page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(180deg, black 0%, transparent 70%);
+}
+
+.page > * {
+  position: relative;
+  z-index: 1;
+  width: 100%;
 }
 
 /* —— Header —— */
@@ -78,17 +98,23 @@ button {
   top: 0;
   z-index: 20;
   width: 100%;
-  background: var(--Bg-Primary);
+  background: rgba(12, 12, 14, 0.72);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   border-bottom: 0.5px solid var(--Separators-S1);
 }
 
 .ton-nav {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 16px var(--pad-x);
+  padding: 12px var(--pad-x);
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.ton-nav-right {
+  position: relative;
 }
 
 .ton-logo {
@@ -265,21 +291,52 @@ button {
 
 /* —— Banner —— */
 .ton-banner {
-  margin: 96px auto 0;
+  margin: clamp(48px, 8vw, 72px) auto 0;
   display: flex;
   justify-content: center;
-  padding: 0 24px;
+  padding: 0 var(--pad-x);
 }
 
 .ton-banner-content {
   display: flex;
   align-items: center;
-  gap: 24px;
-  max-width: 1200px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: var(--Others-KMBlue10);
-  backdrop-filter: blur(1px);
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 20px;
+  max-width: 720px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--Others-KMBlue10), var(--Colors-Brand-soft));
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  animation: banner-in 0.7s var(--ease-out) both;
+}
+
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.ton-banner-action a {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--Colors-Brand) 0%, #e63545 100%);
+  color: #fff !important;
+  font-weight: 600;
+  transition: transform 0.15s var(--ease-out), filter 0.15s;
+}
+
+.ton-banner-action a:hover {
+  filter: brightness(1.08);
+}
+
+.ton-banner-action a:active {
+  transform: scale(0.97);
 }
 
 .ton-banner-text,
@@ -298,10 +355,36 @@ button {
 /* —— Hero —— */
 .ton-hero {
   width: 100%;
-  margin-top: 32px;
-  padding: 0 24px;
+  margin-top: clamp(24px, 5vw, 40px);
+  padding: 0 var(--pad-x) clamp(16px, 4vw, 32px);
   display: flex;
   justify-content: center;
+  position: relative;
+}
+
+.hero-glow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, 90vw);
+  height: 280px;
+  background: radial-gradient(ellipse at center, rgba(255, 71, 86, 0.22), transparent 68%);
+  filter: blur(40px);
+  pointer-events: none;
+  animation: glow-pulse 6s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.06);
+  }
 }
 
 .ton-hero-content {
@@ -309,34 +392,58 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  animation: hero-in 0.8s var(--ease-out) 0.05s both;
+}
+
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.hero-eyebrow {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--Colors-Brand);
 }
 
 .ton-hero-title {
   margin: 0;
-  font-size: 48px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.96px;
+  font-size: clamp(40px, 10vw, 56px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
   color: var(--Labels-Primary);
+  background: linear-gradient(180deg, #fff 0%, rgba(255, 255, 255, 0.72) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .ton-hero-subtitle {
   margin: 0;
-  max-width: 800px;
-  font-size: 20px;
-  line-height: 30px;
+  max-width: 36em;
+  font-size: clamp(16px, 2.8vw, 20px);
+  line-height: 1.55;
   color: var(--Labels-Secondary);
 }
 
 /* —— Install —— */
 .ton-install {
+  position: relative;
+  z-index: 10; /* 下拉菜单需压过下方 feature 区块 */
   width: 100%;
-  max-width: 590px;
-  margin: 0 auto 96px;
-  padding: 32px 24px 0;
+  max-width: 640px;
+  margin: 0 auto clamp(32px, 6vw, 56px);
+  padding: 0 var(--pad-x);
   display: flex;
   justify-content: center;
+  overflow: visible;
 }
 
 .install-options {
@@ -344,49 +451,85 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.install-hint {
-  margin: 0;
-  padding: 0 8px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--Labels-Tertiary, #8e8e93);
-}
-
-.install-hint code {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--Labels-Secondary, #aeaeb2);
+  overflow: visible;
 }
 
 .install-input {
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
-  padding: 4px;
-  border-radius: 14px;
-  background: var(--Bg-Secondary);
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  background: rgba(22, 22, 24, 0.85);
+  border: 0.5px solid var(--Separators-S1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  overflow: visible;
+}
+
+.command-display {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 12px;
+  background: var(--Bg-Ground);
+}
+
+.command-text {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 2.8vw, 13px);
+  line-height: 1.45;
+  color: var(--Labels-Secondary);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--Labels-Secondary);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.copy-btn:hover {
+  color: var(--Labels-Primary);
+  background: var(--Fills-F1);
+}
+
+.copy-btn.copied {
+  color: var(--Colors-PositiveGreen);
 }
 
 .install-select-wrap {
   position: relative;
   flex-shrink: 0;
+  z-index: 2;
 }
 
 .install-select {
   flex-shrink: 0;
-  height: 32px;
-  padding: 0 8px 0 10px;
+  min-height: 40px;
+  padding: 0 10px 0 12px;
   border-radius: 10px;
-  background: var(--Labels-Primary-solid);
+  background: linear-gradient(180deg, #fff 0%, #e8e8ea 100%);
   color: var(--Bg-Primary);
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
   border: none;
@@ -407,8 +550,8 @@ button {
   padding: 6px;
   border-radius: 12px;
   background: var(--Bg-Tertiary);
-  box-shadow: 0 4px 10px #0000001a;
-  z-index: 30;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 50;
   border: 0.5px solid var(--Separators-S1);
 }
 
@@ -421,8 +564,8 @@ button {
   text-align: left;
   border: none;
   background: none;
-  border-radius: 6px;
-  padding: 10px 8px;
+  border-radius: 8px;
+  padding: 10px 12px;
   font-size: 14px;
   color: var(--Labels-Primary);
   cursor: pointer;
@@ -433,95 +576,42 @@ button {
   background: var(--Fills-F1);
 }
 
-.command-display {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.command-text {
-  flex: 1;
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--Labels-Secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.copy-btn {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--Labels-Secondary);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: color 0.2s, background-color 0.2s;
-}
-
-.copy-btn:hover {
-  color: var(--Labels-Primary);
-  background: var(--Fills-F1);
-}
-
-.copy-btn.copied {
-  color: var(--Colors-PositiveGreen);
-}
-
-.ton-cta-row {
-  display: none;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  margin: 32px 0 80px;
-}
-
 .ton-btn {
-  height: 40px;
-  padding: 0 16px;
+  min-height: 44px;
+  padding: 0 20px;
   border-radius: 12px;
   border: none;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s, color 0.2s, opacity 0.2s;
+  transition: background-color 0.2s, color 0.2s, transform 0.15s var(--ease-out);
 }
 
 .ton-btn.primary {
-  background: var(--Labels-Primary-solid);
-  color: var(--Bg-Primary);
+  background: linear-gradient(180deg, var(--Colors-Brand) 0%, #e63545 100%);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(255, 71, 86, 0.35);
 }
 
 .ton-btn.primary:hover {
-  opacity: 0.88;
+  filter: brightness(1.06);
+}
+
+.ton-btn.primary:active {
+  transform: scale(0.98);
 }
 
 .ton-btn.plain {
   background: var(--Bg-Secondary);
   color: var(--Labels-Primary);
+  border: 0.5px solid var(--Separators-S1);
 }
 
 .ton-btn.plain:hover {
   background: var(--Bg-Tertiary);
-}
-
-.ton-cta-desktop {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin: -64px auto 80px;
-  padding: 0 24px;
 }
 
 /* —— Feature tabs —— */
@@ -531,13 +621,13 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 32px;
-  padding: 0 24px 96px;
+  padding: 0 var(--pad-x) clamp(64px, 10vw, 96px);
 }
 
 .section-title {
   margin: 0;
   text-align: center;
-  font-size: 24px;
+  font-size: clamp(22px, 4vw, 28px);
   font-weight: 600;
   color: var(--Labels-Primary);
 }
@@ -582,10 +672,13 @@ button {
 
 .content-display {
   width: min(1000px, 100%);
+  min-height: 320px;
   aspect-ratio: 775 / 415;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   position: relative;
+  border: 0.5px solid var(--Separators-S1);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
 }
 
 .content-wrapper {
@@ -679,132 +772,131 @@ button {
 
 .window-content {
   flex: 1;
-  padding: 16px;
+  padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 22px;
   overflow: auto;
 }
 
-.welcome-box {
-  border: 0.5px solid var(--Colors-KMBlue);
-  border-radius: 14px;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* 真实 TUI 布局：顶栏 / 分隔线 / you·ton / Open questions / > */
+.ton-tui {
+  font-family: var(--font-mono);
+  font-size: clamp(12px, 2.4vw, 13.5px);
+  line-height: 1.55;
+  gap: 0;
 }
 
-.box-row {
-  display: flex;
-  gap: 13px;
-}
-
-.ton-brand-badge {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  overflow: hidden;
-  flex-shrink: 0;
-  line-height: 0;
-}
-
-.ton-brand-badge img {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  display: block;
-  vertical-align: top;
-}
-
-.welcome-text {
-  color: var(--Labels-Secondary);
-  display: flex;
-  flex-direction: column;
-}
-
-.welcome-text p {
-  margin: 0;
-}
-
-.model-line {
-  color: var(--Labels-Secondary);
-}
-
-.cli-output {
-  color: var(--Labels-Secondary);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.cmd-line {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.prompt-user {
-  color: var(--Labels-Primary);
-}
-
-.prompt-input {
-  color: var(--Labels-Secondary);
-  margin-left: 4px;
-}
-
-.input-box {
-  border: 0.5px solid var(--Colors-KMBlue);
-  border-radius: 6px;
-  padding: 4px 8px;
-  color: var(--Labels-Primary);
-  width: fit-content;
-  max-width: 100%;
-}
-
-.thinking-line,
-.response-line {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.bullet {
-  color: var(--Colors-Yellow);
-  flex-shrink: 0;
-  font-size: 10px;
-  line-height: 22px;
-}
-
-.thinking-text {
-  color: var(--Labels-Tertiary);
-  font-style: italic;
-}
-
-.response-text {
-  color: var(--Labels-Primary);
-}
-
-.feature-list {
+.tui-top {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  margin-bottom: 6px;
 }
 
-.feature-item {
-  display: flex;
-  gap: 8px;
+.tui-brand {
   color: var(--Labels-Secondary);
 }
 
-.bullet-small {
-  color: var(--Labels-Quaternary);
-  font-size: 8px;
-  line-height: 22px;
+.tui-name {
+  color: var(--Colors-KMBlue);
+  font-weight: 700;
+}
+
+.tui-meta {
+  color: var(--Labels-Tertiary);
+}
+
+.tui-phase {
+  color: var(--Labels-Tertiary);
+  font-weight: 500;
+}
+
+.tui-rule {
+  height: 0;
+  border: none;
+  border-top: 1px dashed var(--Separators-S1);
+  margin: 0 0 12px;
+}
+
+.tui-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.tui-turn {
+  display: grid;
+  grid-template-columns: 2.5em 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.tui-who {
+  font-weight: 700;
+  text-align: left;
+}
+
+.tui-who.you {
+  color: var(--Labels-Tertiary);
+}
+
+.tui-who.ton {
+  color: var(--Colors-KMBlue);
+}
+
+.tui-msg {
+  color: var(--Labels-Primary);
+  word-break: break-word;
+}
+
+.tui-panel {
+  margin-bottom: 16px;
+  color: var(--Labels-Secondary);
+}
+
+.tui-panel-title {
+  margin-bottom: 4px;
+  color: var(--Labels-Tertiary);
+}
+
+.tui-panel-item {
+  padding-left: 0.5em;
+  color: var(--Labels-Secondary);
+}
+
+.tui-input {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.tui-prompt {
+  color: var(--Colors-KMBlue);
+  font-weight: 700;
+}
+
+.tui-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.1em;
+  background: var(--Colors-KMBlue);
+  opacity: 0.85;
+  animation: tui-blink 1.1s steps(1) infinite;
+}
+
+@keyframes tui-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tui-cursor {
+    animation: none;
+  }
 }
 
 .drivers-card {
@@ -854,73 +946,86 @@ button {
   line-height: 18px;
 }
 
-.feature-install {
-  width: min(590px, 100%);
-  margin-top: 8px;
-}
-
-.feature-install .ton-btn {
-  display: none;
-}
-
 /* —— Loop section (replaces pricing) —— */
 .loop-section {
   width: 100%;
-  padding: 48px 24px 120px;
+  padding: clamp(40px, 8vw, 64px) var(--pad-x) clamp(80px, 12vw, 120px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow-x: hidden; /* scroll lives on .loop-flow-scroll */
+  overflow-x: hidden;
 }
 
 .loop-section h2 {
   margin: 0 0 8px;
   text-align: center;
-  font-size: 24px;
+  font-size: clamp(22px, 4vw, 28px);
   font-weight: 600;
 }
 
 .loop-section .sub {
-  margin: 0 0 32px;
+  margin: 0 0 clamp(24px, 5vw, 40px);
   text-align: center;
   color: var(--Labels-Secondary);
-  font-size: 16px;
-  line-height: 24px;
+  font-size: clamp(15px, 2.5vw, 16px);
+  line-height: 1.5;
+  max-width: 36em;
 }
 
-/* Full-bleed scrollport so one row never wraps; swipe/scroll on narrow viewports. */
 .loop-flow-scroll {
   width: 100%;
-  max-width: 1200px;
+  max-width: var(--max);
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--Fills-F3, rgba(255, 255, 255, 0.18)) transparent;
-  padding-bottom: 4px;
+  padding-bottom: 8px;
 }
 
 .loop-flow {
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
-  justify-content: center;
-  gap: 8px;
+  justify-content: center; /* 宽屏居中；窄屏溢出时由 .loop-flow-scroll 横向滑动 */
+  gap: 6px;
   width: max-content;
   min-width: 100%;
   margin: 0 auto;
-  padding: 0 8px;
+  padding: 4px 8px 12px;
   box-sizing: border-box;
 }
 
 .loop-step {
+  position: relative;
   background: var(--Bg-Secondary);
   border: 0.5px solid var(--Separators-S1);
-  border-radius: 12px;
-  padding: 12px 14px;
-  min-width: 108px;
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  min-width: 112px;
   flex: 0 0 auto;
   text-align: center;
+  transition: transform 0.2s var(--ease-out), border-color 0.2s, box-shadow 0.2s;
+}
+
+.loop-step:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 71, 86, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.loop-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--Colors-Brand);
+  background: var(--Colors-Brand-soft);
 }
 
 .loop-step strong {
@@ -929,11 +1034,12 @@ button {
   margin-bottom: 4px;
 }
 
-.loop-step span {
+.loop-step span:not(.loop-num) {
+  display: block;
   font-size: 11px;
   color: var(--Labels-Secondary);
   line-height: 1.35;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .loop-arrow {
@@ -942,6 +1048,7 @@ button {
   font-size: 16px;
   flex: 0 0 auto;
   line-height: 1;
+  padding: 0 2px;
 }
 
 /* —— Footer —— */
@@ -1063,7 +1170,7 @@ button {
 
 @media (max-width: 760px) {
   :root {
-    --pad-x: 20px;
+    --pad-x: 16px;
   }
 
   .ton-desktop-only {
@@ -1075,61 +1182,152 @@ button {
   }
 
   .ton-banner {
-    margin-top: 80px;
+    margin-top: 72px;
+    padding: 0 var(--pad-x);
   }
 
   .ton-banner-content {
-    gap: 16px;
+    gap: 10px;
+    border-radius: 16px;
+    padding: 12px 14px;
   }
 
-  .ton-install {
+  .ton-banner-text {
+    font-size: 13px;
+    text-align: center;
+    width: 100%;
+  }
+
+  /* 移动端保留安装区，纵向堆叠便于触控 */
+  .install-input {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .install-select-wrap {
+    width: 100%;
+  }
+
+  .install-select {
+    width: 100%;
+    justify-content: space-between;
+    min-height: 44px;
+  }
+
+  .command-display {
+    padding: 8px 10px;
+    min-height: 44px;
+  }
+
+  .feature-section {
+    padding: 0 var(--pad-x) 64px;
+    gap: 24px;
+  }
+
+  .content-display {
+    aspect-ratio: auto;
+    min-height: 420px;
+  }
+
+  .content-wrapper,
+  .panel {
+    padding-top: 32px;
+  }
+
+  .terminal-window,
+  .drivers-card {
+    width: calc(100% - 32px);
+    height: auto;
+    min-height: 360px;
+    max-height: none;
+  }
+
+  /* 窄屏：闭环步骤竖排，去掉横向箭头 */
+  .loop-flow-scroll {
+    overflow-x: visible;
+  }
+
+  .loop-flow {
+    flex-direction: column;
+    width: 100%;
+    max-width: 280px;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+  }
+
+  .loop-arrow {
     display: none;
   }
 
-  .ton-cta-desktop {
-    display: none;
+  .loop-step {
+    min-width: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 2px 12px;
+    text-align: left;
+    padding: 14px 16px;
   }
 
-  .ton-cta-row {
-    display: flex;
+  .loop-num {
+    grid-row: 1 / span 2;
+    align-self: center;
+    margin: 0;
   }
 
-  .feature-install .install-input {
-    display: none;
+  .loop-step strong {
+    margin: 0;
+    align-self: end;
   }
 
-  .feature-install .ton-btn {
-    display: inline-flex;
+  .loop-step span:not(.loop-num) {
+    align-self: start;
   }
 }
 
 @media (max-width: 600px) {
   .ton-hero-title {
-    font-size: 40px;
+    font-size: clamp(36px, 12vw, 44px);
   }
 
-  .ton-hero-subtitle {
-    font-size: 16px;
-    line-height: 24px;
+  .tabs-switcher {
+    width: 100%;
+    max-width: 320px;
   }
 
-  .terminal-window,
-  .drivers-card {
-    width: calc(100% - 48px);
+  .tab-item {
+    flex: 1;
+    min-width: 0;
+    padding: 3px 8px;
+    font-size: 13px;
   }
 
   .footer-main {
     flex-direction: column;
-    gap: 48px;
+    gap: 40px;
   }
 
   .footer-cols {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 48px 24px;
+    gap: 32px 20px;
   }
 
   .ton-footer {
-    padding: 48px 0 24px;
+    padding: 40px 0 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

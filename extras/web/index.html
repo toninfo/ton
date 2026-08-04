@@ -15,7 +15,7 @@
     <link rel="icon" type="image/png" href="./assets/favicon-48.png" sizes="48x48" />
     <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
     <meta property="og:image" content="./assets/logo.png" />
-    <link rel="stylesheet" href="./css/styles.css?v=logo2" />
+    <link rel="stylesheet" href="./css/styles.css?v=extras9" />
   </head>
   <body>
     <div class="page">
@@ -129,23 +129,24 @@
         </nav>
       </header>
 
-      <!-- Banner -->
+      <!-- Banner：版本公告，不重复下方闭环步骤 -->
       <section class="ton-banner" data-i18n-aria-label="banner.aria" aria-label="Announcement">
         <div class="ton-banner-content">
-          <p class="ton-banner-text">v1 · Clarify → Plan → Execute → Verify ⇄ Repair</p>
+          <p class="ton-banner-text" data-i18n="banner.text">v1.0 · open source · MIT</p>
           <p class="ton-banner-action">
             <a href="#install" style="color: inherit" data-i18n="banner.cta">Install</a>
           </p>
         </div>
       </section>
 
-      <!-- Hero -->
+      <!-- Hero：价值主张；闭环细节见 #loop -->
       <section class="ton-hero">
+        <div class="hero-glow" aria-hidden="true"></div>
         <div class="ton-hero-content">
+          <p class="hero-eyebrow" data-i18n="hero.eyebrow">Local · auditable · unattended</p>
           <h1 class="ton-hero-title">TON</h1>
-          <p class="ton-hero-subtitle" data-i18n-html="hero.subtitle">
-            Local TUI for auditable coding-agent sessions.<br />
-            Clarify → Plan → Execute → Verify ⇄ Repair → Summarize
+          <p class="ton-hero-subtitle" data-i18n="hero.subtitle">
+            Local TUI for auditable coding-agent sessions.
           </p>
         </div>
       </section>
@@ -213,35 +214,8 @@
               </button>
             </div>
           </div>
-          <p class="install-hint" data-i18n-html="install.hint">
-            New terminal → <code>ton doctor</code>.
-            <code>go install</code>: put <code>$(go env GOPATH)/bin</code> on <code>PATH</code>.
-          </p>
         </div>
       </section>
-
-      <div class="ton-cta-desktop">
-        <a class="ton-btn primary" href="#install" data-i18n="cta.start">Install</a>
-        <a
-          class="ton-btn plain"
-          href="https://github.com/toninfo/ton#quick-start"
-          target="_blank"
-          rel="noopener noreferrer"
-          data-i18n="cta.guide"
-          >Guide</a
-        >
-      </div>
-      <div class="ton-cta-row">
-        <a class="ton-btn primary" href="#install" data-i18n="cta.start">Install</a>
-        <a
-          class="ton-btn plain"
-          href="https://github.com/toninfo/ton#quick-start"
-          target="_blank"
-          rel="noopener noreferrer"
-          data-i18n="cta.guide"
-          >Guide</a
-        >
-      </div>
 
       <!-- Feature: Terminal / Drivers -->
       <section class="feature-section" id="features">
@@ -257,6 +231,7 @@
 
         <div class="content-display">
           <div class="content-wrapper panel active" id="panel-terminal" data-panel="terminal">
+            <!-- 忠实还原真实 TUI：顶栏两行 + you/ton 对话 + Open questions + > 输入 -->
             <div class="terminal-window" data-i18n-aria-label="terminal.aria" aria-label="TON TUI preview">
               <div class="window-header">
                 <div class="controls">
@@ -264,65 +239,37 @@
                   <span class="control-dot yellow"></span>
                   <span class="control-dot green"></span>
                 </div>
-                <div class="window-title">ton</div>
+                <div class="window-title">Ton</div>
                 <div class="header-spacer"></div>
               </div>
-              <div class="window-content">
-                <div class="welcome-box">
-                  <div class="box-row">
-                    <div class="ton-brand-badge" aria-hidden="true">
-                      <img src="./assets/logo-64.png" width="48" height="48" alt="" decoding="async" />
-                    </div>
-                    <div class="welcome-text">
-                      <p>TON — AI Engineering Session</p>
-                      <p>/help · /start when Ready</p>
-                    </div>
+              <div class="window-content ton-tui">
+                <div class="tui-top">
+                  <div class="tui-brand">
+                    <span class="tui-name">Ton</span>
+                    <span class="tui-meta"> · myapp · opencode · deepseek-chat</span>
                   </div>
-                  <div class="model-line">Driver: opencode · Phase: clarify</div>
+                  <div class="tui-phase" data-i18n="terminal.phase">Clarify</div>
                 </div>
-                <div class="cli-output">
-                  <div class="cmd-line">
-                    <span class="prompt-user">you@ton</span>
-                    <span class="prompt-emoji">⚡</span>
-                    <span class="prompt-input" data-i18n="terminal.prompt"
-                      >Make the login page dark-mode friendly and accessible</span
+                <div class="tui-rule" aria-hidden="true"></div>
+                <div class="tui-chat">
+                  <div class="tui-turn">
+                    <span class="tui-who you">you</span>
+                    <span class="tui-msg" data-i18n="terminal.you1">Build a static login page with dark mode</span>
+                  </div>
+                  <div class="tui-turn">
+                    <span class="tui-who ton">ton</span>
+                    <span class="tui-msg" data-i18n="terminal.ton1"
+                      >Got it — static HTML/CSS login with prefers-color-scheme. Light or dark default?</span
                     >
                   </div>
-                  <div class="input-box" data-i18n="terminal.prompt">
-                    Make the login page dark-mode friendly and accessible
-                  </div>
-                  <div class="thinking-line">
-                    <span class="bullet">●</span>
-                    <span class="thinking-text"
-                      >Scope: WCAG contrast, focus rings, prefers-color-scheme. Ready before /start.</span
-                    >
-                  </div>
-                  <div class="response-line">
-                    <span class="bullet">●</span>
-                    <span class="response-text" data-i18n="terminal.response"
-                      >Requirements ready. Confirm Ready, then /start.</span
-                    >
-                  </div>
-                  <div class="feature-list">
-                    <div class="feature-item">
-                      <span class="bullet-small">●</span>
-                      <span data-i18n="terminal.f1">🎯 Clarify + Ready — lock scope before run</span>
-                    </div>
-                    <div class="feature-item">
-                      <span class="bullet-small">●</span>
-                      <span data-i18n="terminal.f2">📋 Milestone TUI · audit trail in .ton/</span>
-                    </div>
-                    <div class="feature-item">
-                      <span class="bullet-small">●</span>
-                      <span data-i18n="terminal.f3">🔁 Verify ⇄ Repair — bounded, recoverable</span>
-                    </div>
-                    <div class="feature-item">
-                      <span class="bullet-small">●</span>
-                      <span data-i18n="terminal.f4"
-                        >🔌 Drivers: OpenCode / Claude / Cursor / fake</span
-                      >
-                    </div>
-                  </div>
+                </div>
+                <div class="tui-panel">
+                  <div class="tui-panel-title" data-i18n="terminal.oq">Open questions (defaults on /start)</div>
+                  <div class="tui-panel-item" data-i18n="terminal.oq1">- Which page opens after login?</div>
+                </div>
+                <div class="tui-input">
+                  <span class="tui-prompt">&gt;</span>
+                  <span class="tui-cursor" aria-hidden="true"></span>
                 </div>
               </div>
             </div>
@@ -352,31 +299,6 @@
             </div>
           </div>
         </div>
-
-        <div class="feature-install install-options">
-          <div class="install-input">
-            <button class="install-select" type="button" tabindex="-1" aria-hidden="true">
-              <span class="select-label" data-i18n="install.curl">Linux / macOS</span>
-            </button>
-            <div class="command-display">
-              <code class="command-text">curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash</code>
-              <button
-                class="copy-btn"
-                type="button"
-                data-copy-static
-                data-i18n-aria-label="install.copy"
-                aria-label="Copy"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <a class="ton-btn plain" href="#install" data-i18n="cta.start">Install</a>
-        </div>
       </section>
 
       <!-- Session loop -->
@@ -386,32 +308,39 @@
           Gates when needed. Agent runs locally. Everything persisted.
         </p>
         <div class="loop-flow-scroll">
-          <div class="loop-flow">
-            <div class="loop-step">
+          <div class="loop-flow" role="list">
+            <div class="loop-step" role="listitem">
+              <span class="loop-num">1</span>
               <strong>Clarify</strong><span data-i18n="loop.clarify">Goals &amp; constraints</span>
             </div>
             <span class="loop-arrow" aria-hidden="true">→</span>
-            <div class="loop-step">
+            <div class="loop-step" role="listitem">
+              <span class="loop-num">2</span>
               <strong>Ready</strong><span data-i18n="loop.ready">Confirm</span>
             </div>
             <span class="loop-arrow" aria-hidden="true">→</span>
-            <div class="loop-step">
+            <div class="loop-step" role="listitem">
+              <span class="loop-num">3</span>
               <strong>Plan</strong><span data-i18n="loop.plan">Milestones</span>
             </div>
             <span class="loop-arrow" aria-hidden="true">→</span>
-            <div class="loop-step">
+            <div class="loop-step" role="listitem">
+              <span class="loop-num">4</span>
               <strong>Execute</strong><span data-i18n="loop.execute">Unattended</span>
             </div>
             <span class="loop-arrow" aria-hidden="true">→</span>
-            <div class="loop-step">
+            <div class="loop-step" role="listitem">
+              <span class="loop-num">5</span>
               <strong>Verify</strong><span data-i18n="loop.verify">Accept</span>
             </div>
-            <span class="loop-arrow" aria-hidden="true">⇄</span>
-            <div class="loop-step">
+            <span class="loop-arrow loop-arrow-repair" aria-hidden="true">⇄</span>
+            <div class="loop-step" role="listitem">
+              <span class="loop-num">6</span>
               <strong>Repair</strong><span data-i18n="loop.repair">Repair</span>
             </div>
             <span class="loop-arrow" aria-hidden="true">→</span>
-            <div class="loop-step">
+            <div class="loop-step" role="listitem">
+              <span class="loop-num">7</span>
               <strong>Summarize</strong><span data-i18n="loop.summarize">Summary</span>
             </div>
           </div>
@@ -489,6 +418,6 @@
         </div>
       </footer>
     </div>
-    <script src="./js/main.js?v=copy1" defer></script>
+    <script src="./js/main.js?v=extras7" defer></script>
   </body>
 </html>
