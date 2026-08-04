@@ -5,7 +5,7 @@ Never commit secrets to the repository.
 Sources are consulted in this order, without allowing the latter to replace an
 already-defined environment variable:
 1. Process environment variables.
-2. ``examples/nago/nago.local.env`` (gitignored; see ``nago.local.env.example``).
+2. ``extras/nago/nago.local.env`` (gitignored; see ``nago.local.env.example``).
 """
 
 from __future__ import annotations

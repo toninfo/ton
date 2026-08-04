@@ -4,7 +4,7 @@
 
 - Keep the TUI **milestone-first and low-noise**. Full agent transcripts belong
   on disk under `.ton/`, not in the default UI.
-- All ton core copy and LLM prompts are **English-only**. Chinese is allowed only in `examples/nago` and `examples/web`.
+- All ton core copy and LLM prompts are **English-only**. Chinese is allowed only in `extras/nago` and `extras/web`.
 - Do not commit secrets, API keys, or workspace `.ton/` session data.
 - Prefer focused PRs over kitchen-sink refactors.
 
@@ -40,8 +40,8 @@ export TON_LLM_API_KEY=dummy
 | `internal/store` | `.ton` persistence |
 | `docs/CONFIGURATION.md` | Config field reference |
 | `docs/ARCHITECTURE.md` | Session loop + package map |
-| `examples/nago` | Desktop companion demo (`README.md` / `README.zh-CN.md`) |
-| `examples/web` | Product landing page (`README.md` / `README.zh-CN.md`) |
+| `extras/nago` | Desktop companion demo (`README.md` / `README.zh-CN.md`) |
+| `extras/web` | Product landing page (`README.md` / `README.zh-CN.md`) |
 
 ## Pull requests
 

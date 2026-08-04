@@ -1,7 +1,7 @@
 # ton
 
 <p align="center">
-  <img src="examples/web/assets/logo.png" alt="TON" width="96" height="96" />
+  <img src="extras/web/assets/logo.png" alt="TON" width="96" height="96" />
 </p>
 
 [English](README.md) | **简体中文**
@@ -137,7 +137,7 @@ clarify 不会问这些问题。
 
 ## 架构
 
-会话循环、包地图，以及 `examples/` 该放什么 →
+会话循环、包地图，以及 `extras/` 该放什么 →
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 配置
@@ -159,7 +159,7 @@ clarify 不会问这些问题。
 | `TON_LOG_LEVEL` | 日志级别 |
 | `CURSOR_API_KEY` | 需要时给 Cursor CLI 鉴权 |
 
-带注释的示例见 [`examples/config.yaml`](examples/config.yaml)，完整字段参考见
+带注释的示例见 [`extras/config.yaml`](extras/config.yaml)，完整字段参考见
 [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md)。
 `ton config` 打印生效配置（密钥已脱敏）。
 `ton setup --help` 说明 LLM 三元组（`base_url` + `model` + API key）。

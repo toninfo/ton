@@ -3,7 +3,7 @@
 **English** | [简体中文](README.zh-CN.md)
 
 Always-on-top stickman desktop companion (Python / PySide6). Demo under
-`examples/nago` — separate from the `ton` CLI.
+`extras/nago` — separate from the `ton` CLI.
 
 ## Requirements
 
@@ -20,7 +20,7 @@ Optional: `xprintidle` (idle detection); `zenity` / `kdialog` if
 ## Quick start
 
 ```bash
-cd examples/nago
+cd extras/nago
 python3 -m pip install -r requirements.txt
 cp nago.local.env.example nago.local.env
 # set NAGO_AI_ENDPOINT / NAGO_AI_API_KEY / NAGO_AI_MODEL
@@ -60,7 +60,7 @@ Full comments: `nago.local.env.example`.
 ## Tests
 
 ```bash
-cd examples/nago
+cd extras/nago
 python3 -m pytest test_integration.py -q
 # or: python3 test_integration.py
 ```

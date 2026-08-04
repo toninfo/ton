@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rename `examples/` → `extras/` (product site, nago companion, config sample).
+
 ## [1.0.0] - 2026-07-30
 
 First stable release of **ton** — local TUI for long-running coding-agent sessions

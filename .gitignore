@@ -20,10 +20,10 @@ ton-stderr.log
 # Local environment and session artifacts (do not commit secrets or session logs).
 .env
 .env.*
-examples/nago/nago.local.env
-examples/nago/nago.session.json
-examples/nago/nago.memory.json
-examples/nago/nago.profile.json
+extras/nago/nago.local.env
+extras/nago/nago.session.json
+extras/nago/nago.memory.json
+extras/nago/nago.profile.json
 .superpowers/
 **/.ton/
 

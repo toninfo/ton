@@ -23,12 +23,12 @@ func TestProgressReplySpeaksToUserNotThinking(t *testing.T) {
 
 func TestProgressReplyAvoidsEcho(t *testing.T) {
 	state := &ReqState{
-		Understanding: Understanding{Summary: "Create a static HTML login-page example in examples/login."},
+		Understanding: Understanding{Summary: "Create a static HTML login-page example in demo/login."},
 		Fallback:      Fallback{Confirmed: true, PermissionMode: "dontAsk"},
 		Requirements:  "static login",
 	}
 	ApplyAutomationDefaults(state, AutomationDefaults{PermissionMode: "dontAsk", GitBranch: "main"})
-	same := "Create a static HTML login-page example in examples/login."
+	same := "Create a static HTML login-page example in demo/login."
 	got := ProgressReply(state, "what do you mean", same, "")
 	if strings.Contains(got, "user") {
 		t.Fatalf("meta leaked: %q", got)

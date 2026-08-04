@@ -1,7 +1,7 @@
 # ton
 
 <p align="center">
-  <img src="examples/web/assets/logo.png" alt="TON" width="96" height="96" />
+  <img src="extras/web/assets/logo.png" alt="TON" width="96" height="96" />
 </p>
 
 **English** | [简体中文](README.zh-CN.md)
@@ -140,7 +140,7 @@ workspaces; see [SECURITY.md](SECURITY.md).
 
 ## Architecture
 
-Session loop, package map, and what belongs in `examples/` →
+Session loop, package map, and what belongs in `extras/` →
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Configuration
@@ -162,7 +162,7 @@ Load order:
 | `TON_LOG_LEVEL` | Log level |
 | `CURSOR_API_KEY` | Cursor CLI auth when needed |
 
-See [`examples/config.yaml`](examples/config.yaml) for an annotated file and
+See [`extras/config.yaml`](extras/config.yaml) for an annotated file and
 [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for the full field reference.
 `ton config` prints the effective config with secrets redacted.
 `ton setup --help` explains the LLM triad (`base_url` + `model` + API key).

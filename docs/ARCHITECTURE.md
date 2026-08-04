@@ -46,13 +46,13 @@ All durable session state lives under the **workspace** (not the install dir):
 
 The TUI stays **milestone-first**; full agent transcripts stay on disk.
 
-## Examples
+## Extras
 
 | Path | Role |
 | --- | --- |
-| `examples/config.yaml` | Annotated config sample |
-| `examples/web/` | Product landing page |
-| `examples/nago/` | Desktop companion demo (Python) |
+| `extras/config.yaml` | Annotated config sample |
+| `extras/web/` | Product landing page |
+| `extras/nago/` | Desktop companion (Python) |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for config fields and
 [CONTRIBUTING.md](../CONTRIBUTING.md) for contribution policy.

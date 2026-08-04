@@ -2,7 +2,7 @@
 
 Complete reference for `ton` configuration: where it lives, how values are
 resolved, and every field with its built-in default. For a ready-to-edit file,
-copy [`examples/config.yaml`](../examples/config.yaml). To see the effective
+copy [`extras/config.yaml`](../extras/config.yaml). To see the effective
 config (secrets redacted), run `ton config`.
 
 ## Config directory

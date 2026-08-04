@@ -87,7 +87,7 @@ func TestClarifyNeverRunsCodingAgent(t *testing.T) {
 
 	turns := []string{
 		"hello",
-		"Build a static HTML and CSS login page in examples/login",
+		"Build a static HTML and CSS login page in demo/login",
 		"yes, use your proposed defaults",
 	}
 	for _, in := range turns {
@@ -170,14 +170,14 @@ func mockClarifyLLM(sys, user string) string {
 		return `{"next":"update_cards","rationale":"LLM clarify docs","agent_brief":"keep steps small"}`
 	}
 	if strings.Contains(sys, "ton planner") {
-		return `{"items":[{"id":"s1","title":"Create login page","prompt":"Create examples/login/index.html with username, password, submit.","acceptance":"file exists","step_verify":""}]}`
+		return `{"items":[{"id":"s1","title":"Create login page","prompt":"Create demo/login/index.html with username, password, submit.","acceptance":"file exists","step_verify":""}]}`
 	}
 	req, des := mockAdequateDocs()
 	out := map[string]any{
 		"requirements": req,
 		"design":       des,
 		"understanding": map[string]any{
-			"summary":   "Create a static HTML and CSS login page in examples/login. Review it with /docs, then use /start.",
+			"summary":   "Create a static HTML and CSS login page in demo/login. Review it with /docs, then use /start.",
 			"confirmed": true,
 		},
 		"assumptions": map[string]any{"items": []string{"No backend", "Static assets only"}},
@@ -224,7 +224,7 @@ func mockClarifyLLM(sys, user string) string {
 func mockAdequateDocs() (req, design string) {
 	req = strings.TrimSpace(`
 # Goal
-Build a static login page under examples/login for local demo use.
+Build a static login page under demo/login for local demo use.
 
 ## Functional requirements
 - Light theme by default
@@ -242,15 +242,15 @@ Build a static login page under examples/login for local demo use.
 
 ## Open questions (defaults)
 - Theme: light
-- Location: examples/login
+- Location: demo/login
 `)
 	design = strings.TrimSpace(`
 # Tech stack
 - Plain HTML + CSS, no build step, no bundler
 
 ## Architecture
-- examples/login/index.html for markup
-- examples/login/styles.css for layout and theme
+- demo/login/index.html for markup
+- demo/login/styles.css for layout and theme
 
 ## UI sketch
 - Centered card with title Login

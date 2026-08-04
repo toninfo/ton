@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-置顶火柴人桌面伴侣（Python / PySide6）。位于 `examples/nago`，与 `ton` CLI 独立。
+置顶火柴人桌面伴侣（Python / PySide6）。位于 `extras/nago`，与 `ton` CLI 独立。
 
 ## 环境要求
 
@@ -18,7 +18,7 @@
 ## 快速开始
 
 ```bash
-cd examples/nago
+cd extras/nago
 python3 -m pip install -r requirements.txt
 cp nago.local.env.example nago.local.env
 # 配置 NAGO_AI_ENDPOINT / NAGO_AI_API_KEY / NAGO_AI_MODEL
@@ -58,7 +58,7 @@ cp nago.local.env.example nago.local.env
 ## 测试
 
 ```bash
-cd examples/nago
+cd extras/nago
 python3 -m pytest test_integration.py -q
 # 或：python3 test_integration.py
 ```

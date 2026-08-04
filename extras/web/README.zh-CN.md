@@ -7,7 +7,7 @@
 ## 本地预览
 
 ```bash
-cd examples/web
+cd extras/web
 python3 -m http.server 8080
 # http://127.0.0.1:8080/
 ```
@@ -15,13 +15,13 @@ python3 -m http.server 8080
 仓库根目录：
 
 ```bash
-python3 -m http.server 8080 --directory examples/web
+python3 -m http.server 8080 --directory extras/web
 ```
 
 ## 目录结构
 
 ```text
-examples/web/
+extras/web/
   index.html       # 页面结构
   css/styles.css   # 布局与样式变量
   js/main.js       # 安装选择器、i18n、交互

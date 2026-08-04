@@ -39,7 +39,7 @@ func TestRenderPreview(t *testing.T) {
 	clar := base(domain.PhaseClarifying)
 	clar.chat = []chatTurn{
 		{User: "hello", Reply: "Hello! What would you like to build? For example, a login page, a small utility, or a repository change."},
-		{User: "Build a static login page in examples/login", Reply: "Okay, create a static HTML and CSS login page in examples/login with no backend."},
+		{User: "Build a static login page in demo/login", Reply: "Okay, create a static HTML and CSS login page in demo/login with no backend."},
 	}
 
 	// 2) Ready
@@ -52,9 +52,9 @@ func TestRenderPreview(t *testing.T) {
 	exec.busy = true
 	exec.spinnerFrame = 1
 	exec.todos = domain.TodoList{Items: []domain.TodoItem{
-		{Title: "examples/login/index.html: login page skeleton", Status: domain.TodoDone},
-		{Title: "examples/login/styles.css: card styles", Status: domain.TodoRunning},
-		{Title: "examples/login/README.md: usage instructions", Status: domain.TodoPending},
+		{Title: "demo/login/index.html: login page skeleton", Status: domain.TodoDone},
+		{Title: "demo/login/styles.css: card styles", Status: domain.TodoRunning},
+		{Title: "demo/login/README.md: usage instructions", Status: domain.TodoPending},
 	}}
 	exec.showTodos = true
 
@@ -139,7 +139,7 @@ func TestLiveClarifyAndStart(t *testing.T) {
 
 	turns := []string{
 		"hello",
-		"Build a static login page in the current workspace under examples/login",
+		"Build a static login page in the current workspace under demo/login",
 		"Use a light theme with username, password, and login button; HTML and CSS only, no backend",
 		"Explicitly allow allow_no_gate for acceptance; use fallback defaults",
 		"I approve your requirements and design drafts",
