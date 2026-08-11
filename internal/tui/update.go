@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/toninfo/ton/internal/buildinfo"
 	"github.com/toninfo/ton/internal/domain"
+	"github.com/toninfo/ton/internal/selfupdate"
 )
 
 // Init sets the window title and begins listening for coarse milestones.
@@ -328,6 +330,18 @@ func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
 			notice, err := m.controller.ReviewDocs(command.argument)
 			return actionDoneMsg{notice: notice, err: err}
 		}
+	case commandUpgrade:
+		// Refuse while an unattended run is live — replacing the binary mid-agent is unsafe.
+		if m.controller != nil && m.controller.Running() {
+			return m, func() tea.Msg {
+				return actionDoneMsg{err: fmt.Errorf("session is running; /stop first, then /upgrade")}
+			}
+		}
+		arg := command.argument
+		return m.beginBusy(func() tea.Msg {
+			notice, err := runUpgradeCommand(arg)
+			return actionDoneMsg{notice: notice, err: err, endsBusy: true}
+		})
 	default:
 		return m, func() tea.Msg { return actionDoneMsg{err: fmt.Errorf("unsupported command")} }
 	}
@@ -411,6 +425,34 @@ func logHasPrefix(log []string, prefix string) bool {
 		}
 	}
 	return false
+}
+
+// runUpgradeCommand handles /upgrade, /upgrade check, /upgrade vX.Y.Z.
+func runUpgradeCommand(arg string) (string, error) {
+	ctx := context.Background()
+	arg = strings.TrimSpace(arg)
+	if strings.EqualFold(arg, "check") {
+		tag, err := selfupdate.LookupTag(ctx, selfupdate.Options{})
+		if err != nil {
+			return "", err
+		}
+		current := strings.TrimSpace(buildinfo.Version)
+		msg := fmt.Sprintf("current %s · latest %s", current, tag)
+		c := strings.TrimPrefix(strings.ToLower(current), "v")
+		t := strings.TrimPrefix(strings.ToLower(tag), "v")
+		if c != "" && c != "dev" && c != "none" && c == t {
+			return msg + " — already up to date.", nil
+		}
+		return msg + " — run /upgrade to install.", nil
+	}
+	res, err := selfupdate.Run(ctx, selfupdate.Options{
+		Version:  arg,
+		SkipSame: true,
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.Message, nil
 }
 
 func ensureSentence(s string) string {

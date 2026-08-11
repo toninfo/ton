@@ -111,6 +111,7 @@ ton                               # 或：ton -w /path/to/your/project
 | `/brief <text>` | 排队下一步 brief（execute 边界） |
 | `/skip` | 排队跳过当前步骤（execute 边界） |
 | `/export` | 重新导出 `todos.md` / 报告产物 |
+| `/upgrade` `[version\|check]` | 安装最新（或指定）GitHub Release；别名 `/update` |
 
 工作状态是一等公民：Execute / Verify / Repair / Summarize 实时展示
 phase、subphase、里程碑与排队深度 —— 不会把代理 transcript

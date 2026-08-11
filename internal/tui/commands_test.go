@@ -27,6 +27,10 @@ func TestParseCommandRecognizesSupportedSlashCommands(t *testing.T) {
 		{input: "/brief tighten scope", want: command{kind: commandBrief, argument: "tighten scope"}},
 		{input: "/skip", want: command{kind: commandSkip}},
 		{input: "/queue", want: command{kind: commandQueue}},
+		{input: "/upgrade", want: command{kind: commandUpgrade}},
+		{input: "/upgrade check", want: command{kind: commandUpgrade, argument: "check"}},
+		{input: "/update v1.2.3", want: command{kind: commandUpgrade, argument: "v1.2.3"}},
+		{input: "/upgrade 1.2.3", want: command{kind: commandUpgrade, argument: "1.2.3"}},
 	}
 
 	for _, test := range tests {

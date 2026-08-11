@@ -16,7 +16,8 @@ const (
 	commandBrief  commandKind = "brief"
 	commandSkip   commandKind = "skip"
 	commandQueue  commandKind = "queue"
-	commandDocs commandKind = "docs"
+	commandDocs   commandKind = "docs"
+	commandUpgrade commandKind = "upgrade"
 )
 
 // command is the validated internal form of a user-entered slash command.
@@ -48,6 +49,7 @@ func slashCatalog() []slashSpec {
 		{Name: "/brief", Usage: "/brief <text>", Desc: "Brief next step at boundary", NeedsArg: true},
 		{Name: "/skip", Usage: "/skip", Desc: "Skip next pending step at boundary", NeedsArg: false},
 		{Name: "/export", Usage: "/export", Desc: "Re-export todos/report", NeedsArg: false},
+		{Name: "/upgrade", Usage: "/upgrade [version]", Desc: "Install latest (or pinned) release", NeedsArg: false},
 	}
 }
 
@@ -150,9 +152,39 @@ func parseCommand(input string) (command, bool) {
 			}
 		}
 		return command{}, false
+	case "/upgrade", "/update":
+		// /upgrade [vX.Y.Z] — empty means latest GitHub release.
+		if len(fields) == 1 {
+			return command{kind: commandUpgrade}, true
+		}
+		if len(fields) == 2 {
+			arg := strings.TrimSpace(fields[1])
+			if strings.EqualFold(arg, "check") {
+				return command{kind: commandUpgrade, argument: "check"}, true
+			}
+			if strings.HasPrefix(arg, "v") || isVersionLike(arg) {
+				return command{kind: commandUpgrade, argument: arg}, true
+			}
+		}
+		return command{}, false
 	default:
 		return command{}, false
 	}
+}
+
+func isVersionLike(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	// Accept 1.2.3 / 1.2.3-beta without forcing users to type the leading v.
+	for _, r := range s {
+		if (r >= '0' && r <= '9') || r == '.' || r == '-' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			continue
+		}
+		return false
+	}
+	return s[0] >= '0' && s[0] <= '9'
 }
 
 func startCommand(fields []string) (command, bool) {

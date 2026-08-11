@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cancel aborts cleanly (no repair burn) + 80% near-limit warn; step timeout milestone;
   unknown slash rejected (not queued as agent text); finish copy branches on budget/
   verify/timeout; `/start --force` confirms dirty workspace.
+- Add `ton upgrade` / TUI `/upgrade` (alias `/update`) to install the latest or pinned
+  GitHub Release binary in-place; `/upgrade check` reports without installing.
 ## [1.0.0] - 2026-07-30
 
 First stable release of **ton** — local TUI for long-running coding-agent sessions

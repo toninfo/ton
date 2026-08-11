@@ -60,6 +60,14 @@ Open a **new** terminal, then:
 ton doctor
 ```
 
+Later updates (release binary installs):
+
+```bash
+ton upgrade          # latest GitHub release
+ton upgrade --check  # report only
+# or inside the TUI: /upgrade  ·  /upgrade check
+```
+
 ### Alternative: Go / source
 
 `go install` writes to `$(go env GOPATH)/bin` (often `~/go/bin` or
@@ -113,6 +121,7 @@ In the TUI: describe the goal → refine until **Ready** → `/start`.
 | `/brief <text>` | Queue next-step brief (execute boundaries) |
 | `/skip` | Queue skip current step (execute boundaries) |
 | `/export` | Re-export `todos.md` / report artifacts |
+| `/upgrade` `[version\|check]` | Install latest (or pinned) GitHub release; alias `/update` |
 
 Working state is first-class: Execute / Verify / Repair / Summarize show live
 phase, subphase, milestones, and queued input depth — without dumping agent
