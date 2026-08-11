@@ -1,6 +1,7 @@
 package clarify
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -174,4 +175,43 @@ func WorkspaceLabel(launch, target string) string {
 		return launch
 	}
 	return eff
+}
+
+// SanitizeTargetWorkspace drops LLM-invented project roots the user never named.
+// Contract: target_workspace is only set when the user names a path, or when the
+// directory already exists / was already accepted. Hallucinations like "/driver"
+// after a typo must not poison the session.
+func SanitizeTargetWorkspace(proposed, userText, previous string) string {
+	proposed = strings.TrimSpace(proposed)
+	if proposed == "" {
+		return ""
+	}
+	prev := strings.TrimSpace(previous)
+	if prev != "" && sameAbsPath(proposed, prev) {
+		return proposed
+	}
+	// User named a path this turn — ApplyWorkspaceHint / LLM alignment is trusted.
+	if ExtractPathHint(userText) != "" {
+		return proposed
+	}
+	// Already on disk → accept (resume / explicit existing folder).
+	if dirExists(proposed) {
+		return proposed
+	}
+	// LLM invented a non-existent path without user naming one → keep previous (often "").
+	return prev
+}
+
+func sameAbsPath(a, b string) bool {
+	aa, errA := filepath.Abs(filepath.Clean(a))
+	bb, errB := filepath.Abs(filepath.Clean(b))
+	if errA != nil || errB != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return strings.EqualFold(aa, bb)
+}
+
+func dirExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
 }

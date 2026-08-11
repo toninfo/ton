@@ -111,6 +111,14 @@ func (c *SessionController) ensureEffectiveWorkspace(ctx context.Context) (switc
 	return true, nil
 }
 
+// rollbackTargetWorkspace restores TargetWorkspace after a failed bind so a
+// hallucinated or uncreatable path cannot poison every subsequent turn.
+func (c *SessionController) rollbackTargetWorkspace(prev string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.state.TargetWorkspace = strings.TrimSpace(prev)
+}
+
 func sameWorkspacePath(a, b string) bool {
 	aa, errA := filepath.Abs(a)
 	bb, errB := filepath.Abs(b)

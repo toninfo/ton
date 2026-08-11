@@ -351,6 +351,7 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 	c.session.Phase = domain.PhaseClarifying
 	c.session.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	// Model B: Capture the target directory from the user session (continues to use launch cwd if not specified).
+	prevTarget := strings.TrimSpace(c.state.TargetWorkspace)
 	clarify.ApplyWorkspaceHint(&c.state, input, c.launchWorkspace)
 	model := c.session.Model
 	apiKey := c.cfg.LLM.APIKey
@@ -359,6 +360,8 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 	c.mu.Unlock()
 
 	if _, err := c.ensureEffectiveWorkspace(ctx); err != nil {
+		// Wipe uncreatable target so a poisoned path cannot block every later turn.
+		c.rollbackTargetWorkspace("")
 		return "", err
 	}
 
@@ -423,6 +426,8 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 
 	c.mu.Lock()
 	clarify.ApplyWorkspaceHint(&state, input, c.launchWorkspace)
+	// Drop LLM-hallucinated absolute roots (e.g. "/driver") when the user never named a path.
+	state.TargetWorkspace = clarify.SanitizeTargetWorkspace(state.TargetWorkspace, input, prevTarget)
 	c.state = state
 	c.lastInputAt = time.Now()
 	c.ensureFallbackDefaults()
@@ -430,6 +435,7 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 
 	// LLM may have just filled in the target_workspace: tie it again and make sure the document falls in the target project root.
 	if _, err := c.ensureEffectiveWorkspace(ctx); err != nil {
+		c.rollbackTargetWorkspace("")
 		return "", err
 	}
 
@@ -646,6 +652,8 @@ func (c *SessionController) Start(ctx context.Context, force bool) error {
 
 	// The last time to bind the target workspace (user-specified directory or start cwd) before /start.
 	if _, err := c.ensureEffectiveWorkspace(ctx); err != nil {
+		// Clear the uncreatable target so the session is not permanently stuck on /start.
+		c.rollbackTargetWorkspace("")
 		return err
 	}
 

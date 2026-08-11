@@ -1,6 +1,7 @@
 package clarify
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -50,5 +51,40 @@ func TestEffectiveWorkspaceFallsBackToLaunch(t *testing.T) {
 	want, _ := filepath.Abs(launch)
 	if filepath.Clean(got) != filepath.Clean(want) {
 		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestSanitizeTargetWorkspaceDropsLLMHallucination(t *testing.T) {
+	// Typo / smalltalk must not accept invented absolute roots like "/driver".
+	got := SanitizeTargetWorkspace("/driver", "ll", "")
+	if got != "" {
+		t.Fatalf("hallucinated /driver kept: %q", got)
+	}
+	got = SanitizeTargetWorkspace("/driver", "??", "")
+	if got != "" {
+		t.Fatalf("want empty after nonsense input, got %q", got)
+	}
+	// Keep previously accepted workspace when LLM re-emits it.
+	prev := filepath.Join(t.TempDir(), "myapp")
+	_ = os.MkdirAll(prev, 0o755)
+	got = SanitizeTargetWorkspace(prev, "looks good", prev)
+	if !sameAbsPath(got, prev) {
+		t.Fatalf("got %q want previous %q", got, prev)
+	}
+}
+
+func TestSanitizeTargetWorkspaceAcceptsUserNamedPath(t *testing.T) {
+	user := "put the project in /tmp/ton-sanitize-test-app"
+	got := SanitizeTargetWorkspace("/tmp/ton-sanitize-test-app", user, "")
+	if got == "" {
+		t.Fatal("user-named path must be kept")
+	}
+}
+
+func TestSanitizeTargetWorkspaceAcceptsExistingDir(t *testing.T) {
+	dir := t.TempDir()
+	got := SanitizeTargetWorkspace(dir, "continue", "")
+	if !sameAbsPath(got, dir) {
+		t.Fatalf("existing dir dropped: got %q want %q", got, dir)
 	}
 }

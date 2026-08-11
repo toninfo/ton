@@ -64,6 +64,8 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.input.SetValue("")
 			m.cmdMenuOpen = false
+			// Clear sticky error notice as soon as the user sends a new turn.
+			m.setNotice("", false)
 			chatID := m.rememberUserTurn(value)
 			if parsed, ok := parseCommand(value); ok && parsed.kind == commandTodos {
 				m.showTodos = !m.showTodos
