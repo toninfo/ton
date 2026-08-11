@@ -59,6 +59,14 @@ irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ton doctor
 ```
 
+之后更新（release 二进制安装）：
+
+```bash
+ton upgrade          # 最新 GitHub Release
+ton upgrade --check  # 只检查
+# 或在 TUI 里：/upgrade  ·  /upgrade check
+```
+
 ### 备选：Go / 源码
 
 `go install` 会写到 `$(go env GOPATH)/bin`（常见为 `~/go/bin` 或
