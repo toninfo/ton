@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docs/installers: pin-version examples now use `v1.0.0` (was stale `v0.2.x`).
 - TUI/clarify: remove unused helpers flagged by staticcheck (dead styles, status renderers,
   slug sanitizer stub).
-
+- TUI UX (keep minimal chrome): surface Ready/Done/Aborted hints on the status badge
+  (`* Ready · type /start`), empty first-screen footer cue, Planning sidebar
+  `Writing plan…`, tighter Open questions panel, brand blue aligned to site KMBlue.
 ## [1.0.0] - 2026-07-30
 
 First stable release of **ton** — local TUI for long-running coding-agent sessions

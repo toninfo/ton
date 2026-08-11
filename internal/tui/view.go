@@ -234,19 +234,27 @@ func (m Model) inputValueBeforeCursor() string {
 	return string(val[:pos])
 }
 
-// footerLine footer prompt: Queue number priority; prompt /docs when running in/ready and there are existing documents.
+// footerLine 轻量 footer：队列优先；有文档时提示 /docs；空首屏给一句冷启动 cue。
+// 刻意不写输入框 placeholder，避免 watermark 噪音（见 placeholderFor）。
 func (m Model) footerLine() string {
 	if foot := footerFor(m.session.Phase, m.busy, m.queueLen); foot != "" {
 		return foot
 	}
 	switch m.session.Phase {
 	case domain.PhaseClarifying, domain.PhaseReadyToStart, domain.PhaseIdle:
-		if m.controller == nil {
+		if m.controller != nil {
+			_, state, _ := m.controller.Snapshot()
+			if strings.TrimSpace(state.Requirements) != "" || strings.TrimSpace(state.Design) != "" {
+				return "review docs: /docs"
+			}
+		}
+		// Ready 的 CTA 已在 badge（* Ready · type /start），避免 footer 重复。
+		if m.session.Phase == domain.PhaseReadyToStart {
 			return ""
 		}
-		_, state, _ := m.controller.Snapshot()
-		if strings.TrimSpace(state.Requirements) != "" || strings.TrimSpace(state.Design) != "" {
-			return "review docs: /docs"
+		// 空首屏（无对话、无 setup notice）：一句 muted cue，不是常驻帮助栏。
+		if len(m.chat) == 0 && strings.TrimSpace(m.notice) == "" && !m.busy {
+			return "describe a goal · / for commands"
 		}
 	}
 	return ""
@@ -295,13 +303,21 @@ func (m Model) contextSegment() string {
 	return brandStyle.Render("Ton") + mutedStyle.Render(ctx)
 }
 
-// badge Status badge on the right: Ready/Working (circle + stage)/Complete/Failed/Stop/Clarification.
+// badge 状态行：Ready/Done/Aborted 也会带上 statusInfo.hint（此前只有 Working 会渲染）。
 func (m Model) badge(info statusInfo) string {
 	switch info.kind {
 	case statusKindReady:
-		return readyStyle.Render("* Ready")
+		text := "* Ready"
+		if info.hint != "" {
+			text = joinHint(text, info.hint)
+		}
+		return readyStyle.Render(text)
 	case statusKindDone:
-		return doneStyle.Render("* Done")
+		text := "* Done"
+		if info.hint != "" {
+			text = joinHint(text, info.hint)
+		}
+		return doneStyle.Render(text)
 	case statusKindFailed:
 		label := info.label
 		if label == "" {
@@ -309,10 +325,15 @@ func (m Model) badge(info statusInfo) string {
 		}
 		return dangerStyle.Render("x " + label)
 	case statusKindAborted:
-		return dangerStyle.Render("x Stopped")
+		text := "x Stopped"
+		// "stopped" 与 Stopped 重复；有可续跑提示时再拼接。
+		if info.hint != "" && info.hint != "stopped" {
+			text = joinHint(text, info.hint)
+		}
+		return dangerStyle.Render(text)
 	case statusKindWorking:
 		sp := asciiSpinner(m.spinnerFrame)
-		// The real execution stage shows "circling + stage (+ sub-state)"; during the clarification period, you are busy only turning in circles to avoid thinking about narration.
+		// 执行期：转圈 + 阶段 (+ 子状态)；Clarify busy 只转圈，避免 "thinking" 双提示。
 		if isWorkingPhase(m.session.Phase) {
 			text := info.label
 			if info.hint != "" {
@@ -327,11 +348,10 @@ func (m Model) badge(info statusInfo) string {
 }
 
 func asciiSpinner(frame int) string {
-	frames := []string{"|", "/", "-", "\\"}
 	if frame < 0 {
 		frame = 0
 	}
-	return frames[frame%len(frames)]
+	return asciiSpinnerFrames[frame%len(asciiSpinnerFrames)]
 }
 
 func (m Model) chatView() string {
@@ -519,7 +539,8 @@ func clarifyContent(state clarify.ReqState, fallback string) string {
 			content.WriteString(bodyStyle.Render(g))
 		}
 		content.WriteString("\n")
-		content.WriteString(mutedStyle.Render("  discuss above · /start when aligned · /start --force to override"))
+		// 教练句压短：硬门仍是 /start，这里只指路，不堆指令菜单。
+		content.WriteString(mutedStyle.Render("  discuss · /start when aligned · --force to override"))
 	}
 
 	var open []clarify.Decision
@@ -533,7 +554,10 @@ func clarifyContent(state clarify.ReqState, fallback string) string {
 		if content.Len() > 0 {
 			content.WriteString("\n\n")
 		}
-		content.WriteString(sectionStyle.Render("Open questions (defaults on /start)"))
+		// 标题保持短；defaults 提示放 muted 副行，减少首屏视觉重量。
+		content.WriteString(sectionStyle.Render("Open questions"))
+		content.WriteString("\n")
+		content.WriteString(mutedStyle.Render("  defaults apply on /start"))
 		for _, decision := range open {
 			content.WriteString("\n")
 			content.WriteString(mutedStyle.Render("  - "))
@@ -577,6 +601,10 @@ func (m Model) todosContentCompact(maxLines int) string {
 // todosSidebar Widescreen right sidebar: fixed width, windowed by height, title truncated.
 func (m Model) todosSidebar(width, maxHeight int) string {
 	if len(m.todos.Items) == 0 {
+		// Planning 时空侧栏不再只显示 "Todos"；给一句 Writing plan，避免宽屏空洞。
+		if m.session.Phase == domain.PhasePlanning {
+			return sectionStyle.Render("Todos") + "\n" + mutedStyle.Render("Writing plan…")
+		}
 		return mutedStyle.Render("Todos")
 	}
 	if width < 12 {

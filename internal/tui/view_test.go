@@ -122,6 +122,52 @@ func TestTodosSidebarDuringPlanningShowsWritingPlan(t *testing.T) {
 	if strings.Contains(got, "No plan has been generated") {
 		t.Fatalf("stale empty-plan copy during planning: %q", got)
 	}
+	side := m.todosSidebar(30, 18)
+	if !strings.Contains(side, "Writing plan") {
+		t.Fatalf("wide sidebar should show Writing plan while empty, got %q", side)
+	}
+}
+
+func TestBadgeSurfacesReadyAndDoneHints(t *testing.T) {
+	ready := Model{session: domain.Session{Phase: domain.PhaseReadyToStart}}
+	got := ready.badge(ready.statusInfo())
+	if !strings.Contains(got, "Ready") || !strings.Contains(got, "type /start") {
+		t.Fatalf("ready badge should surface CTA, got %q", got)
+	}
+
+	done := Model{session: domain.Session{Phase: domain.PhaseDone, TerminalStatus: domain.TerminalDone}}
+	got = done.badge(done.statusInfo())
+	if !strings.Contains(got, "Done") || !strings.Contains(got, "/start") {
+		t.Fatalf("done badge should surface next-step hint, got %q", got)
+	}
+
+	aborted := Model{
+		session: domain.Session{Phase: domain.PhaseAborted},
+		todos:   domain.TodoList{Items: []domain.TodoItem{{Title: "left", Status: domain.TodoPending}}},
+	}
+	got = aborted.badge(aborted.statusInfo())
+	if !strings.Contains(got, "Stopped") || !strings.Contains(got, "type /start to continue") {
+		t.Fatalf("aborted-with-pending badge should invite /start, got %q", got)
+	}
+}
+
+func TestFooterLineEmptyFirstScreenCue(t *testing.T) {
+	m := Model{session: domain.Session{Phase: domain.PhaseClarifying}}
+	got := m.footerLine()
+	if got != "describe a goal · / for commands" {
+		t.Fatalf("empty first screen footer = %q", got)
+	}
+	// Ready CTA lives on the badge — no duplicate footer.
+	m.session.Phase = domain.PhaseReadyToStart
+	if got := m.footerLine(); got != "" {
+		t.Fatalf("ready footer should stay empty, got %q", got)
+	}
+	// Setup notice already guides; don't stack a second cue.
+	m.session.Phase = domain.PhaseClarifying
+	m.notice = "First-run: LLM key missing."
+	if got := m.footerLine(); got != "" {
+		t.Fatalf("notice present → no cold-start footer, got %q", got)
+	}
 }
 
 func TestClarifyContentSoftAlignPanelNotHardGate(t *testing.T) {

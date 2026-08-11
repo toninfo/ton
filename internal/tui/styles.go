@@ -2,13 +2,14 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// AdaptiveColor: #111827 will be "invisible" under dark Windows terminals, and Dark contrasting color must be given.
+// AdaptiveColor: light/dark pairs so Windows dark terminals stay readable.
+// Brand blue tracks extras/web KMBlue (#1a88ff) without copying web CTA red into chrome.
 var (
 	cMuted = lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#9CA3AF"}
 	cBody  = lipgloss.AdaptiveColor{Light: "#111827", Dark: "#E5E7EB"}
 	cDim   = lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#6B7280"}
-	cBlue  = lipgloss.AdaptiveColor{Light: "#2563EB", Dark: "#60A5FA"}
-	cWork  = lipgloss.AdaptiveColor{Light: "#1D4ED8", Dark: "#93C5FD"}
+	cBlue  = lipgloss.AdaptiveColor{Light: "#1A88FF", Dark: "#5BA8FF"} // KMBlue family
+	cWork  = lipgloss.AdaptiveColor{Light: "#1670D9", Dark: "#7BB8FF"}
 	cTeal  = lipgloss.AdaptiveColor{Light: "#0F766E", Dark: "#5EEAD4"}
 	cGreen = lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#4ADE80"}
 	cRed   = lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#F87171"}

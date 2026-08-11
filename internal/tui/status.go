@@ -9,8 +9,8 @@ import (
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// Lightweight spinning frames: enough to express "work" without introducing additional component dependencies.
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// ASCII spinner frames — PowerShell/conhost-safe (braille glyphs often render as tofu).
+var asciiSpinnerFrames = []string{"|", "/", "-", "\\"}
 
 type tickMsg time.Time
 

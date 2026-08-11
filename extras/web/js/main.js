@@ -39,7 +39,8 @@
       "terminal.you1": "Build a static login page with dark mode",
       "terminal.ton1":
         "Got it — static HTML/CSS login with prefers-color-scheme. Light or dark default?",
-      "terminal.oq": "Open questions (defaults on /start)",
+      "terminal.oq": "Open questions",
+      "terminal.oqHint": "defaults apply on /start",
       "terminal.oq1": "- Which page opens after login?",
       "drivers.body":
         "One state machine; swap backends. <code>fake</code> for CI; OpenCode / Claude / Cursor for real runs.",
@@ -88,7 +89,8 @@
       "terminal.phase": "Clarify",
       "terminal.you1": "做一个带暗色模式的静态登录页",
       "terminal.ton1": "收到 — 静态 HTML/CSS 登录页，支持 prefers-color-scheme。默认亮色还是暗色？",
-      "terminal.oq": "Open questions（/start 时用默认值）",
+      "terminal.oq": "Open questions",
+      "terminal.oqHint": "/start 时用默认值",
       "terminal.oq1": "- 登录成功后打开哪一页？",
       "drivers.body":
         "一套状态机，后端可换。CI 用 <code>fake</code>；实战接 OpenCode / Claude / Cursor。",

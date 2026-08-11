@@ -86,7 +86,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.needsTick() {
 			return m, nil
 		}
-		m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+		m.spinnerFrame = (m.spinnerFrame + 1) % len(asciiSpinnerFrames)
 		// Pull controller snapshot while busy/working so Plan→Execute flips and
 		// todos appear without waiting for the next milestone (long agent-plan runs).
 		if m.busy || isWorkingPhase(m.session.Phase) {
