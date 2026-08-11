@@ -20,6 +20,8 @@ func formatMilestone(name string, session domain.Session, todos domain.TodoList,
 		return ""
 	case "step_verify_failed":
 		return "Step verify failed"
+	case "step_timed_out":
+		return "Step timed out — repairing"
 	case "step_repair":
 		return repairStepMilestone(session, todos, maxRepairs)
 	case "step_exhausted":
@@ -37,6 +39,9 @@ func formatMilestone(name string, session domain.Session, todos domain.TodoList,
 	case "done":
 		return "Done"
 	default:
+		if strings.HasPrefix(name, "still_working:") {
+			return "Still working… (" + strings.TrimPrefix(name, "still_working:") + ")"
+		}
 		if strings.HasPrefix(name, "verify_failed:") {
 			detail := strings.TrimSpace(strings.TrimPrefix(name, "verify_failed:"))
 			if detail == "" {

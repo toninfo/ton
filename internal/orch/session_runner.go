@@ -177,6 +177,9 @@ func (r SessionRunner) runVerifyLoop(
 			BackendSessionID: session.BackendSessionID,
 			Timeout:          r.RepairTimeout,
 			OnEvent:          r.ExecuteHooks.OnEvent,
+			OnHeartbeat: func(elapsedSec int) {
+				r.milestone(fmt.Sprintf("still_working:%ds", elapsedSec))
+			},
 		}
 		if err := repairer.RepairFromVerify(ctx, result, round, extras...); err != nil {
 			r.finish(session, domain.PhaseDone, domain.TerminalFailed)

@@ -167,6 +167,51 @@ func TestExecutorSoftStopAbortsAtStepBoundary(t *testing.T) {
 	}
 }
 
+func TestExecutorContextCancelAbortsWithoutRepair(t *testing.T) {
+	t.Parallel()
+
+	backend := fake.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	executor := execute.Executor{
+		OnExhausted: execute.OnExhaustedAbortSession,
+		MaxRepairs:  3,
+	}
+	session := domain.Session{ID: "session-cancel", Workspace: "/workspace"}
+	todos := domain.TodoList{Items: []domain.TodoItem{
+		{ID: "step-1", Title: "first", Prompt: "implement", Status: domain.TodoPending},
+		{ID: "step-2", Title: "second", Prompt: "implement", Status: domain.TodoPending},
+	}}
+	var milestones []string
+
+	terminal, partial, err := executor.RunAll(ctx, &session, todos, backend, execute.Hooks{
+		OnMilestone: func(name string) { milestones = append(milestones, name) },
+		AfterStep: func(step domain.TodoItem) {
+			if step.ID == "step-1" {
+				cancel() // simulate budget/hard cancel after first step
+			}
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunAll() error = %v", err)
+	}
+	if terminal != domain.TerminalAborted {
+		t.Fatalf("terminal = %q, want aborted", terminal)
+	}
+	if got := partial.Items[0].Status; got != domain.TodoDone {
+		t.Fatalf("step-1 = %q, want done", got)
+	}
+	if got := partial.Items[1].Status; got != domain.TodoPending && got != domain.TodoRunning {
+		// abortSoft leaves step-2 as pending (or briefly running before abort)
+		t.Fatalf("step-2 = %q, want pending (not repaired/failed)", got)
+	}
+	if containsMilestone(milestones, "step_repair") {
+		t.Fatalf("cancel must not enter repair, milestones=%v", milestones)
+	}
+	if !containsMilestone(milestones, "session_aborted") {
+		t.Fatalf("want session_aborted, milestones=%v", milestones)
+	}
+}
+
 func TestExecutorSkipAfterAgentAbandonsStepBeforeVerify(t *testing.T) {
 	t.Parallel()
 

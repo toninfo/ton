@@ -19,6 +19,8 @@ type Repairer struct {
 	BackendSessionID string
 	Timeout          time.Duration
 	OnEvent          func(domain.AgentEvent)
+	// OnHeartbeat optional Progress pulse during long repair agent runs (elapsed seconds).
+	OnHeartbeat func(elapsedSec int)
 }
 
 // RepairFromVerify repairs a failed acceptance gate without allowing the agent to weaken it.
@@ -40,6 +42,8 @@ func (r Repairer) RepairFromVerify(ctx context.Context, failure domain.VerifyRes
 	}
 
 	exitCode := -1
+	lastBeat := time.Now()
+	started := time.Now()
 	for event := range events {
 		if r.OnEvent != nil {
 			r.OnEvent(event)
@@ -49,6 +53,11 @@ func (r Repairer) RepairFromVerify(ctx context.Context, failure domain.VerifyRes
 			exitCode = exitCodeFromPayload(event.Payload)
 		case domain.EventRunFailed, domain.EventError:
 			return fmt.Errorf("repair: backend emitted %s", event.Type)
+		}
+		// Mirror execute heartbeats so gate-repair Progress does not freeze.
+		if r.OnHeartbeat != nil && time.Since(lastBeat) >= 30*time.Second {
+			r.OnHeartbeat(int(time.Since(started).Seconds()))
+			lastBeat = time.Now()
 		}
 	}
 	if err := ctx.Err(); err != nil {

@@ -88,6 +88,27 @@ func (t Tracker) CheckAtStepBoundary() BoundaryDecision {
 	return applyExceeded(t.policy.OnExceeded, exceededTokens, exceededUSD)
 }
 
+// NearLimit reports whether usage has reached ratio (e.g. 0.8) of any configured cap.
+// Returns a short human reason when near; empty when not.
+func (t Tracker) NearLimit(ratio float64) (bool, string) {
+	if ratio <= 0 || ratio >= 1 {
+		ratio = 0.8
+	}
+	if t.policy.MaxTokens > 0 {
+		threshold := int64(float64(t.policy.MaxTokens) * ratio)
+		if threshold > 0 && t.usage.TotalTokens >= threshold {
+			return true, "tokens"
+		}
+	}
+	if t.policy.MaxUSD > 0 {
+		threshold := t.policy.MaxUSD * ratio
+		if threshold > 0 && t.usage.TotalUSD >= threshold {
+			return true, "usd"
+		}
+	}
+	return false, ""
+}
+
 func applyExceeded(policy string, exceededTokens, exceededUSD bool) BoundaryDecision {
 	decision := BoundaryDecision{
 		Exceeded:       true,

@@ -170,6 +170,7 @@ func TestFormatMilestoneCatalog(t *testing.T) {
 		{"step_done", ""},
 		{"step_verify_passed", ""},
 		{"step_verify_failed", "Step verify failed"},
+		{"step_timed_out", "Step timed out — repairing"},
 		{"step_repair", "Repair step 1/3"},
 		{"verify_running", "Verify running"},
 		{"verify_passed", "Verify passed"},
@@ -178,6 +179,7 @@ func TestFormatMilestoneCatalog(t *testing.T) {
 		{"session_aborted", "Session aborted"},
 		{"done", "Done"},
 		{"verify_failed:cmd login exited 1", "Verify failed — cmd login exited 1"},
+		{"still_working:45s", "Still working… (45s)"},
 	}
 	for _, tt := range tests {
 		tt := tt

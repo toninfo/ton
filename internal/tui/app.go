@@ -78,6 +78,7 @@ type SessionController struct {
 	cancel         context.CancelFunc
 	budgetTracker  budget.Tracker
 	budgetExceeded bool
+	budgetNearWarn bool // one-shot Progress warn at ~80% of cap
 	locked         bool
 	gitFatal       error // CommitRequired Set by AfterStep on failure
 	serveMgr       *serve.Manager
@@ -749,7 +750,16 @@ func (c *SessionController) Start(ctx context.Context, force bool) error {
 	git := gitmgr.New(workspace)
 	dirty, dirtyErr := git.IsDirty(ctx)
 	if dirtyErr == nil && dirty && !c.cfg.Git.AllowDirtyDefault && !dirtyConfirmed {
-		return fmt.Errorf("workspace has uncommitted changes; confirm dirty workspace before /start (set acceptance.dirty_confirmed or enable git.allow_dirty_default)")
+		if force {
+			// /start --force is the TUI affordance to confirm a dirty tree (no JSON edit required).
+			c.mu.Lock()
+			c.state.Acceptance.DirtyConfirmed = true
+			stateSnap = c.state
+			c.mu.Unlock()
+			_ = c.store.SaveClarifyArtifacts(sessionSnap.ID, stateSnap)
+		} else {
+			return fmt.Errorf("workspace has uncommitted changes; use /start --force to confirm, or enable git.allow_dirty_default")
+		}
 	}
 
 	if err := c.ensureBackendReady(ctx); err != nil {
@@ -1360,6 +1370,10 @@ func (c *SessionController) onExecutionMilestone(name string) {
 	if line := formatMilestone(name, session, todos, maxRepairs, maxGate); line != "" {
 		c.emit(line)
 	}
+	// Heartbeats are Progress-only — skip disk checkpoint spam.
+	if strings.HasPrefix(name, "still_working:") {
+		return
+	}
 	// Checkpoint the boundaries of phase/step milestones to facilitate crash recovery.
 	_ = c.checkpoint()
 }
@@ -1598,6 +1612,7 @@ func (c *SessionController) CompactStatus() string {
 	driverSrc := c.driverSource
 	snap := c.budgetTracker.Snapshot()
 	exceeded := c.budgetExceeded
+	nearWarn := c.budgetNearWarn
 	rationale := c.lastRationale
 	maxTok := c.cfg.Budget.MaxTokens
 	maxUSD := c.cfg.Budget.MaxUSD
@@ -1638,6 +1653,8 @@ func (c *SessionController) CompactStatus() string {
 	}
 	if exceeded {
 		parts = append(parts, "budget exceeded")
+	} else if nearWarn {
+		parts = append(parts, "budget ≥80%")
 	}
 	if rationale != "" {
 		parts = append(parts, "why: "+rationale)
@@ -1726,8 +1743,20 @@ func (c *SessionController) browserExtraEnv() []string {
 
 func (c *SessionController) trackBudget(event domain.AgentEvent) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	_ = c.budgetTracker.Accumulate(event)
+	changed := c.budgetTracker.Accumulate(event)
+	warn := false
+	reason := ""
+	if changed && !c.budgetExceeded && !c.budgetNearWarn {
+		if near, why := c.budgetTracker.NearLimit(0.8); near {
+			c.budgetNearWarn = true
+			warn = true
+			reason = why
+		}
+	}
+	c.mu.Unlock()
+	if warn {
+		c.emit("Budget nearing limit (" + reason + " ≥80%) — wrap up or raise caps")
+	}
 }
 
 // checkBudgetAtStepBoundary evaluates the budget at the step boundary; cancel if exceeded and abort.
@@ -1740,6 +1769,8 @@ func (c *SessionController) checkBudgetAtStepBoundary() {
 			emit = true
 		}
 		c.budgetExceeded = true
+		// Soft-stop the queue so the executor aborts at the next drain even if cancel races.
+		c.queue.Enqueue(execute.UserInput{Kind: execute.InputKindSoftStop})
 		if !decision.ContinueSteps && c.cancel != nil {
 			c.cancel()
 		}

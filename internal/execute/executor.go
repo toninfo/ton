@@ -108,6 +108,13 @@ func (e Executor) RunAll(
 			if more.SoftStop {
 				return e.abortSoft(session, todos, hooks)
 			}
+			// Budget/hard-cancel: ctx is done without a step timeout — abort cleanly (do not burn repairs).
+			if outcome.Err != nil && ctx.Err() != nil && !outcome.TimedOut {
+				return e.abortSoft(session, todos, hooks)
+			}
+			if outcome.TimedOut {
+				e.milestone(hooks, "step_timed_out")
+			}
 			// /skip after the agent finishes: abandon this step (no verify/repair), continue the plan.
 			if more.SkipStep {
 				step.Status = domain.TodoSkipped
@@ -208,6 +215,8 @@ func (e Executor) runStep(
 
 	// Default failure: Only when exit_code=0 of run_finished is received can the success judgment of StepSucceeded be entered.
 	outcome := RunOutcome{ExitCode: -1}
+	lastBeat := time.Now()
+	started := time.Now()
 	for event := range events {
 		if hooks.OnEvent != nil {
 			hooks.OnEvent(event)
@@ -217,6 +226,12 @@ func (e Executor) runStep(
 			outcome.ExitCode = payloadExitCode(event.Payload)
 		case domain.EventRunFailed, domain.EventError:
 			outcome.Err = fmt.Errorf("backend emitted %s", event.Type)
+		}
+		// Long agent runs must keep Progress alive (planning already heartbeats; execute did not).
+		if time.Since(lastBeat) >= 30*time.Second {
+			elapsed := int(time.Since(started).Seconds())
+			e.milestone(hooks, fmt.Sprintf("still_working:%ds", elapsed))
+			lastBeat = time.Now()
 		}
 	}
 	if err := ctx.Err(); err != nil {

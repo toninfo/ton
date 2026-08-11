@@ -284,6 +284,38 @@ func TestMilestoneLogShowsProgressTrail(t *testing.T) {
 	}
 }
 
+func TestStartFinishReplyBudgetAndVerifyHints(t *testing.T) {
+	got := startFinishReply("Session aborted.", []string{"Budget exceeded — stopping at step boundary"}, domain.Session{
+		TerminalStatus: domain.TerminalAborted,
+	}, domain.TodoList{})
+	if !strings.Contains(got, "Budget") {
+		t.Fatalf("want budget hint, got %q", got)
+	}
+	got = startFinishReply("Session failed.", []string{"Verify failed — cmd x exited 1"}, domain.Session{
+		TerminalStatus: domain.TerminalFailed,
+	}, domain.TodoList{})
+	if !strings.Contains(got, "acceptance") {
+		t.Fatalf("want verify hint, got %q", got)
+	}
+}
+
+func TestSubmitRejectsUnknownSlash(t *testing.T) {
+	m := Model{session: domain.Session{Phase: domain.PhaseClarifying}}
+	id := m.rememberUserTurn("/unknown-cmd")
+	_, cmd := m.submit("/unknown-cmd", id)
+	if cmd == nil {
+		t.Fatal("want cmd producing notice")
+	}
+	msg := cmd()
+	done, ok := msg.(actionDoneMsg)
+	if !ok {
+		t.Fatalf("msg type %T", msg)
+	}
+	if !strings.Contains(done.notice, "Unknown or incomplete command") {
+		t.Fatalf("notice = %q", done.notice)
+	}
+}
+
 func TestStartFinishReplyIncludesArtifacts(t *testing.T) {
 	got := startFinishReply("Session finished.", []string{"Planning…", "Verify passed", "Done"}, domain.Session{
 		ID:             "ses-9",

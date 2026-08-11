@@ -208,6 +208,16 @@ func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
 	if parsed, ok := parseCommand(input); ok {
 		return m.runCommand(parsed)
 	}
+	// Slash-looking input that failed parse must not be queued as agent text mid-run.
+	if strings.HasPrefix(strings.TrimSpace(input), "/") {
+		return m, func() tea.Msg {
+			return actionDoneMsg{
+				notice: "Unknown or incomplete command. Type / for the catalog.",
+				toChat: true,
+				chatID: chatID,
+			}
+		}
+	}
 	if isTerminalPhase(m.session.Phase) {
 		pending := countPendingTodos(m.todos)
 		hint := terminalFollowUpHint(m.session, pending)
@@ -374,12 +384,33 @@ func startFinishReply(notice string, log []string, session domain.Session, todos
 	case aborted && pending > 0:
 		return fmt.Sprintf("%s %d steps remain. Type /start to continue.", ensureSentence(base), pending)
 	case aborted:
+		if logHasPrefix(log, "Budget exceeded") {
+			return ensureSentence(base) + " Budget limit hit. Raise caps or narrow scope, then /start."
+		}
 		return ensureSentence(base) + " Say changes, or /start."
 	case failed:
+		if logHasPrefix(log, "Budget exceeded") {
+			return ensureSentence(base) + " Budget limit hit. Raise caps or narrow scope, then /start."
+		}
+		if logHasPrefix(log, "Verify failed") {
+			return ensureSentence(base) + " Fix acceptance failures, then /start."
+		}
+		if logHasPrefix(log, "Step timed out") {
+			return ensureSentence(base) + " A step timed out. Tighten the step or raise driver timeout, then /start."
+		}
 		return ensureSentence(base) + " Say changes, or /start."
 	default:
 		return ensureSentence(base) + " Say changes, or /start."
 	}
+}
+
+func logHasPrefix(log []string, prefix string) bool {
+	for _, line := range log {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func ensureSentence(s string) string {

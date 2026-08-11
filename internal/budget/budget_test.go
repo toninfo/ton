@@ -118,6 +118,19 @@ func TestUnknownOnExceededFallsBackToAbortSession(t *testing.T) {
 	}
 }
 
+func TestNearLimitAtEightyPercent(t *testing.T) {
+	tracker := budget.NewTracker(budget.Snapshot{}, budget.Policy{MaxTokens: 100})
+	tracker.Accumulate(usageEvent(79))
+	if near, _ := tracker.NearLimit(0.8); near {
+		t.Fatal("79/100 should not be near 80%")
+	}
+	tracker.Accumulate(usageEvent(1))
+	near, why := tracker.NearLimit(0.8)
+	if !near || why != "tokens" {
+		t.Fatalf("NearLimit = %v %q, want tokens", near, why)
+	}
+}
+
 func usageEvent(tokens int64) domain.AgentEvent {
 	return domain.AgentEvent{
 		Type:    domain.EventUsage,
