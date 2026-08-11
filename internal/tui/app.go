@@ -78,6 +78,7 @@ type SessionController struct {
 	cancel         context.CancelFunc
 	budgetTracker  budget.Tracker
 	budgetExceeded bool
+	budgetNearWarn bool // one-shot Progress warn at ~80% of cap
 	locked         bool
 	gitFatal       error // CommitRequired Set by AfterStep on failure
 	serveMgr       *serve.Manager
@@ -137,6 +138,68 @@ func NewSessionController(cfg config.Config, workspace, sessionID string) (*Sess
 	}
 	c.ensureFallbackDefaults()
 	return c, nil
+}
+
+// Running reports whether an unattended Start loop is live (cancel != nil),
+// including Plan/Execute/Verify/Repair/Summarize.
+func (c *SessionController) Running() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cancel != nil
+}
+
+// NeedsContinueAfterResume is true when crash resume left work pending and /start must resume it.
+func (c *SessionController) NeedsContinueAfterResume() bool {
+	if c == nil || c.Running() {
+		return false
+	}
+	c.mu.RLock()
+	kind := c.resumeAction.Kind
+	phase := c.session.Phase
+	c.mu.RUnlock()
+	switch kind {
+	case orch.ResumeReplan, orch.ResumeRepairOrExhausted, orch.ResumeRerunStepVerify,
+		orch.ResumeRerunGate, orch.ResumeRerunGateRepair, orch.ResumeNextPendingStep,
+		orch.ResumeRewriteReport:
+		return true
+	default:
+		// Working-looking phases without a live cancel still need /start (e.g. restored mid-execute).
+		switch phase {
+		case domain.PhasePlanning, domain.PhaseExecuting, domain.PhaseVerifying,
+			domain.PhaseRepairing, domain.PhaseSummarizing:
+			return true
+		}
+		return false
+	}
+}
+
+// ResumeContinueHint is a one-line coach for the paused-after-resume surface.
+func (c *SessionController) ResumeContinueHint() string {
+	if c == nil || !c.NeedsContinueAfterResume() {
+		return ""
+	}
+	c.mu.RLock()
+	kind := c.resumeAction.Kind
+	c.mu.RUnlock()
+	switch kind {
+	case orch.ResumeReplan:
+		return "Resumed · type /start to replan"
+	case orch.ResumeRepairOrExhausted:
+		return "Resumed · type /start to repair interrupted step"
+	case orch.ResumeRerunStepVerify:
+		return "Resumed · type /start to rerun step verify"
+	case orch.ResumeRerunGate, orch.ResumeRerunGateRepair:
+		return "Resumed · type /start to continue verify/repair"
+	case orch.ResumeNextPendingStep:
+		return "Resumed · type /start to continue next step"
+	case orch.ResumeRewriteReport:
+		return "Resumed · type /start to rewrite report"
+	default:
+		return "Resumed · type /start to continue"
+	}
 }
 
 func (c *SessionController) initNewSession(workspace string) error {
@@ -285,7 +348,7 @@ func (c *SessionController) Close() {
 	running := c.cancel != nil
 	c.mu.RUnlock()
 	if running {
-		_ = c.Stop(context.Background(), "hard")
+		_, _ = c.Stop(context.Background(), "hard")
 	}
 	c.Unlock()
 }
@@ -309,13 +372,6 @@ func (c *SessionController) Snapshot() (domain.Session, clarify.ReqState, domain
 // QueueLen returns the number of inputs that have not been consumed during the execution period for status line and /status aware queuing.
 func (c *SessionController) QueueLen() int {
 	return c.queue.Len()
-}
-
-// Running means that Start orchestration is still in progress (including Plan/Execute/Verify/Repair/Summarize).
-func (c *SessionController) Running() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.cancel != nil
 }
 
 // NextMilestone waits for a coarse execution update.
@@ -346,7 +402,31 @@ func (c *SessionController) Clarify(ctx context.Context, input string) (string, 
 		pending := c.queue.Len()
 		summary := c.queue.Summary()
 		c.mu.Unlock()
-		return fmt.Sprintf("Input queued (%d pending: %s) for the next safe boundary.", pending, summary), nil
+		return fmt.Sprintf("Input queued (%d pending: %s) — applies at next step/verify boundary.", pending, summary), nil
+	}
+	// Crash-resume left a working phase paused: do not derail into Clarify.
+	kind := c.resumeAction.Kind
+	phase := c.session.Phase
+	paused := false
+	switch kind {
+	case orch.ResumeReplan, orch.ResumeRepairOrExhausted, orch.ResumeRerunStepVerify,
+		orch.ResumeRerunGate, orch.ResumeRerunGateRepair, orch.ResumeNextPendingStep,
+		orch.ResumeRewriteReport:
+		paused = true
+	default:
+		switch phase {
+		case domain.PhasePlanning, domain.PhaseExecuting, domain.PhaseVerifying,
+			domain.PhaseRepairing, domain.PhaseSummarizing:
+			paused = true
+		}
+	}
+	if paused {
+		c.mu.Unlock()
+		hint := c.ResumeContinueHint()
+		if hint == "" {
+			hint = "type /start to continue"
+		}
+		return "", fmt.Errorf("%s (chat is paused until then)", hint)
 	}
 	c.session.Phase = domain.PhaseClarifying
 	c.session.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
@@ -508,36 +588,42 @@ func (c *SessionController) SetAPIKey(key string) error {
 	return nil
 }
 
-// QueueSkip skips the current step on an execution-time request boundary.
+// QueueSkip skips the next pending step at an execution boundary (not mid-agent).
 func (c *SessionController) QueueSkip() (string, error) {
 	c.mu.RLock()
 	running := c.cancel != nil
 	allow := c.cfg.Execute.QueueUserInput
 	c.mu.RUnlock()
 	if !running {
+		if c.NeedsContinueAfterResume() {
+			return "", fmt.Errorf("%s — /skip only applies while a run is live", c.ResumeContinueHint())
+		}
 		return "", fmt.Errorf("no session is running; /skip only applies during execution")
 	}
 	if !allow {
 		return "", fmt.Errorf("queue_user_input=false; /skip ignored")
 	}
 	c.queue.Enqueue(execute.UserInput{Kind: execute.InputKindSkipStep})
-	return fmt.Sprintf("Skip queued (%d pending: %s).", c.queue.Len(), c.queue.Summary()), nil
+	return fmt.Sprintf("Skip queued for next pending step at boundary (%d pending: %s). Current agent keeps running until then.", c.queue.Len(), c.queue.Summary()), nil
 }
 
-// QueueBrief appends the next brief at the execution period boundary.
+// QueueBrief appends a brief that applies at the next step/repair boundary.
 func (c *SessionController) QueueBrief(text string) (string, error) {
 	c.mu.RLock()
 	running := c.cancel != nil
 	allow := c.cfg.Execute.QueueUserInput
 	c.mu.RUnlock()
 	if !running {
+		if c.NeedsContinueAfterResume() {
+			return "", fmt.Errorf("%s — /brief only applies while a run is live", c.ResumeContinueHint())
+		}
 		return "", fmt.Errorf("no session is running; /brief only applies during execution")
 	}
 	if !allow {
 		return "", fmt.Errorf("queue_user_input=false; /brief ignored")
 	}
 	c.queue.Enqueue(execute.UserInput{Kind: execute.InputKindBrief, Text: text})
-	return fmt.Sprintf("Brief queued (%d pending: %s).", c.queue.Len(), c.queue.Summary()), nil
+	return fmt.Sprintf("Brief queued — applies at next step/verify boundary (%d pending: %s).", c.queue.Len(), c.queue.Summary()), nil
 }
 
 func (c *SessionController) setRationale(r string) {
@@ -664,7 +750,16 @@ func (c *SessionController) Start(ctx context.Context, force bool) error {
 	git := gitmgr.New(workspace)
 	dirty, dirtyErr := git.IsDirty(ctx)
 	if dirtyErr == nil && dirty && !c.cfg.Git.AllowDirtyDefault && !dirtyConfirmed {
-		return fmt.Errorf("workspace has uncommitted changes; confirm dirty workspace before /start (set acceptance.dirty_confirmed or enable git.allow_dirty_default)")
+		if force {
+			// /start --force is the TUI affordance to confirm a dirty tree (no JSON edit required).
+			c.mu.Lock()
+			c.state.Acceptance.DirtyConfirmed = true
+			stateSnap = c.state
+			c.mu.Unlock()
+			_ = c.store.SaveClarifyArtifacts(sessionSnap.ID, stateSnap)
+		} else {
+			return fmt.Errorf("workspace has uncommitted changes; use /start --force to confirm, or enable git.allow_dirty_default")
+		}
 	}
 
 	if err := c.ensureBackendReady(ctx); err != nil {
@@ -1082,27 +1177,35 @@ func (c *SessionController) handleGitPush(ctx context.Context, git *gitmgr.Manag
 
 // Stop soft/hard: empty mode falls back to cfg.Execute.Stop.
 // soft only enqueues soft_stop; hard cancels + Interrupt immediately.
-func (c *SessionController) Stop(ctx context.Context, mode string) error {
-	if strings.TrimSpace(mode) == "" {
-		mode = c.cfg.Execute.Stop
+// Returns a short user-facing notice describing what actually happened.
+func (c *SessionController) Stop(ctx context.Context, mode string) (string, error) {
+	resolved := strings.ToLower(strings.TrimSpace(mode))
+	if resolved == "" {
+		resolved = strings.ToLower(strings.TrimSpace(c.cfg.Execute.Stop))
 	}
-	switch strings.ToLower(strings.TrimSpace(mode)) {
+	switch resolved {
 	case "soft":
 		c.mu.RLock()
 		running := c.cancel != nil
 		c.mu.RUnlock()
 		if !running {
-			return fmt.Errorf("no session is running")
+			if c.NeedsContinueAfterResume() {
+				return "", fmt.Errorf("%s — nothing live to stop", c.ResumeContinueHint())
+			}
+			return "", fmt.Errorf("no session is running")
 		}
 		c.queue.Enqueue(execute.UserInput{Kind: execute.InputKindSoftStop})
-		return nil
+		return fmt.Sprintf("Soft stop queued — halts at next step/verify boundary (%d pending: %s).", c.queue.Len(), c.queue.Summary()), nil
 	case "hard":
 		c.mu.RLock()
 		cancel := c.cancel
 		agent := c.backend
 		c.mu.RUnlock()
 		if cancel == nil {
-			return fmt.Errorf("no session is running")
+			if c.NeedsContinueAfterResume() {
+				return "", fmt.Errorf("%s — nothing live to stop", c.ResumeContinueHint())
+			}
+			return "", fmt.Errorf("no session is running")
 		}
 		cancel()
 		err := agent.Interrupt(ctx)
@@ -1112,9 +1215,12 @@ func (c *SessionController) Stop(ctx context.Context, mode string) error {
 		c.session.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 		c.mu.Unlock()
 		c.emit("Session aborted")
-		return err
+		if err != nil {
+			return "Hard stop — interrupting agent (interrupt error).", err
+		}
+		return "Hard stop — interrupting agent.", nil
 	default:
-		return fmt.Errorf("unsupported stop mode %q (use soft or hard)", mode)
+		return "", fmt.Errorf("unsupported stop mode %q (use soft or hard)", mode)
 	}
 }
 
@@ -1261,7 +1367,13 @@ func (c *SessionController) onExecutionMilestone(name string) {
 		}
 	}
 	c.mu.Unlock()
-	c.emit(formatMilestone(name, session, todos, maxRepairs, maxGate))
+	if line := formatMilestone(name, session, todos, maxRepairs, maxGate); line != "" {
+		c.emit(line)
+	}
+	// Heartbeats are Progress-only — skip disk checkpoint spam.
+	if strings.HasPrefix(name, "still_working:") {
+		return
+	}
 	// Checkpoint the boundaries of phase/step milestones to facilitate crash recovery.
 	_ = c.checkpoint()
 }
@@ -1500,6 +1612,7 @@ func (c *SessionController) CompactStatus() string {
 	driverSrc := c.driverSource
 	snap := c.budgetTracker.Snapshot()
 	exceeded := c.budgetExceeded
+	nearWarn := c.budgetNearWarn
 	rationale := c.lastRationale
 	maxTok := c.cfg.Budget.MaxTokens
 	maxUSD := c.cfg.Budget.MaxUSD
@@ -1540,6 +1653,8 @@ func (c *SessionController) CompactStatus() string {
 	}
 	if exceeded {
 		parts = append(parts, "budget exceeded")
+	} else if nearWarn {
+		parts = append(parts, "budget ≥80%")
 	}
 	if rationale != "" {
 		parts = append(parts, "why: "+rationale)
@@ -1628,21 +1743,42 @@ func (c *SessionController) browserExtraEnv() []string {
 
 func (c *SessionController) trackBudget(event domain.AgentEvent) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	_ = c.budgetTracker.Accumulate(event)
+	changed := c.budgetTracker.Accumulate(event)
+	warn := false
+	reason := ""
+	if changed && !c.budgetExceeded && !c.budgetNearWarn {
+		if near, why := c.budgetTracker.NearLimit(0.8); near {
+			c.budgetNearWarn = true
+			warn = true
+			reason = why
+		}
+	}
+	c.mu.Unlock()
+	if warn {
+		c.emit("Budget nearing limit (" + reason + " ≥80%) — wrap up or raise caps")
+	}
 }
 
 // checkBudgetAtStepBoundary evaluates the budget at the step boundary; cancel if exceeded and abort.
 func (c *SessionController) checkBudgetAtStepBoundary() {
 	c.mu.Lock()
 	decision := c.budgetTracker.CheckAtStepBoundary()
+	emit := false
 	if decision.Exceeded {
+		if !c.budgetExceeded {
+			emit = true
+		}
 		c.budgetExceeded = true
+		// Soft-stop the queue so the executor aborts at the next drain even if cancel races.
+		c.queue.Enqueue(execute.UserInput{Kind: execute.InputKindSoftStop})
 		if !decision.ContinueSteps && c.cancel != nil {
 			c.cancel()
 		}
 	}
 	c.mu.Unlock()
+	if emit {
+		c.emit("Budget exceeded — stopping at step boundary")
+	}
 }
 
 // writeReport enters summarizing, renders report.md, then returns to the terminal phase.

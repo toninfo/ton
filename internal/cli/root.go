@@ -77,6 +77,7 @@ func Execute() int {
 		newSetupCmd(cfg),
 		newDoctorCmd(cfg),
 		newConfigCmd(cfg),
+		newUpgradeCmd(),
 		newSessionsCmdRuntime(rt),
 		newServeCmdRuntime(rt),
 	)
@@ -116,6 +117,7 @@ func NewRoot(cfg config.Config, workspace string) *cobra.Command {
 		newSetupCmd(cfg),
 		newDoctorCmd(cfg),
 		newConfigCmd(cfg),
+		newUpgradeCmd(),
 		newSessionsCmd(workspace),
 		newServeCmd(cfg, workspace),
 	)

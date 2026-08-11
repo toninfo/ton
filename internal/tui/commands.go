@@ -16,7 +16,8 @@ const (
 	commandBrief  commandKind = "brief"
 	commandSkip   commandKind = "skip"
 	commandQueue  commandKind = "queue"
-	commandDocs commandKind = "docs"
+	commandDocs   commandKind = "docs"
+	commandUpgrade commandKind = "upgrade"
 )
 
 // command is the validated internal form of a user-entered slash command.
@@ -36,18 +37,19 @@ type slashSpec struct {
 // slashCatalog is the OpenCode-style menu surface (aliases omitted; /review → /docs).
 func slashCatalog() []slashSpec {
 	return []slashSpec{
-		{Name: "/start", Usage: "/start [--force]", Desc: "Settle package and run (force skips readiness gaps)", NeedsArg: false},
-		{Name: "/docs", Usage: "/docs [preview|open|req|design]", Desc: "Review requirements and design", NeedsArg: false},
-		{Name: "/status", Usage: "/status", Desc: "Show phase, queue, driver, and why", NeedsArg: false},
-		{Name: "/todos", Usage: "/todos", Desc: "Toggle the plan sidebar", NeedsArg: false},
-		{Name: "/stop", Usage: "/stop [soft|hard]", Desc: "Soft-stop or hard interrupt", NeedsArg: false},
-		{Name: "/driver", Usage: "/driver <name>", Desc: "Switch coding agent (or auto)", NeedsArg: true},
-		{Name: "/model", Usage: "/model <name>", Desc: "Switch clarify/plan model", NeedsArg: true},
+		{Name: "/start", Usage: "/start [--force]", Desc: "Settle & run (--force skips gaps)", NeedsArg: false},
+		{Name: "/docs", Usage: "/docs [preview|open|req|design]", Desc: "Review req/design", NeedsArg: false},
+		{Name: "/status", Usage: "/status", Desc: "Phase, queue, driver", NeedsArg: false},
+		{Name: "/todos", Usage: "/todos", Desc: "Toggle plan sidebar", NeedsArg: false},
+		{Name: "/stop", Usage: "/stop [soft|hard]", Desc: "Soft halt at boundary, or hard interrupt", NeedsArg: false},
+		{Name: "/driver", Usage: "/driver <name>", Desc: "Switch coding agent", NeedsArg: true},
+		{Name: "/model", Usage: "/model <name>", Desc: "Switch clarify model", NeedsArg: true},
 		{Name: "/key", Usage: "/key <api_key>", Desc: "Save LLM API key", NeedsArg: true},
-		{Name: "/queue", Usage: "/queue", Desc: "Show queued input during execute", NeedsArg: false},
-		{Name: "/brief", Usage: "/brief <text>", Desc: "Queue a next-step brief", NeedsArg: true},
-		{Name: "/skip", Usage: "/skip", Desc: "Queue skip for the current step", NeedsArg: false},
-		{Name: "/export", Usage: "/export", Desc: "Re-export todos.md / report", NeedsArg: false},
+		{Name: "/queue", Usage: "/queue", Desc: "Show queued input", NeedsArg: false},
+		{Name: "/brief", Usage: "/brief <text>", Desc: "Brief next step at boundary", NeedsArg: true},
+		{Name: "/skip", Usage: "/skip", Desc: "Skip next pending step at boundary", NeedsArg: false},
+		{Name: "/export", Usage: "/export", Desc: "Re-export todos/report", NeedsArg: false},
+		{Name: "/upgrade", Usage: "/upgrade [version]", Desc: "Install latest (or pinned) release", NeedsArg: false},
 	}
 }
 
@@ -89,7 +91,7 @@ func enrichDriverSlashSpec(items []slashSpec, choices []string, current string) 
 // driverSlashDesc builds the menu blurb, e.g. "options: opencode*, claude, auto".
 func driverSlashDesc(choices []string, current string) string {
 	if len(choices) == 0 {
-		return "Switch coding agent (or auto)"
+		return "Switch coding agent"
 	}
 	cur := strings.ToLower(strings.TrimSpace(current))
 	parts := make([]string, len(choices))
@@ -150,9 +152,39 @@ func parseCommand(input string) (command, bool) {
 			}
 		}
 		return command{}, false
+	case "/upgrade", "/update":
+		// /upgrade [vX.Y.Z] — empty means latest GitHub release.
+		if len(fields) == 1 {
+			return command{kind: commandUpgrade}, true
+		}
+		if len(fields) == 2 {
+			arg := strings.TrimSpace(fields[1])
+			if strings.EqualFold(arg, "check") {
+				return command{kind: commandUpgrade, argument: "check"}, true
+			}
+			if strings.HasPrefix(arg, "v") || isVersionLike(arg) {
+				return command{kind: commandUpgrade, argument: arg}, true
+			}
+		}
+		return command{}, false
 	default:
 		return command{}, false
 	}
+}
+
+func isVersionLike(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	// Accept 1.2.3 / 1.2.3-beta without forcing users to type the leading v.
+	for _, r := range s {
+		if (r >= '0' && r <= '9') || r == '.' || r == '-' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			continue
+		}
+		return false
+	}
+	return s[0] >= '0' && s[0] <= '9'
 }
 
 func startCommand(fields []string) (command, bool) {

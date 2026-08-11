@@ -119,8 +119,60 @@ func TestTodosSidebarDuringPlanningShowsWritingPlan(t *testing.T) {
 	if !strings.Contains(got, "Writing plan") {
 		t.Fatalf("want Writing plan hint, got %q", got)
 	}
-	if strings.Contains(got, "No plan has been generated") {
-		t.Fatalf("stale empty-plan copy during planning: %q", got)
+	if strings.Contains(got, "todos.json") || strings.Contains(got, "No plan has been generated") {
+		t.Fatalf("stale/impl-detail empty-plan copy during planning: %q", got)
+	}
+	side := m.todosSidebar(30, 18)
+	if !strings.Contains(side, "Writing plan") {
+		t.Fatalf("wide sidebar should show Writing plan while empty, got %q", side)
+	}
+}
+
+func TestBadgeSurfacesReadyAndDoneHints(t *testing.T) {
+	ready := Model{session: domain.Session{Phase: domain.PhaseReadyToStart}}
+	got := ready.badge(ready.statusInfo())
+	if !strings.Contains(got, "Ready") || !strings.Contains(got, "type /start") {
+		t.Fatalf("ready badge should surface CTA, got %q", got)
+	}
+
+	done := Model{session: domain.Session{Phase: domain.PhaseDone, TerminalStatus: domain.TerminalDone}}
+	got = done.badge(done.statusInfo())
+	if !strings.Contains(got, "Done") || !strings.Contains(got, "/start") {
+		t.Fatalf("done badge should surface next-step hint, got %q", got)
+	}
+
+	failed := Model{session: domain.Session{Phase: domain.PhaseDone, TerminalStatus: domain.TerminalFailed}}
+	got = failed.badge(failed.statusInfo())
+	if !strings.Contains(got, "Failed") || !strings.Contains(got, "/start") {
+		t.Fatalf("failed badge should surface next-step hint, got %q", got)
+	}
+
+	aborted := Model{
+		session: domain.Session{Phase: domain.PhaseAborted},
+		todos:   domain.TodoList{Items: []domain.TodoItem{{Title: "left", Status: domain.TodoPending}}},
+	}
+	got = aborted.badge(aborted.statusInfo())
+	if !strings.Contains(got, "Stopped") || !strings.Contains(got, "type /start to continue") {
+		t.Fatalf("aborted-with-pending badge should invite /start, got %q", got)
+	}
+}
+
+func TestFooterLineEmptyFirstScreenCue(t *testing.T) {
+	m := Model{session: domain.Session{Phase: domain.PhaseClarifying}}
+	got := m.footerLine()
+	if got != "describe a goal · / for commands" {
+		t.Fatalf("empty first screen footer = %q", got)
+	}
+	// Ready CTA lives on the badge — no duplicate footer.
+	m.session.Phase = domain.PhaseReadyToStart
+	if got := m.footerLine(); got != "" {
+		t.Fatalf("ready footer should stay empty, got %q", got)
+	}
+	// Setup notice already guides; don't stack a second cue.
+	m.session.Phase = domain.PhaseClarifying
+	m.notice = "First-run: LLM key missing."
+	if got := m.footerLine(); got != "" {
+		t.Fatalf("notice present → no cold-start footer, got %q", got)
 	}
 }
 
@@ -232,6 +284,38 @@ func TestMilestoneLogShowsProgressTrail(t *testing.T) {
 	}
 }
 
+func TestStartFinishReplyBudgetAndVerifyHints(t *testing.T) {
+	got := startFinishReply("Session aborted.", []string{"Budget exceeded — stopping at step boundary"}, domain.Session{
+		TerminalStatus: domain.TerminalAborted,
+	}, domain.TodoList{})
+	if !strings.Contains(got, "Budget") {
+		t.Fatalf("want budget hint, got %q", got)
+	}
+	got = startFinishReply("Session failed.", []string{"Verify failed — cmd x exited 1"}, domain.Session{
+		TerminalStatus: domain.TerminalFailed,
+	}, domain.TodoList{})
+	if !strings.Contains(got, "acceptance") {
+		t.Fatalf("want verify hint, got %q", got)
+	}
+}
+
+func TestSubmitRejectsUnknownSlash(t *testing.T) {
+	m := Model{session: domain.Session{Phase: domain.PhaseClarifying}}
+	id := m.rememberUserTurn("/unknown-cmd")
+	_, cmd := m.submit("/unknown-cmd", id)
+	if cmd == nil {
+		t.Fatal("want cmd producing notice")
+	}
+	msg := cmd()
+	done, ok := msg.(actionDoneMsg)
+	if !ok {
+		t.Fatalf("msg type %T", msg)
+	}
+	if !strings.Contains(done.notice, "Unknown or incomplete command") {
+		t.Fatalf("notice = %q", done.notice)
+	}
+}
+
 func TestStartFinishReplyIncludesArtifacts(t *testing.T) {
 	got := startFinishReply("Session finished.", []string{"Planning…", "Verify passed", "Done"}, domain.Session{
 		ID:             "ses-9",
@@ -240,11 +324,11 @@ func TestStartFinishReplyIncludesArtifacts(t *testing.T) {
 	if strings.Contains(got, "Progress:") || strings.Contains(got, "Artifacts:") || strings.Contains(got, "Resume:") {
 		t.Fatalf("done reply should stay short (no progress/resume wall), got %q", got)
 	}
-	if !strings.Contains(got, "Session completed") && !strings.Contains(got, "/start") {
+	if !strings.Contains(got, "Session completed") || !strings.Contains(got, "/start") {
 		t.Fatalf("want short done follow-up, got %q", got)
 	}
-	if strings.Contains(got, "Verify passed") {
-		t.Fatalf("progress lines should not enter chat, got %q", got)
+	if strings.Contains(got, "Verify passed") || strings.Contains(got, "/docs") {
+		t.Fatalf("progress/docs essay should not enter chat, got %q", got)
 	}
 }
 
@@ -268,11 +352,11 @@ func TestStartFinishReplyAbortedPromptsRestart(t *testing.T) {
 
 func TestTerminalFollowUpHint(t *testing.T) {
 	got := terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseDone}, 0)
-	if !strings.Contains(got, "has ended") || !strings.Contains(got, "/start") {
+	if !strings.Contains(got, "Session ended") || !strings.Contains(got, "/start") {
 		t.Fatalf("want warm done hint, got %q", got)
 	}
-	if strings.Contains(got, "Artifacts:") {
-		t.Fatalf("follow-up hint should not dump artifacts wall, got %q", got)
+	if strings.Contains(got, "Artifacts:") || strings.Contains(got, "/docs") {
+		t.Fatalf("follow-up hint should stay short, got %q", got)
 	}
 	got = terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseAborted}, 3)
 	if !strings.Contains(got, "3 steps") || !strings.Contains(got, "/start") {

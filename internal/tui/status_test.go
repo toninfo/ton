@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/toninfo/ton/internal/domain"
+	"github.com/toninfo/ton/internal/orch"
 )
 
 func TestStatusLabelPhases(t *testing.T) {
@@ -66,8 +67,8 @@ func TestPlaceholderAndFooterShiftWithPhase(t *testing.T) {
 		t.Fatalf("idle footer = %q, want empty", got)
 	}
 	footer := footerFor(domain.PhaseExecuting, false, 2)
-	if footer != "2 queued" {
-		t.Fatalf("executing footer = %q, want 2 queued", footer)
+	if footer != "" {
+		t.Fatalf("executing footer = %q, want empty (queue lives on badge)", footer)
 	}
 	if got := footerFor(domain.PhaseReadyToStart, false, 0); got != "" {
 		t.Fatalf("ready footer = %q, want empty", got)
@@ -117,6 +118,27 @@ func TestStatusInfoAnimatesWhileBusyOrWorking(t *testing.T) {
 	}
 }
 
+func TestStatusInfoPausedAfterResume(t *testing.T) {
+	t.Parallel()
+
+	c := &SessionController{
+		session: &domain.Session{Phase: domain.PhaseExecuting, Subphase: "step_running"},
+		resumeAction: orch.ResumeAction{Kind: orch.ResumeNextPendingStep},
+	}
+	m := Model{controller: c, session: *c.session}
+	info := m.statusInfo()
+	if info.animated || info.kind != statusKindReady || info.label != "Paused" {
+		t.Fatalf("paused status = %+v, want static Paused", info)
+	}
+	if !strings.Contains(info.hint, "/start") {
+		t.Fatalf("paused hint = %q, want /start cue", info.hint)
+	}
+	got := m.badge(info)
+	if !strings.Contains(got, "Paused") || !strings.Contains(got, "/start") {
+		t.Fatalf("paused badge = %q", got)
+	}
+}
+
 func TestTodoMarkerRunningUsesSpinnerWhenAnimated(t *testing.T) {
 	t.Parallel()
 
@@ -145,9 +167,10 @@ func TestFormatMilestoneCatalog(t *testing.T) {
 	}{
 		{"planning_complete", "Planning complete"},
 		{"step_started", "Execute 2/2 — wire auth"},
-		{"step_done", "Step done"},
-		{"step_verify_passed", "Step verify passed"},
+		{"step_done", ""},
+		{"step_verify_passed", ""},
 		{"step_verify_failed", "Step verify failed"},
+		{"step_timed_out", "Step timed out — repairing"},
 		{"step_repair", "Repair step 1/3"},
 		{"verify_running", "Verify running"},
 		{"verify_passed", "Verify passed"},
@@ -155,6 +178,8 @@ func TestFormatMilestoneCatalog(t *testing.T) {
 		{"repair_gate", "Repair gate 2/3"},
 		{"session_aborted", "Session aborted"},
 		{"done", "Done"},
+		{"verify_failed:cmd login exited 1", "Verify failed — cmd login exited 1"},
+		{"still_working:45s", "Still working… (45s)"},
 	}
 	for _, tt := range tests {
 		tt := tt

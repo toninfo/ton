@@ -8,18 +8,20 @@ import (
 )
 
 // formatMilestone maps internal event names to design §6.5 Milestone copy (English, simple, perceptible).
+// 低信号事件返回空串：badge 已表达 running/step verify，Progress 只留高信号节点。
 func formatMilestone(name string, session domain.Session, todos domain.TodoList, maxRepairs, maxGateRepairs int) string {
 	switch name {
 	case "planning_complete":
 		return "Planning complete"
 	case "step_started":
 		return executeMilestone(session, todos)
-	case "step_done":
-		return "Step done"
-	case "step_verify_passed":
-		return "Step verify passed"
+	case "step_done", "step_verify_passed":
+		// Badge already shows running / step verify — skip Progress filler.
+		return ""
 	case "step_verify_failed":
 		return "Step verify failed"
+	case "step_timed_out":
+		return "Step timed out — repairing"
 	case "step_repair":
 		return repairStepMilestone(session, todos, maxRepairs)
 	case "step_exhausted":
@@ -37,6 +39,16 @@ func formatMilestone(name string, session domain.Session, todos domain.TodoList,
 	case "done":
 		return "Done"
 	default:
+		if strings.HasPrefix(name, "still_working:") {
+			return "Still working… (" + strings.TrimPrefix(name, "still_working:") + ")"
+		}
+		if strings.HasPrefix(name, "verify_failed:") {
+			detail := strings.TrimSpace(strings.TrimPrefix(name, "verify_failed:"))
+			if detail == "" {
+				return "Verify failed"
+			}
+			return "Verify failed — " + detail
+		}
 		if strings.HasPrefix(name, "step_exhausted:") {
 			return "Step exhausted (" + strings.TrimPrefix(name, "step_exhausted:") + ")"
 		}
@@ -92,14 +104,4 @@ func currentStepTitle(session domain.Session, todos domain.TodoList) string {
 		return ""
 	}
 	return strings.TrimSpace(todos.Items[session.TodoCursor].Title)
-}
-
-func currentStepID(session domain.Session, todos domain.TodoList) string {
-	if session.CurrentStepID != "" {
-		return session.CurrentStepID
-	}
-	if session.TodoCursor < 0 || session.TodoCursor >= len(todos.Items) {
-		return ""
-	}
-	return todos.Items[session.TodoCursor].ID
 }

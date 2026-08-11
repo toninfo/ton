@@ -103,14 +103,6 @@ type ReqState struct {
 	TargetParent string `json:"target_parent,omitempty"`
 }
 
-func trimQuestion(q string) string {
-	q = strings.TrimSpace(q)
-	if len(q) <= 72 {
-		return q
-	}
-	return strings.TrimSpace(q[:72]) + "…"
-}
-
 // hasRunnableAcceptanceCommand prevents a placeholder command from bypassing
 // the machine-verifiable acceptance requirement.
 func hasRunnableAcceptanceCommand(gate AcceptanceGate) bool {

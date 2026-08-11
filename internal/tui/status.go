@@ -6,12 +6,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/toninfo/ton/internal/domain"
 )
 
-// Lightweight spinning frames: enough to express "work" without introducing additional component dependencies.
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// ASCII spinner frames — PowerShell/conhost-safe (braille glyphs often render as tofu).
+var asciiSpinnerFrames = []string{"|", "/", "-", "\\"}
 
 type tickMsg time.Time
 
@@ -103,6 +102,19 @@ func (m Model) statusInfo() statusInfo {
 		}
 	}
 
+	// Crash-resume: phase still looks like Execute/Verify but nothing is live until /start.
+	if m.controller != nil && !m.busy && !m.controller.Running() && m.controller.NeedsContinueAfterResume() {
+		info.kind = statusKindReady
+		info.animated = false
+		info.label = "Paused"
+		if hint := m.controller.ResumeContinueHint(); hint != "" {
+			// Drop leading "Resumed · " for the badge — keep the action.
+			info.hint = strings.TrimPrefix(hint, "Resumed · ")
+		} else {
+			info.hint = "type /start to continue"
+		}
+	}
+
 	// When asynchronous commands such as Start/Clarify are in progress, there must be animation even if the phase has not yet switched.
 	if m.busy && !info.animated {
 		info.kind = statusKindWorking
@@ -187,19 +199,6 @@ func doneStatusKind(terminal domain.TerminalStatus) statusKind {
 	}
 }
 
-func terminalHint(terminal domain.TerminalStatus) string {
-	switch terminal {
-	case domain.TerminalDoneWithFailedSteps:
-		return "with failed steps"
-	case domain.TerminalFailed:
-		return "failed"
-	case domain.TerminalAborted:
-		return "stopped"
-	default:
-		return "complete"
-	}
-}
-
 func statusLabel(session domain.Session, count, maxGateRepairs int) string {
 	switch session.Phase {
 	case domain.PhaseIdle, domain.PhaseClarifying:
@@ -249,42 +248,6 @@ func statusLabel(session domain.Session, count, maxGateRepairs int) string {
 	}
 }
 
-func (m Model) renderStatus() string {
-	// Reserved for debugging paths such as /status; only renderChrome is used for the main interface.
-	return m.renderChrome()
-}
-
-func statusMarker(info statusInfo, frame int) string {
-	if info.animated {
-		return spinnerFrames[frame%len(spinnerFrames)]
-	}
-	switch info.kind {
-	case statusKindReady:
-		return "◆"
-	case statusKindDone:
-		return "✓"
-	case statusKindAborted, statusKindFailed:
-		return "×"
-	default:
-		return "○"
-	}
-}
-
-func statusStyleFor(kind statusKind) lipgloss.Style {
-	switch kind {
-	case statusKindReady:
-		return readyStyle
-	case statusKindWorking:
-		return workingStyle
-	case statusKindDone:
-		return doneStyle
-	case statusKindAborted, statusKindFailed:
-		return dangerStyle
-	default:
-		return phaseStyle
-	}
-}
-
 func placeholderFor(phase domain.Phase, busy bool) string {
 	// No watermark/placeholder copy is placed in the input area to avoid visual noise; the stage prompts are instead handled by the status bar and footer.
 	_ = phase
@@ -293,10 +256,10 @@ func placeholderFor(phase domain.Phase, busy bool) string {
 }
 
 func footerFor(phase domain.Phase, busy bool, queueLen int) string {
-	// There is no footer watermark by default; it is only prompted when there is queued input to avoid a long list of instructions below the input area.
+	// Queue depth already lands on the working badge ("Execute · 2 queued").
+	// Keep footer free of that echo; reserved for rare non-badge cues only.
+	_ = phase
 	_ = busy
-	if queuesInput(phase) && queueLen > 0 {
-		return fmt.Sprintf("%d queued", queueLen)
-	}
+	_ = queueLen
 	return ""
 }

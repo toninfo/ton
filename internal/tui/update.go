@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/toninfo/ton/internal/buildinfo"
 	"github.com/toninfo/ton/internal/domain"
+	"github.com/toninfo/ton/internal/selfupdate"
 )
 
 // Init sets the window title and begins listening for coarse milestones.
@@ -21,7 +23,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			// best-effort: If the arrangement is still running, hard stop and then exit TUI.
-			_ = m.controller.Stop(context.Background(), "hard")
+			_, _ = m.controller.Stop(context.Background(), "hard")
 			return m, tea.Quit
 		case tea.KeyEsc:
 			if m.cmdMenuOpen {
@@ -68,12 +70,8 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.setNotice("", false)
 			chatID := m.rememberUserTurn(value)
 			if parsed, ok := parseCommand(value); ok && parsed.kind == commandTodos {
+				// Sidebar presence is the feedback — no amber "Todos shown/hidden" notice.
 				m.showTodos = !m.showTodos
-				if m.showTodos {
-					m.setNotice("Todos shown.", false)
-				} else {
-					m.setNotice("Todos hidden.", false)
-				}
 				return m, nil
 			}
 			return m.submit(value, chatID)
@@ -86,7 +84,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.needsTick() {
 			return m, nil
 		}
-		m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+		m.spinnerFrame = (m.spinnerFrame + 1) % len(asciiSpinnerFrames)
 		// Pull controller snapshot while busy/working so Plan→Execute flips and
 		// todos appear without waiting for the next milestone (long agent-plan runs).
 		if m.busy || isWorkingPhase(m.session.Phase) {
@@ -212,6 +210,16 @@ func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
 	if parsed, ok := parseCommand(input); ok {
 		return m.runCommand(parsed)
 	}
+	// Slash-looking input that failed parse must not be queued as agent text mid-run.
+	if strings.HasPrefix(strings.TrimSpace(input), "/") {
+		return m, func() tea.Msg {
+			return actionDoneMsg{
+				notice: "Unknown or incomplete command. Type / for the catalog.",
+				toChat: true,
+				chatID: chatID,
+			}
+		}
+	}
 	if isTerminalPhase(m.session.Phase) {
 		pending := countPendingTodos(m.todos)
 		hint := terminalFollowUpHint(m.session, pending)
@@ -239,9 +247,9 @@ func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
 
 func terminalFollowUpHint(session domain.Session, pending int) string {
 	if session.Phase == domain.PhaseAborted && pending > 0 {
-		return fmt.Sprintf("%d steps remain. Use /start to continue, or describe a requirement change.", pending)
+		return fmt.Sprintf("%d steps remain. Type /start to continue.", pending)
 	}
-	return "This session has ended. Describe a change, then /start. Optional: /docs."
+	return "Session ended. Say changes, or /start."
 }
 
 func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
@@ -270,9 +278,13 @@ func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
 		}
 	case commandStop:
 		// Stop itself is very fast; the working state animation continues to be driven by phase to avoid misunderstanding Start's busy.
-		// When argument is empty, the controller falls back to cfg.Execute.Stop.
+		// When argument is empty, the controller falls back to cfg.Execute.Stop and returns an honest soft/hard notice.
 		return m, func() tea.Msg {
-			return actionDoneMsg{notice: "Stop requested.", err: m.controller.Stop(context.Background(), command.argument)}
+			notice, err := m.controller.Stop(context.Background(), command.argument)
+			if notice == "" && err == nil {
+				notice = "Stop requested."
+			}
+			return actionDoneMsg{notice: notice, err: err}
 		}
 	case commandDriver:
 		return m, func() tea.Msg {
@@ -318,6 +330,18 @@ func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
 			notice, err := m.controller.ReviewDocs(command.argument)
 			return actionDoneMsg{notice: notice, err: err}
 		}
+	case commandUpgrade:
+		// Refuse while an unattended run is live — replacing the binary mid-agent is unsafe.
+		if m.controller != nil && m.controller.Running() {
+			return m, func() tea.Msg {
+				return actionDoneMsg{err: fmt.Errorf("session is running; /stop first, then /upgrade")}
+			}
+		}
+		arg := command.argument
+		return m.beginBusy(func() tea.Msg {
+			notice, err := runUpgradeCommand(arg)
+			return actionDoneMsg{notice: notice, err: err, endsBusy: true}
+		})
 	default:
 		return m, func() tea.Msg { return actionDoneMsg{err: fmt.Errorf("unsupported command")} }
 	}
@@ -372,14 +396,63 @@ func startFinishReply(notice string, log []string, session domain.Session, todos
 	}
 	switch {
 	case aborted && pending > 0:
-		return fmt.Sprintf("%s %d steps remain. Use /start to continue, or describe a requirement change.", ensureSentence(base), pending)
+		return fmt.Sprintf("%s %d steps remain. Type /start to continue.", ensureSentence(base), pending)
 	case aborted:
-		return ensureSentence(base) + " Describe any requirement change, then use /start after confirmation."
+		if logHasPrefix(log, "Budget exceeded") {
+			return ensureSentence(base) + " Budget limit hit. Raise caps or narrow scope, then /start."
+		}
+		return ensureSentence(base) + " Say changes, or /start."
 	case failed:
-		return ensureSentence(base) + " Describe how to change it, or review artifacts with /docs before using /start."
+		if logHasPrefix(log, "Budget exceeded") {
+			return ensureSentence(base) + " Budget limit hit. Raise caps or narrow scope, then /start."
+		}
+		if logHasPrefix(log, "Verify failed") {
+			return ensureSentence(base) + " Fix acceptance failures, then /start."
+		}
+		if logHasPrefix(log, "Step timed out") {
+			return ensureSentence(base) + " A step timed out. Tighten the step or raise driver timeout, then /start."
+		}
+		return ensureSentence(base) + " Say changes, or /start."
 	default:
-		return ensureSentence(base) + " Describe any change or improvement; use /start after confirmation to replan. Use /docs to review documents."
+		return ensureSentence(base) + " Say changes, or /start."
 	}
+}
+
+func logHasPrefix(log []string, prefix string) bool {
+	for _, line := range log {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// runUpgradeCommand handles /upgrade, /upgrade check, /upgrade vX.Y.Z.
+func runUpgradeCommand(arg string) (string, error) {
+	ctx := context.Background()
+	arg = strings.TrimSpace(arg)
+	if strings.EqualFold(arg, "check") {
+		tag, err := selfupdate.LookupTag(ctx, selfupdate.Options{})
+		if err != nil {
+			return "", err
+		}
+		current := strings.TrimSpace(buildinfo.Version)
+		msg := fmt.Sprintf("current %s · latest %s", current, tag)
+		c := strings.TrimPrefix(strings.ToLower(current), "v")
+		t := strings.TrimPrefix(strings.ToLower(tag), "v")
+		if c != "" && c != "dev" && c != "none" && c == t {
+			return msg + " — already up to date.", nil
+		}
+		return msg + " — run /upgrade to install.", nil
+	}
+	res, err := selfupdate.Run(ctx, selfupdate.Options{
+		Version:  arg,
+		SkipSame: true,
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.Message, nil
 }
 
 func ensureSentence(s string) string {

@@ -52,12 +52,20 @@ curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ```
 
-Pin a release if needed: `TON_VERSION=v0.2.1` before the curl/irm line.
+Pin a release if needed: `TON_VERSION=v1.0.0` before the curl/irm line.
 
 Open a **new** terminal, then:
 
 ```bash
 ton doctor
+```
+
+Later updates (release binary installs):
+
+```bash
+ton upgrade          # latest GitHub release
+ton upgrade --check  # report only
+# or inside the TUI: /upgrade  ·  /upgrade check
 ```
 
 ### Alternative: Go / source
@@ -113,6 +121,7 @@ In the TUI: describe the goal → refine until **Ready** → `/start`.
 | `/brief <text>` | Queue next-step brief (execute boundaries) |
 | `/skip` | Queue skip current step (execute boundaries) |
 | `/export` | Re-export `todos.md` / report artifacts |
+| `/upgrade` `[version\|check]` | Install latest (or pinned) GitHub release; alias `/update` |
 
 Working state is first-class: Execute / Verify / Repair / Summarize show live
 phase, subphase, milestones, and queued input depth — without dumping agent

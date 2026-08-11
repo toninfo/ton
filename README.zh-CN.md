@@ -51,12 +51,20 @@ curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ```
 
-需要钉版本时：在命令前加 `TON_VERSION=v0.2.1`。
+需要钉版本时：在命令前加 `TON_VERSION=v1.0.0`。
 
 打开 **新** 终端，然后：
 
 ```bash
 ton doctor
+```
+
+之后更新（release 二进制安装）：
+
+```bash
+ton upgrade          # 最新 GitHub Release
+ton upgrade --check  # 只检查
+# 或在 TUI 里：/upgrade  ·  /upgrade check
 ```
 
 ### 备选：Go / 源码
@@ -111,6 +119,7 @@ ton                               # 或：ton -w /path/to/your/project
 | `/brief <text>` | 排队下一步 brief（execute 边界） |
 | `/skip` | 排队跳过当前步骤（execute 边界） |
 | `/export` | 重新导出 `todos.md` / 报告产物 |
+| `/upgrade` `[version\|check]` | 安装最新（或指定）GitHub Release；别名 `/update` |
 
 工作状态是一等公民：Execute / Verify / Repair / Summarize 实时展示
 phase、subphase、里程碑与排队深度 —— 不会把代理 transcript

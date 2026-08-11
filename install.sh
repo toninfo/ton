@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 #
 # Env overrides:
-#   TON_VERSION      e.g. v0.2.1 (default: latest release)
+#   TON_VERSION      e.g. v1.0.0 (default: latest release)
 #   TON_INSTALL_DIR  install directory (default: ~/.local/bin)
 #   TON_REPO         owner/repo (default: toninfo/ton)
 #
@@ -81,7 +81,7 @@ resolve_tag() {
   esac
 
   die "could not resolve latest release for ${REPO}
-  (github.com redirect and api.github.com both failed — set TON_VERSION=v0.2.1 and retry)"
+  (github.com redirect and api.github.com both failed — set TON_VERSION=v1.0.0 and retry)"
 }
 
 main() {
