@@ -6,7 +6,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/toninfo/ton/internal/domain"
 )
 
@@ -187,19 +186,6 @@ func doneStatusKind(terminal domain.TerminalStatus) statusKind {
 	}
 }
 
-func terminalHint(terminal domain.TerminalStatus) string {
-	switch terminal {
-	case domain.TerminalDoneWithFailedSteps:
-		return "with failed steps"
-	case domain.TerminalFailed:
-		return "failed"
-	case domain.TerminalAborted:
-		return "stopped"
-	default:
-		return "complete"
-	}
-}
-
 func statusLabel(session domain.Session, count, maxGateRepairs int) string {
 	switch session.Phase {
 	case domain.PhaseIdle, domain.PhaseClarifying:
@@ -246,42 +232,6 @@ func statusLabel(session domain.Session, count, maxGateRepairs int) string {
 		return "Aborted"
 	default:
 		return string(session.Phase)
-	}
-}
-
-func (m Model) renderStatus() string {
-	// Reserved for debugging paths such as /status; only renderChrome is used for the main interface.
-	return m.renderChrome()
-}
-
-func statusMarker(info statusInfo, frame int) string {
-	if info.animated {
-		return spinnerFrames[frame%len(spinnerFrames)]
-	}
-	switch info.kind {
-	case statusKindReady:
-		return "◆"
-	case statusKindDone:
-		return "✓"
-	case statusKindAborted, statusKindFailed:
-		return "×"
-	default:
-		return "○"
-	}
-}
-
-func statusStyleFor(kind statusKind) lipgloss.Style {
-	switch kind {
-	case statusKindReady:
-		return readyStyle
-	case statusKindWorking:
-		return workingStyle
-	case statusKindDone:
-		return doneStyle
-	case statusKindAborted, statusKindFailed:
-		return dangerStyle
-	default:
-		return phaseStyle
 	}
 }
 

@@ -3,7 +3,7 @@
 #   irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 #
 # Env / params:
-#   -Version     e.g. v0.2.0 (default: latest)
+#   -Version     e.g. v1.0.0 (default: latest)
 #   -InstallDir  default: $env:LOCALAPPDATA\ton\bin
 #   -Repo        default: toninfo/ton
 
@@ -47,7 +47,7 @@ function Resolve-Tag([string]$ver) {
     } catch {
         # ignore — fall through
     }
-    throw "could not resolve latest release for $Repo (set TON_VERSION=v0.2.1 and retry)"
+    throw "could not resolve latest release for $Repo (set TON_VERSION=v1.0.0 and retry)"
 }
 
 $arch = Get-Arch

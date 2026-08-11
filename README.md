@@ -52,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ```
 
-Pin a release if needed: `TON_VERSION=v0.2.1` before the curl/irm line.
+Pin a release if needed: `TON_VERSION=v1.0.0` before the curl/irm line.
 
 Open a **new** terminal, then:
 

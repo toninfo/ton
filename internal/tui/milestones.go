@@ -93,13 +93,3 @@ func currentStepTitle(session domain.Session, todos domain.TodoList) string {
 	}
 	return strings.TrimSpace(todos.Items[session.TodoCursor].Title)
 }
-
-func currentStepID(session domain.Session, todos domain.TodoList) string {
-	if session.CurrentStepID != "" {
-		return session.CurrentStepID
-	}
-	if session.TodoCursor < 0 || session.TodoCursor >= len(todos.Items) {
-		return ""
-	}
-	return todos.Items[session.TodoCursor].ID
-}

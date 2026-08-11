@@ -326,19 +326,6 @@ func (m Model) badge(info statusInfo) string {
 	}
 }
 
-// joinBar moves left to the left, right to the right, and fills the middle with spaces to the width.
-func joinBar(left, right string, width int) string {
-	lw := lipgloss.Width(left)
-	rw := lipgloss.Width(right)
-	if right == "" {
-		return left
-	}
-	if width <= 0 || lw+rw+2 > width {
-		return left + "  " + right
-	}
-	return left + strings.Repeat(" ", width-lw-rw) + right
-}
-
 func asciiSpinner(frame int) string {
 	frames := []string{"|", "/", "-", "\\"}
 	if frame < 0 {
@@ -397,30 +384,6 @@ func labeledTurn(label string, labelStyle lipgloss.Style, text string, textStyle
 		b.WriteString(textStyle.Render(line))
 	}
 	return b.String()
-}
-
-func looksLikeThinkingDump(s string) bool {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return false
-	}
-	low := strings.ToLower(s)
-	if strings.HasPrefix(low, "this feature") ||
-		strings.HasPrefix(low, "the feature") ||
-		strings.HasPrefix(low, "this change") ||
-		strings.Contains(low, "automatically detecting") ||
-		strings.Contains(low, "localization") {
-		return true
-	}
-	// English monologues that are too long should also be dumped
-	letters := 0
-	runes := []rune(s)
-	for _, r := range runes {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
-			letters++
-		}
-	}
-	return letters > 80 && letters*100/max(1, len(runes)) > 70
 }
 
 func (m Model) mainContent() string {
@@ -578,10 +541,6 @@ func clarifyContent(state clarify.ReqState, fallback string) string {
 		}
 	}
 	return strings.TrimSpace(content.String())
-}
-
-func (m Model) todosContent() string {
-	return m.todosContentCompact(0) // 0 = no truncation (test/compatibility)
 }
 
 // todosContentCompact Narrow screen vertical layout: window display to avoid 40 items occupying the entire screen.
@@ -750,11 +709,4 @@ func todoMarker(status domain.TodoStatus, frame int, animate bool) (string, lipg
 	default:
 		return "-", todoPendingStyle
 	}
-}
-
-func shortID(id string) string {
-	if len(id) <= 12 {
-		return id
-	}
-	return id[:12]
 }

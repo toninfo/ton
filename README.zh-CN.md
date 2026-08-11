@@ -51,7 +51,7 @@ curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ```
 
-需要钉版本时：在命令前加 `TON_VERSION=v0.2.1`。
+需要钉版本时：在命令前加 `TON_VERSION=v1.0.0`。
 
 打开 **新** 终端，然后：
 

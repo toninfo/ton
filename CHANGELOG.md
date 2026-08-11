@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Clarify: drop LLM-invented `target_workspace` paths the user never named; clear stuck
+  workspace state after a failed bind so later turns are not poisoned.
+- Clarify: recognize Chinese parent-dir cues (`放到` / `目录` / `文件夹` / …) when inferring
+  `TargetParent` from user utterances.
+
 ### Changed
 
 - Rename `examples/` → `extras/` (product site, nago companion, config sample).
+- Product site (`extras/web`): refresh UX, mobile layout, and faithful TUI preview.
+- Docs/installers: pin-version examples now use `v1.0.0` (was stale `v0.2.x`).
+- TUI/clarify: remove unused helpers flagged by staticcheck (dead styles, status renderers,
+  slug sanitizer stub).
 
 ## [1.0.0] - 2026-07-30
 

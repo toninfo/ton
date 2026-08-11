@@ -13,13 +13,8 @@ var (
 	cGreen = lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#4ADE80"}
 	cRed   = lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#F87171"}
 	cAmber = lipgloss.AdaptiveColor{Light: "#B45309", Dark: "#FBBF24"}
-	cTodo  = lipgloss.AdaptiveColor{Light: "#374151", Dark: "#D1D5DB"}
 
-	appStyle = lipgloss.NewStyle().
-			Padding(0, 2, 1, 2)
-	headerStyle = lipgloss.NewStyle().
-			Foreground(cMuted)
-	// Top status bar: The warehouse name is used as the identity color, the dividing line is dark gray, and the speaker label distinguishes you / ton.
+	// 顶栏：品牌色 + 分隔线；对话区用 speaker 样式区分 you / ton。
 	brandStyle = lipgloss.NewStyle().
 			Foreground(cBlue).
 			Bold(true)
@@ -34,9 +29,6 @@ var (
 	promptStyle = lipgloss.NewStyle().
 			Foreground(cBlue).
 			Bold(true)
-	phaseStyle = lipgloss.NewStyle().
-			Foreground(cBlue).
-			Bold(true)
 	readyStyle = lipgloss.NewStyle().
 			Foreground(cTeal).
 			Bold(true)
@@ -49,8 +41,6 @@ var (
 	dangerStyle = lipgloss.NewStyle().
 			Foreground(cRed).
 			Bold(true)
-	mainStyle = lipgloss.NewStyle().
-			MarginTop(1)
 	bodyStyle = lipgloss.NewStyle().
 			Foreground(cBody)
 	sectionStyle = lipgloss.NewStyle().
@@ -64,9 +54,6 @@ var (
 	errorNoticeStyle = lipgloss.NewStyle().
 				Foreground(cRed).
 				MarginTop(1)
-	todoStyle = lipgloss.NewStyle().
-			Foreground(cTodo).
-			MarginTop(1)
 	todoDoneStyle = lipgloss.NewStyle().
 			Foreground(cGreen)
 	todoRunningStyle = lipgloss.NewStyle().

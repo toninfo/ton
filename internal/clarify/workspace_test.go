@@ -42,6 +42,24 @@ func TestApplyWorkspaceHintKeepsParentWithoutKeywordSlug(t *testing.T) {
 	}
 }
 
+func TestApplyWorkspaceHintChineseParentCue(t *testing.T) {
+	// Windows 中文用户常见说法：「放到 D:\tmp 目录下面」应识别为父目录，而不是项目根。
+	state := &ReqState{}
+	var user string
+	if runtime.GOOS == "windows" {
+		user = `放到 D:\tmp 目录下面`
+	} else {
+		user = "放到 /tmp/projects 目录下面"
+	}
+	ApplyWorkspaceHint(state, user, t.TempDir())
+	if state.TargetParent == "" {
+		t.Fatal("want TargetParent from Chinese parent-dir cue")
+	}
+	if state.TargetWorkspace != "" {
+		t.Fatalf("must not invent TargetWorkspace without slug/path, got %q", state.TargetWorkspace)
+	}
+}
+
 func TestEffectiveWorkspaceFallsBackToLaunch(t *testing.T) {
 	launch := t.TempDir()
 	got, err := EffectiveWorkspace(launch, "")

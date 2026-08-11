@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"unicode"
 )
 
 // winAbsPath matches the absolute path of the Windows drive letter (forward slashes/backslashes are acceptable).
@@ -88,17 +87,22 @@ func trimPathJunk(p string) string {
 	return strings.TrimSpace(p)
 }
 
-// looksLikeParentDir: The user said "put it under X/directory" or the path itself is too shallow (such as D:\tmp).
+// looksLikeParentDir: 用户说「放到 X 目录下」/ "put it under X"，或路径本身过浅（如 D:\tmp）。
 func looksLikeParentDir(abs, userText string) bool {
 	low := strings.ToLower(userText)
-	if strings.Contains(low, "under ") || strings.Contains(low, "in ") ||
-		strings.Contains(low, "directory") || strings.Contains(low, "folder") {
-		// "Put it in d:/tmp/" is almost always the parent directory intention
+	// 中英双语：Windows 中文用户常写「放到 / 放在 / 目录 / 文件夹 / 下面」。
+	parentCue := strings.Contains(low, "under ") || strings.Contains(low, "in ") ||
+		strings.Contains(low, "directory") || strings.Contains(low, "folder") ||
+		strings.Contains(userText, "放到") || strings.Contains(userText, "放在") ||
+		strings.Contains(userText, "目录") || strings.Contains(userText, "文件夹") ||
+		strings.Contains(userText, "下面") || strings.Contains(userText, "底下")
+	if parentCue {
+		// "Put it in d:/tmp/" / 「放到 D:\tmp」几乎总是父目录意图
 		base := strings.ToLower(filepath.Base(abs))
 		if base == "tmp" || base == "temp" || base == "projects" || base == "code" || base == "src" || base == "work" {
 			return true
 		}
-		// Path segments are rarely used as parent directories (drive letter + one layer)
+		// 路径段过浅（盘符 + 一层）也按父目录处理
 		rel := strings.TrimPrefix(filepath.ToSlash(abs), filepath.VolumeName(abs)+"/")
 		rel = strings.Trim(rel, "/")
 		if rel != "" && !strings.Contains(rel, "/") {
@@ -142,27 +146,6 @@ func guessSlug(text string) string {
 	// No keyword demos (login/timer/wpf). Slug comes from explicit path / LLM target_workspace only.
 	_ = text
 	return ""
-}
-
-func sanitizeSlug(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	var b strings.Builder
-	for _, r := range s {
-		switch {
-		case unicode.IsLetter(r) || unicode.IsDigit(r):
-			b.WriteRune(r)
-		case r == '-' || r == '_' || r == '.':
-			b.WriteRune(r)
-		}
-	}
-	out := b.String()
-	if out == "" {
-		return ""
-	}
-	return out
 }
 
 // WorkspaceLabel is used for UI/reply presentation.
