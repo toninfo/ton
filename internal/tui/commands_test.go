@@ -84,7 +84,7 @@ func TestEnrichDriverSlashSpecListsDetectedOptions(t *testing.T) {
 }
 
 func TestDriverSlashDescMarksCurrent(t *testing.T) {
-	if got := driverSlashDesc(nil, ""); got != "Switch coding agent (or auto)" {
+	if got := driverSlashDesc(nil, ""); got != "Switch coding agent" {
 		t.Fatalf("empty choices: %q", got)
 	}
 	if got := driverSlashDesc([]string{"claude", "auto"}, "Claude"); got != "options: claude*, auto" {

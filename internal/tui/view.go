@@ -137,14 +137,21 @@ func padDisplay(s string, width int) string {
 	return s + strings.Repeat(" ", width-w)
 }
 
-// renderMainColumn Main conversation column: conversation + Progress/Decide + notice/footer.
+// renderMainColumn 主栏：对话 + Progress/Decide + notice/footer。
+// 对话与面板之间留一空行，拉开层级；notice/footer 仍紧贴面板下方。
 func (m Model) renderMainColumn(width int) string {
-	var parts []string
+	var core []string
 	if transcript := strings.TrimSpace(m.chatViewAt(width)); transcript != "" {
-		parts = append(parts, transcript)
+		core = append(core, transcript)
 	}
 	if main := strings.TrimSpace(m.mainContent()); main != "" {
-		parts = append(parts, main)
+		core = append(core, main)
+	}
+	body := strings.Join(core, "\n\n")
+
+	var parts []string
+	if body != "" {
+		parts = append(parts, body)
 	}
 	if m.notice != "" {
 		style := noticeStyle
@@ -323,7 +330,12 @@ func (m Model) badge(info statusInfo) string {
 		if label == "" {
 			label = "Failed"
 		}
-		return dangerStyle.Render("x " + label)
+		text := "x " + label
+		// PhaseDone + failed terminal already carries "say changes, or /start".
+		if info.hint != "" {
+			text = joinHint(text, info.hint)
+		}
+		return dangerStyle.Render(text)
 	case statusKindAborted:
 		text := "x Stopped"
 		// "stopped" 与 Stopped 重复；有可续跑提示时再拼接。
@@ -372,9 +384,10 @@ func (m Model) chatViewAt(width int) string {
 	var b strings.Builder
 	for i, turn := range turns {
 		if i > 0 {
-			b.WriteByte('\n')
+			// 轮次之间空一行，避免 you/ton 糊成一团。
+			b.WriteString("\n\n")
 		}
-		b.WriteString(labeledTurn("you", speakerYouStyle, turn.User, mutedStyle, width))
+		b.WriteString(labeledTurn("you", speakerYouStyle, turn.User, bodyStyle, width))
 		if reply := strings.TrimSpace(turn.Reply); reply != "" {
 			b.WriteByte('\n')
 			// Defense: If the historical reply does not go through BreakNumberedList, the line will be broken again when rendering.
@@ -571,9 +584,10 @@ func clarifyContent(state clarify.ReqState, fallback string) string {
 func (m Model) todosContentCompact(maxLines int) string {
 	if len(m.todos.Items) == 0 {
 		if m.session.Phase == domain.PhasePlanning {
-			return mutedStyle.Render("Writing plan…\n(agent drafts todos.json; Execute starts after)")
+			// 与宽屏侧栏同句，不塞 agent/todos.json 实现细节。
+			return sectionStyle.Render("Todos") + "\n" + mutedStyle.Render("Writing plan…")
 		}
-		return mutedStyle.Render("No plan has been generated.")
+		return mutedStyle.Render("No plan yet.")
 	}
 	done, total := todoCounts(m.todos.Items)
 	var content strings.Builder

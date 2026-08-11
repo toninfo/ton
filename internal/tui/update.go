@@ -68,12 +68,8 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.setNotice("", false)
 			chatID := m.rememberUserTurn(value)
 			if parsed, ok := parseCommand(value); ok && parsed.kind == commandTodos {
+				// Sidebar presence is the feedback — no amber "Todos shown/hidden" notice.
 				m.showTodos = !m.showTodos
-				if m.showTodos {
-					m.setNotice("Todos shown.", false)
-				} else {
-					m.setNotice("Todos hidden.", false)
-				}
 				return m, nil
 			}
 			return m.submit(value, chatID)
@@ -239,9 +235,9 @@ func (m Model) submit(input string, chatID int) (tea.Model, tea.Cmd) {
 
 func terminalFollowUpHint(session domain.Session, pending int) string {
 	if session.Phase == domain.PhaseAborted && pending > 0 {
-		return fmt.Sprintf("%d steps remain. Use /start to continue, or describe a requirement change.", pending)
+		return fmt.Sprintf("%d steps remain. Type /start to continue.", pending)
 	}
-	return "This session has ended. Describe a change, then /start. Optional: /docs."
+	return "Session ended. Say changes, or /start."
 }
 
 func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
@@ -372,13 +368,13 @@ func startFinishReply(notice string, log []string, session domain.Session, todos
 	}
 	switch {
 	case aborted && pending > 0:
-		return fmt.Sprintf("%s %d steps remain. Use /start to continue, or describe a requirement change.", ensureSentence(base), pending)
+		return fmt.Sprintf("%s %d steps remain. Type /start to continue.", ensureSentence(base), pending)
 	case aborted:
-		return ensureSentence(base) + " Describe any requirement change, then use /start after confirmation."
+		return ensureSentence(base) + " Say changes, or /start."
 	case failed:
-		return ensureSentence(base) + " Describe how to change it, or review artifacts with /docs before using /start."
+		return ensureSentence(base) + " Say changes, or /start."
 	default:
-		return ensureSentence(base) + " Describe any change or improvement; use /start after confirmation to replan. Use /docs to review documents."
+		return ensureSentence(base) + " Say changes, or /start."
 	}
 }
 

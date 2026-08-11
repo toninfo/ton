@@ -36,18 +36,18 @@ type slashSpec struct {
 // slashCatalog is the OpenCode-style menu surface (aliases omitted; /review → /docs).
 func slashCatalog() []slashSpec {
 	return []slashSpec{
-		{Name: "/start", Usage: "/start [--force]", Desc: "Settle package and run (force skips readiness gaps)", NeedsArg: false},
-		{Name: "/docs", Usage: "/docs [preview|open|req|design]", Desc: "Review requirements and design", NeedsArg: false},
-		{Name: "/status", Usage: "/status", Desc: "Show phase, queue, driver, and why", NeedsArg: false},
-		{Name: "/todos", Usage: "/todos", Desc: "Toggle the plan sidebar", NeedsArg: false},
+		{Name: "/start", Usage: "/start [--force]", Desc: "Settle & run (--force skips gaps)", NeedsArg: false},
+		{Name: "/docs", Usage: "/docs [preview|open|req|design]", Desc: "Review req/design", NeedsArg: false},
+		{Name: "/status", Usage: "/status", Desc: "Phase, queue, driver", NeedsArg: false},
+		{Name: "/todos", Usage: "/todos", Desc: "Toggle plan sidebar", NeedsArg: false},
 		{Name: "/stop", Usage: "/stop [soft|hard]", Desc: "Soft-stop or hard interrupt", NeedsArg: false},
-		{Name: "/driver", Usage: "/driver <name>", Desc: "Switch coding agent (or auto)", NeedsArg: true},
-		{Name: "/model", Usage: "/model <name>", Desc: "Switch clarify/plan model", NeedsArg: true},
+		{Name: "/driver", Usage: "/driver <name>", Desc: "Switch coding agent", NeedsArg: true},
+		{Name: "/model", Usage: "/model <name>", Desc: "Switch clarify model", NeedsArg: true},
 		{Name: "/key", Usage: "/key <api_key>", Desc: "Save LLM API key", NeedsArg: true},
-		{Name: "/queue", Usage: "/queue", Desc: "Show queued input during execute", NeedsArg: false},
-		{Name: "/brief", Usage: "/brief <text>", Desc: "Queue a next-step brief", NeedsArg: true},
-		{Name: "/skip", Usage: "/skip", Desc: "Queue skip for the current step", NeedsArg: false},
-		{Name: "/export", Usage: "/export", Desc: "Re-export todos.md / report", NeedsArg: false},
+		{Name: "/queue", Usage: "/queue", Desc: "Show queued input", NeedsArg: false},
+		{Name: "/brief", Usage: "/brief <text>", Desc: "Queue next-step brief", NeedsArg: true},
+		{Name: "/skip", Usage: "/skip", Desc: "Queue skip current step", NeedsArg: false},
+		{Name: "/export", Usage: "/export", Desc: "Re-export todos/report", NeedsArg: false},
 	}
 }
 
@@ -89,7 +89,7 @@ func enrichDriverSlashSpec(items []slashSpec, choices []string, current string) 
 // driverSlashDesc builds the menu blurb, e.g. "options: opencode*, claude, auto".
 func driverSlashDesc(choices []string, current string) string {
 	if len(choices) == 0 {
-		return "Switch coding agent (or auto)"
+		return "Switch coding agent"
 	}
 	cur := strings.ToLower(strings.TrimSpace(current))
 	parts := make([]string, len(choices))

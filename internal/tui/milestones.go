@@ -8,16 +8,16 @@ import (
 )
 
 // formatMilestone maps internal event names to design §6.5 Milestone copy (English, simple, perceptible).
+// 低信号事件返回空串：badge 已表达 running/step verify，Progress 只留高信号节点。
 func formatMilestone(name string, session domain.Session, todos domain.TodoList, maxRepairs, maxGateRepairs int) string {
 	switch name {
 	case "planning_complete":
 		return "Planning complete"
 	case "step_started":
 		return executeMilestone(session, todos)
-	case "step_done":
-		return "Step done"
-	case "step_verify_passed":
-		return "Step verify passed"
+	case "step_done", "step_verify_passed":
+		// Badge already shows running / step verify — skip Progress filler.
+		return ""
 	case "step_verify_failed":
 		return "Step verify failed"
 	case "step_repair":

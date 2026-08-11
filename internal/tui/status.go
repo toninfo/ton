@@ -243,10 +243,10 @@ func placeholderFor(phase domain.Phase, busy bool) string {
 }
 
 func footerFor(phase domain.Phase, busy bool, queueLen int) string {
-	// There is no footer watermark by default; it is only prompted when there is queued input to avoid a long list of instructions below the input area.
+	// Queue depth already lands on the working badge ("Execute · 2 queued").
+	// Keep footer free of that echo; reserved for rare non-badge cues only.
+	_ = phase
 	_ = busy
-	if queuesInput(phase) && queueLen > 0 {
-		return fmt.Sprintf("%d queued", queueLen)
-	}
+	_ = queueLen
 	return ""
 }

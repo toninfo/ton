@@ -119,8 +119,8 @@ func TestTodosSidebarDuringPlanningShowsWritingPlan(t *testing.T) {
 	if !strings.Contains(got, "Writing plan") {
 		t.Fatalf("want Writing plan hint, got %q", got)
 	}
-	if strings.Contains(got, "No plan has been generated") {
-		t.Fatalf("stale empty-plan copy during planning: %q", got)
+	if strings.Contains(got, "todos.json") || strings.Contains(got, "No plan has been generated") {
+		t.Fatalf("stale/impl-detail empty-plan copy during planning: %q", got)
 	}
 	side := m.todosSidebar(30, 18)
 	if !strings.Contains(side, "Writing plan") {
@@ -139,6 +139,12 @@ func TestBadgeSurfacesReadyAndDoneHints(t *testing.T) {
 	got = done.badge(done.statusInfo())
 	if !strings.Contains(got, "Done") || !strings.Contains(got, "/start") {
 		t.Fatalf("done badge should surface next-step hint, got %q", got)
+	}
+
+	failed := Model{session: domain.Session{Phase: domain.PhaseDone, TerminalStatus: domain.TerminalFailed}}
+	got = failed.badge(failed.statusInfo())
+	if !strings.Contains(got, "Failed") || !strings.Contains(got, "/start") {
+		t.Fatalf("failed badge should surface next-step hint, got %q", got)
 	}
 
 	aborted := Model{
@@ -286,11 +292,11 @@ func TestStartFinishReplyIncludesArtifacts(t *testing.T) {
 	if strings.Contains(got, "Progress:") || strings.Contains(got, "Artifacts:") || strings.Contains(got, "Resume:") {
 		t.Fatalf("done reply should stay short (no progress/resume wall), got %q", got)
 	}
-	if !strings.Contains(got, "Session completed") && !strings.Contains(got, "/start") {
+	if !strings.Contains(got, "Session completed") || !strings.Contains(got, "/start") {
 		t.Fatalf("want short done follow-up, got %q", got)
 	}
-	if strings.Contains(got, "Verify passed") {
-		t.Fatalf("progress lines should not enter chat, got %q", got)
+	if strings.Contains(got, "Verify passed") || strings.Contains(got, "/docs") {
+		t.Fatalf("progress/docs essay should not enter chat, got %q", got)
 	}
 }
 
@@ -314,11 +320,11 @@ func TestStartFinishReplyAbortedPromptsRestart(t *testing.T) {
 
 func TestTerminalFollowUpHint(t *testing.T) {
 	got := terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseDone}, 0)
-	if !strings.Contains(got, "has ended") || !strings.Contains(got, "/start") {
+	if !strings.Contains(got, "Session ended") || !strings.Contains(got, "/start") {
 		t.Fatalf("want warm done hint, got %q", got)
 	}
-	if strings.Contains(got, "Artifacts:") {
-		t.Fatalf("follow-up hint should not dump artifacts wall, got %q", got)
+	if strings.Contains(got, "Artifacts:") || strings.Contains(got, "/docs") {
+		t.Fatalf("follow-up hint should stay short, got %q", got)
 	}
 	got = terminalFollowUpHint(domain.Session{ID: "ses-1", Phase: domain.PhaseAborted}, 3)
 	if !strings.Contains(got, "3 steps") || !strings.Contains(got, "/start") {

@@ -1261,7 +1261,9 @@ func (c *SessionController) onExecutionMilestone(name string) {
 		}
 	}
 	c.mu.Unlock()
-	c.emit(formatMilestone(name, session, todos, maxRepairs, maxGate))
+	if line := formatMilestone(name, session, todos, maxRepairs, maxGate); line != "" {
+		c.emit(line)
+	}
 	// Checkpoint the boundaries of phase/step milestones to facilitate crash recovery.
 	_ = c.checkpoint()
 }

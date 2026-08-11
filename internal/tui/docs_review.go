@@ -76,14 +76,14 @@ func (c *SessionController) ReviewDocs(mode string) (string, error) {
 	}
 
 	if err := openWithSystem(openTarget); err != nil {
-		b.WriteString("Could not open automatically. Open it manually:\n  " + openTarget)
-	} else if openTarget == sessionDir {
-		b.WriteString("Document directory opened. Review requirements.md and design.md.")
-	} else {
-		b.WriteString("Opened:\n  " + openTarget)
+		b.WriteString("Could not open. Path:\n  " + openTarget)
+		return strings.TrimSpace(b.String()), nil
 	}
-	b.WriteString("\nPaths:\n  " + reqPath + "\n  " + desPath)
-	b.WriteString("\nAfter reviewing, approve it or describe changes; then use /start.")
+	if openTarget == sessionDir {
+		b.WriteString("Opened session docs.")
+	} else {
+		b.WriteString("Opened:\n  " + filepath.Base(openTarget))
+	}
 	return strings.TrimSpace(b.String()), nil
 }
 
