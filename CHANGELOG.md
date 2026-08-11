@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TUI UX pass 2: Failed badge CTA parity; drop duplicate queue footer; user chat uses
   primary body color; Progress skips filler step_done/step_verify_passed; silent
   `/todos` toggle; shorter finish/`/docs`/slash-menu copy; chat↔panel breathing room.
+- Long-task usability: crash-resume shows `* Paused · /start…` (not a fake live spinner);
+  honest soft/hard stop + skip/brief boundary notices; `/skip` honored after agent ends;
+  `/brief` reaches verify/repair extras; verify failure surfaces gate summary; budget
+  exceed emits a Progress milestone.
 ## [1.0.0] - 2026-07-30
 
 First stable release of **ton** — local TUI for long-running coding-agent sessions

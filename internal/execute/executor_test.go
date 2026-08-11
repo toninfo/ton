@@ -167,6 +167,51 @@ func TestExecutorSoftStopAbortsAtStepBoundary(t *testing.T) {
 	}
 }
 
+func TestExecutorSkipAfterAgentAbandonsStepBeforeVerify(t *testing.T) {
+	t.Parallel()
+
+	backend := fake.New()
+	queue := &execute.InputQueue{}
+	executor := execute.Executor{
+		InputQueue:  queue,
+		OnExhausted: execute.OnExhaustedAbortSession,
+	}
+	session := domain.Session{ID: "session-skip-mid", Workspace: "/workspace"}
+	todos := domain.TodoList{Items: []domain.TodoItem{
+		{ID: "step-1", Title: "first", Prompt: "implement", Status: domain.TodoPending},
+		{ID: "step-2", Title: "second", Prompt: "implement", Status: domain.TodoPending},
+	}}
+	verifyCalls := 0
+
+	terminal, partial, err := executor.RunAll(context.Background(), &session, todos, backend, execute.Hooks{
+		OnEvent: func(event domain.AgentEvent) {
+			// After the agent finishes step-1, queue /skip before step verify runs.
+			if event.Type == domain.EventRunFinished && event.StepID == "step-1" {
+				queue.Enqueue(execute.UserInput{Kind: execute.InputKindSkipStep})
+			}
+		},
+		StepVerify: func(step domain.TodoItem) (bool, error) {
+			verifyCalls++
+			return true, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunAll() error = %v", err)
+	}
+	if terminal != domain.TerminalDone {
+		t.Fatalf("terminal = %q, want done", terminal)
+	}
+	if got := partial.Items[0].Status; got != domain.TodoSkipped {
+		t.Fatalf("step-1 status = %q, want skipped after post-agent /skip", got)
+	}
+	if got := partial.Items[1].Status; got != domain.TodoDone {
+		t.Fatalf("step-2 status = %q, want done", got)
+	}
+	if verifyCalls != 1 {
+		t.Fatalf("StepVerify calls = %d, want 1 (only step-2)", verifyCalls)
+	}
+}
+
 func containsMilestone(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {

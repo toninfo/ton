@@ -315,6 +315,9 @@ func (m Model) badge(info statusInfo) string {
 	switch info.kind {
 	case statusKindReady:
 		text := "* Ready"
+		if info.label == "Paused" {
+			text = "* Paused"
+		}
 		if info.hint != "" {
 			text = joinHint(text, info.hint)
 		}

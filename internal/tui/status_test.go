@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/toninfo/ton/internal/domain"
+	"github.com/toninfo/ton/internal/orch"
 )
 
 func TestStatusLabelPhases(t *testing.T) {
@@ -117,6 +118,27 @@ func TestStatusInfoAnimatesWhileBusyOrWorking(t *testing.T) {
 	}
 }
 
+func TestStatusInfoPausedAfterResume(t *testing.T) {
+	t.Parallel()
+
+	c := &SessionController{
+		session: &domain.Session{Phase: domain.PhaseExecuting, Subphase: "step_running"},
+		resumeAction: orch.ResumeAction{Kind: orch.ResumeNextPendingStep},
+	}
+	m := Model{controller: c, session: *c.session}
+	info := m.statusInfo()
+	if info.animated || info.kind != statusKindReady || info.label != "Paused" {
+		t.Fatalf("paused status = %+v, want static Paused", info)
+	}
+	if !strings.Contains(info.hint, "/start") {
+		t.Fatalf("paused hint = %q, want /start cue", info.hint)
+	}
+	got := m.badge(info)
+	if !strings.Contains(got, "Paused") || !strings.Contains(got, "/start") {
+		t.Fatalf("paused badge = %q", got)
+	}
+}
+
 func TestTodoMarkerRunningUsesSpinnerWhenAnimated(t *testing.T) {
 	t.Parallel()
 
@@ -155,6 +177,7 @@ func TestFormatMilestoneCatalog(t *testing.T) {
 		{"repair_gate", "Repair gate 2/3"},
 		{"session_aborted", "Session aborted"},
 		{"done", "Done"},
+		{"verify_failed:cmd login exited 1", "Verify failed — cmd login exited 1"},
 	}
 	for _, tt := range tests {
 		tt := tt

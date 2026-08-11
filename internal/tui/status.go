@@ -102,6 +102,19 @@ func (m Model) statusInfo() statusInfo {
 		}
 	}
 
+	// Crash-resume: phase still looks like Execute/Verify but nothing is live until /start.
+	if m.controller != nil && !m.busy && !m.controller.Running() && m.controller.NeedsContinueAfterResume() {
+		info.kind = statusKindReady
+		info.animated = false
+		info.label = "Paused"
+		if hint := m.controller.ResumeContinueHint(); hint != "" {
+			// Drop leading "Resumed · " for the badge — keep the action.
+			info.hint = strings.TrimPrefix(hint, "Resumed · ")
+		} else {
+			info.hint = "type /start to continue"
+		}
+	}
+
 	// When asynchronous commands such as Start/Clarify are in progress, there must be animation even if the phase has not yet switched.
 	if m.busy && !info.animated {
 		info.kind = statusKindWorking

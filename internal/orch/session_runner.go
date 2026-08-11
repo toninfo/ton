@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/toninfo/ton/internal/backend"
 	"github.com/toninfo/ton/internal/control"
@@ -144,7 +146,12 @@ func (r SessionRunner) runVerifyLoop(
 			return terminal, todos, nil
 		}
 
-		r.milestone("verify_failed")
+		// Surface a short gate summary so Progress is actionable mid-run.
+		failMilestone := "verify_failed"
+		if s := strings.TrimSpace(result.Summary); s != "" {
+			failMilestone = "verify_failed:" + truncateMilestoneDetail(s, 72)
+		}
+		r.milestone(failMilestone)
 		failSummary := fmt.Sprintf("verify round %d failed; repairs_used=%d/%d", round, repairs, r.maxGateRepairs())
 
 		if repairs >= r.maxGateRepairs() {
@@ -183,8 +190,16 @@ func (r SessionRunner) runVerifyLoop(
 
 func (r SessionRunner) consumeBoundary() (softStop bool, extras []string) {
 	drained := r.drainInput()
-	texts, stop := execute.SplitDrain(drained)
-	return stop, inputTexts(texts)
+	d := execute.ClassifyDrain(drained)
+	// Briefs previously vanished here via SplitDrain — fold them into repair extras
+	// so /brief during verify/repair actually steers the next repair turn.
+	extras = inputTexts(d.Texts)
+	for _, brief := range d.Briefs {
+		if t := strings.TrimSpace(brief.Text); t != "" {
+			extras = append(extras, t)
+		}
+	}
+	return d.SoftStop, extras
 }
 
 func (r SessionRunner) exhaust(
@@ -259,4 +274,14 @@ func inputTexts(inputs []execute.UserInput) []string {
 		}
 	}
 	return out
+}
+
+// truncateMilestoneDetail keeps Progress lines short enough for a single TUI row.
+func truncateMilestoneDetail(s string, maxRunes int) string {
+	s = strings.TrimSpace(s)
+	if maxRunes < 8 || utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	runes := []rune(s)
+	return strings.TrimSpace(string(runes[:maxRunes])) + "…"
 }

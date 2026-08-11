@@ -40,13 +40,13 @@ func slashCatalog() []slashSpec {
 		{Name: "/docs", Usage: "/docs [preview|open|req|design]", Desc: "Review req/design", NeedsArg: false},
 		{Name: "/status", Usage: "/status", Desc: "Phase, queue, driver", NeedsArg: false},
 		{Name: "/todos", Usage: "/todos", Desc: "Toggle plan sidebar", NeedsArg: false},
-		{Name: "/stop", Usage: "/stop [soft|hard]", Desc: "Soft-stop or hard interrupt", NeedsArg: false},
+		{Name: "/stop", Usage: "/stop [soft|hard]", Desc: "Soft halt at boundary, or hard interrupt", NeedsArg: false},
 		{Name: "/driver", Usage: "/driver <name>", Desc: "Switch coding agent", NeedsArg: true},
 		{Name: "/model", Usage: "/model <name>", Desc: "Switch clarify model", NeedsArg: true},
 		{Name: "/key", Usage: "/key <api_key>", Desc: "Save LLM API key", NeedsArg: true},
 		{Name: "/queue", Usage: "/queue", Desc: "Show queued input", NeedsArg: false},
-		{Name: "/brief", Usage: "/brief <text>", Desc: "Queue next-step brief", NeedsArg: true},
-		{Name: "/skip", Usage: "/skip", Desc: "Queue skip current step", NeedsArg: false},
+		{Name: "/brief", Usage: "/brief <text>", Desc: "Brief next step at boundary", NeedsArg: true},
+		{Name: "/skip", Usage: "/skip", Desc: "Skip next pending step at boundary", NeedsArg: false},
 		{Name: "/export", Usage: "/export", Desc: "Re-export todos/report", NeedsArg: false},
 	}
 }

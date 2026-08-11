@@ -69,6 +69,9 @@ func NewModel(controller *SessionController) Model {
 	// No key for the first time: Put the wizard prompt into the notice to prevent users from staring at the empty session.
 	if hint := controller.SetupHint(); hint != "" {
 		m.notice = hint
+	} else if resume := controller.ResumeContinueHint(); resume != "" {
+		// Crash resume looks "alive" by phase — coach /start before the user waits forever.
+		m.notice = resume
 	}
 	return m
 }

@@ -108,6 +108,18 @@ func (e Executor) RunAll(
 			if more.SoftStop {
 				return e.abortSoft(session, todos, hooks)
 			}
+			// /skip after the agent finishes: abandon this step (no verify/repair), continue the plan.
+			if more.SkipStep {
+				step.Status = domain.TodoSkipped
+				session.Subphase = "between_steps"
+				e.milestone(hooks, "step_exhausted")
+				if hooks.AfterStep != nil {
+					hooks.AfterStep(*step)
+				}
+				pendingInputs = nil
+				pendingBriefs = nil
+				break
+			}
 			verifyOK := true
 			if outcome.ExitCode == 0 && !outcome.TimedOut && outcome.Err == nil && hooks.StepVerify != nil {
 				session.Subphase = "step_verify"

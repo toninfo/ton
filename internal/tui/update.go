@@ -21,7 +21,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			// best-effort: If the arrangement is still running, hard stop and then exit TUI.
-			_ = m.controller.Stop(context.Background(), "hard")
+			_, _ = m.controller.Stop(context.Background(), "hard")
 			return m, tea.Quit
 		case tea.KeyEsc:
 			if m.cmdMenuOpen {
@@ -266,9 +266,13 @@ func (m Model) runCommand(command command) (tea.Model, tea.Cmd) {
 		}
 	case commandStop:
 		// Stop itself is very fast; the working state animation continues to be driven by phase to avoid misunderstanding Start's busy.
-		// When argument is empty, the controller falls back to cfg.Execute.Stop.
+		// When argument is empty, the controller falls back to cfg.Execute.Stop and returns an honest soft/hard notice.
 		return m, func() tea.Msg {
-			return actionDoneMsg{notice: "Stop requested.", err: m.controller.Stop(context.Background(), command.argument)}
+			notice, err := m.controller.Stop(context.Background(), command.argument)
+			if notice == "" && err == nil {
+				notice = "Stop requested."
+			}
+			return actionDoneMsg{notice: notice, err: err}
 		}
 	case commandDriver:
 		return m, func() tea.Msg {

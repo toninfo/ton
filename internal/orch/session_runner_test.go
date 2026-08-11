@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/toninfo/ton/internal/backend"
@@ -61,7 +62,7 @@ exit 1`)
 		t.Errorf("counter = %d, want 2", got)
 	}
 	for _, want := range []string{"verify_running", "verify_failed", "repair_gate", "verify_passed"} {
-		if !containsString(milestones, want) {
+		if !containsStringPrefix(milestones, want) {
 			t.Errorf("milestones = %v, missing %q", milestones, want)
 		}
 	}
@@ -73,6 +74,15 @@ exit 1`)
 func containsString(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsStringPrefix(items []string, want string) bool {
+	for _, item := range items {
+		if item == want || strings.HasPrefix(item, want+":") {
 			return true
 		}
 	}
