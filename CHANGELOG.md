@@ -7,12 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [1.1.0] - 2026-08-11
 
-- Clarify: drop LLM-invented `target_workspace` paths the user never named; clear stuck
-  workspace state after a failed bind so later turns are not poisoned.
-- Clarify: recognize Chinese parent-dir cues (`放到` / `目录` / `文件夹` / …) when inferring
-  `TargetParent` from user utterances.
+### Added
+
+- `ton upgrade` / TUI `/upgrade` (alias `/update`) installs the latest or pinned GitHub
+  Release binary in-place; `/upgrade check` and `ton upgrade --check` report without
+  installing. Override repo with `TON_REPO` (default `toninfo/ton`).
 
 ### Changed
 
@@ -21,22 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docs/installers: pin-version examples now use `v1.0.0` (was stale `v0.2.x`).
 - TUI/clarify: remove unused helpers flagged by staticcheck (dead styles, status renderers,
   slug sanitizer stub).
-- TUI UX (keep minimal chrome): surface Ready/Done/Aborted hints on the status badge
-  (`* Ready · type /start`), empty first-screen footer cue, Planning sidebar
-  `Writing plan…`, tighter Open questions panel, brand blue aligned to site KMBlue.
-- TUI UX pass 2: Failed badge CTA parity; drop duplicate queue footer; user chat uses
-  primary body color; Progress skips filler step_done/step_verify_passed; silent
-  `/todos` toggle; shorter finish/`/docs`/slash-menu copy; chat↔panel breathing room.
-- Long-task usability: crash-resume shows `* Paused · /start…` (not a fake live spinner);
-  honest soft/hard stop + skip/brief boundary notices; `/skip` honored after agent ends;
-  `/brief` reaches verify/repair extras; verify failure surfaces gate summary; budget
-  exceed emits a Progress milestone.
-- Long-task usability pass 2: execute/repair `Still working… (Ns)` heartbeats; budget
-  cancel aborts cleanly (no repair burn) + 80% near-limit warn; step timeout milestone;
-  unknown slash rejected (not queued as agent text); finish copy branches on budget/
-  verify/timeout; `/start --force` confirms dirty workspace.
-- Add `ton upgrade` / TUI `/upgrade` (alias `/update`) to install the latest or pinned
-  GitHub Release binary in-place; `/upgrade check` reports without installing.
+- TUI UX (keep minimal chrome): Ready/Done/Aborted/Failed badge cues, empty first-screen
+  footer hint, Planning `Writing plan…`, tighter Open questions, KMBlue brand alignment;
+  quieter Progress / queue / slash copy.
+- Long-task usability: crash-resume `* Paused · /start…`; honest soft/hard stop +
+  skip/brief notices; execute/repair `Still working…` heartbeats; clean budget abort +
+  80% near-limit warn; step timeout milestone; unknown slash rejected; finish copy
+  branches on budget/verify/timeout; `/start --force` confirms dirty workspace.
+
+### Fixed
+
+- Clarify: drop LLM-invented `target_workspace` paths the user never named; clear stuck
+  workspace state after a failed bind so later turns are not poisoned.
+- Clarify: recognize Chinese parent-dir cues (`放到` / `目录` / `文件夹` / …) when inferring
+  `TargetParent` from user utterances.
+
 ## [1.0.0] - 2026-07-30
 
 First stable release of **ton** — local TUI for long-running coding-agent sessions
