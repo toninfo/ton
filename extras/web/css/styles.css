@@ -2010,7 +2010,7 @@ a {
   margin-bottom: 48px;
 }
 
-/* —— Why ton：竞争力叙事，不用卡片堆叠 —— */
+/* —— Why ton：2×2 卡片铺满版心 —— */
 .tw-why {
   width: 100%;
   max-width: var(--max);
@@ -2018,43 +2018,64 @@ a {
   padding: 0 var(--pad-x);
 }
 
-.tw-why-list {
+.tw-why-grid {
   list-style: none;
   margin: clamp(24px, 4vw, 36px) 0 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.tw-why-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  border-top: 0.5px solid var(--Separators-S1);
+  gap: 10px;
+  min-height: 148px;
+  padding: 22px 20px 20px;
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--Separators-S1);
+  background: var(--Bg-Secondary);
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
 }
 
-.tw-why-list li {
-  display: grid;
-  grid-template-columns: minmax(140px, 11em) 1fr;
-  gap: 12px 28px;
-  padding: 18px 0;
-  border-bottom: 0.5px solid var(--Separators-S1);
-  align-items: baseline;
+.tw-why-card:hover {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+  transform: translateY(-1px);
 }
 
-.tw-why-list strong {
-  font-size: 15px;
+.tw-why-index {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--Labels-Quaternary);
+}
+
+.tw-why-card h3 {
+  margin: 0;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--Labels-Primary);
 }
 
-.tw-why-list span {
+.tw-why-card p {
+  margin: 0;
   font-size: 14px;
   line-height: 1.55;
   color: var(--Labels-Secondary);
 }
 
-@media (max-width: 640px) {
-  .tw-why-list li {
+@media (max-width: 720px) {
+  .tw-why-grid {
     grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 16px 0;
+  }
+
+  .tw-why-card {
+    min-height: 0;
   }
 }
 

@@ -18,7 +18,7 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://ton.ren/assets/preview.png" />
-    <link rel="stylesheet" href="../css/styles.css?v=extras36" />
+    <link rel="stylesheet" href="../css/styles.css?v=extras37" />
   </head>
   <body data-page="app">
     <div class="page page-app">
@@ -158,39 +158,43 @@
         </div>
       </section>
 
-      <!-- 竞争力：本地个人语料进 Agent -->
+      <!-- 竞争力：2×2 卡片铺满版心，避免左挤右空 -->
       <section class="tw-why" id="why" aria-labelledby="ta-why-title">
         <h2 id="ta-why-title" class="tw-section-title" data-i18n="ta.why.title">Not another coding agent</h2>
         <p class="tw-section-sub" data-i18n="ta.why.sub">
           Most terminal agents work on a repo. ton wires your personal corpus into the same loop — searchable,
           local, first-class.
         </p>
-        <ol class="tw-why-list">
-          <li>
-            <strong data-i18n="ta.why.kb.t">KB is first-class</strong>
-            <span data-i18n="ta.why.kb.d"
-              >ton kb plus in-session kb_search / kb_read — not another MCP you hope the model remembers.</span
-            >
+        <ul class="tw-why-grid">
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">01</span>
+            <h3 data-i18n="ta.why.kb.t">KB is first-class</h3>
+            <p data-i18n="ta.why.kb.d">
+              ton kb plus in-session kb_search / kb_read — not another MCP you hope the model remembers.
+            </p>
           </li>
-          <li>
-            <strong data-i18n="ta.why.conn.t">WeChat &amp; email</strong>
-            <span data-i18n="ta.why.conn.d"
-              >Connect local archives once. Cloud agents rarely do this; many users need it every day.</span
-            >
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">02</span>
+            <h3 data-i18n="ta.why.conn.t">WeChat &amp; email</h3>
+            <p data-i18n="ta.why.conn.d">
+              Connect local archives once. Cloud agents rarely do this; many users need it every day.
+            </p>
           </li>
-          <li>
-            <strong data-i18n="ta.why.fts.t">Search first</strong>
-            <span data-i18n="ta.why.fts.d"
-              >FTS always on. Vectors (LanceDB) only when your machine can host them — useful before fancy.</span
-            >
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">03</span>
+            <h3 data-i18n="ta.why.fts.t">Search first</h3>
+            <p data-i18n="ta.why.fts.d">
+              FTS always on. Vectors (LanceDB) only when your machine can host them — useful before fancy.
+            </p>
           </li>
-          <li>
-            <strong data-i18n="ta.why.split.t">Memory ≠ knowledge</strong>
-            <span data-i18n="ta.why.split.d"
-              >Short preferences stay in memory; long notes and chats stay in KB so context stays sane.</span
-            >
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">04</span>
+            <h3 data-i18n="ta.why.split.t">Memory ≠ knowledge</h3>
+            <p data-i18n="ta.why.split.d">
+              Short preferences stay in memory; long notes and chats stay in KB so context stays sane.
+            </p>
           </li>
-        </ol>
+        </ul>
       </section>
 
       <!-- 真实 TUI：工具 + 知识库同环 -->
