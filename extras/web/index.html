@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title data-i18n="hub.meta.title">TON.REN — Local AI tools</title>
+    <meta
+      name="description"
+      data-i18n-content="hub.meta.description"
+      content="TON.REN — home of ton, the local-first TUI assistant."
+    />
+    <meta name="theme-color" content="#121212" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="./assets/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="./assets/favicon-48.png" sizes="48x48" />
+    <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
+    <meta property="og:image" content="https://ton.ren/assets/preview.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://ton.ren/assets/preview.png" />
+    <link rel="stylesheet" href="./css/styles.css?v=extras36" />
+  </head>
+  <body data-page="hub">
+    <div class="page page-hub">
+      <header class="ton-header">
+        <nav class="ton-nav">
+          <a class="ton-logo" href="./" aria-label="TON.REN">
+            <img
+              class="ton-logo-mark"
+              src="./assets/logo-64.png"
+              width="28"
+              height="28"
+              alt=""
+              decoding="async"
+            />
+            <span>TON.REN</span>
+          </a>
+          <div class="ton-nav-right">
+            <div class="lang-switch" id="langSwitch">
+              <button
+                class="lang-btn"
+                type="button"
+                id="langBtn"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                data-i18n-aria-label="lang.aria"
+                aria-label="Language"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <div class="lang-menu" id="langMenu" role="listbox" hidden>
+                <button type="button" role="option" data-lang="en" class="active" aria-selected="true">
+                  <span>English</span>
+                  <svg class="lang-check" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M3.5 8.5l3 3 6-7"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button type="button" role="option" data-lang="zh" aria-selected="false">
+                  <span>简体中文</span>
+                  <svg class="lang-check" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M3.5 8.5l3 3 6-7"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </header>
+
+      <main class="hub-main">
+        <p class="hub-lede" data-i18n="hub.lede">Local-first AI for what's in front of you.</p>
+        <p class="hub-sub" data-i18n="hub.sub">One product on TON.REN — ton.</p>
+
+        <section class="hub-products" aria-label="Products">
+          <a class="hub-entry hub-entry-ton" href="./app/">
+            <div class="hub-entry-top">
+              <span class="hub-entry-name">ton</span>
+              <span class="hub-entry-kind" data-i18n="hub.ta.when">Use when · right now</span>
+            </div>
+            <p class="hub-entry-desc" data-i18n="hub.ta.desc">
+              Finish the job in your terminal — and search notes, WeChat, email in the same loop.
+            </p>
+            <span class="hub-entry-cta" data-i18n="hub.open">Open →</span>
+          </a>
+        </section>
+      </main>
+
+      <footer class="ton-footer hub-footer">
+        <div class="footer-container">
+          <div class="footer-bottom">
+            <span>© 2026 TON.REN</span>
+            <a href="https://github.com/toninfo" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+    <script src="./js/main.js?v=extras35" defer></script>
+  </body>
+</html>

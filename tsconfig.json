@@ -1,0 +1,58 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"paths": {
+			"@earendil-works/chord": ["./packages/chord/src/index.ts"],
+			"@earendil-works/chord/bundler": ["./packages/chord/src/bundler.ts"],
+			"@earendil-works/chord/context": ["./packages/chord/src/context/index.ts"],
+			"@earendil-works/chord/delta": ["./packages/chord/src/delta/index.ts"],
+			"@earendil-works/chord/node": ["./packages/chord/src/node.ts"],
+			"@ton/pi-telemetry": ["./packages/telemetry/src/index.ts"],
+			"@ton/pi-telemetry/testing": ["./packages/telemetry/src/testing/index.ts"],
+			"@ton/pi-codemode": ["./packages/codemode/src/index.ts"],
+			"@ton/pi-codemode/declarations": ["./packages/codemode/src/declarations.ts"],
+			"@ton/pi-codemode/source": ["./packages/codemode/src/source.ts"],
+			"@ton/pi-codemode/worker": ["./packages/codemode/src/runtime/worker.ts"],
+			"@ton/pi-mcp": ["./packages/mcp/src/index.ts"],
+			"@ton/pi-mcp/oauth": ["./packages/mcp/src/oauth/index.ts"],
+			"@ton/pi-mcp/testing": ["./packages/mcp/src/testing/index.ts"],
+			"@ton/pi-ai": ["./packages/ai/src/index.ts"],
+			"@ton/pi-ai/oauth": ["./packages/ai/src/oauth.ts"],
+			"@ton/pi-ai/*": ["./packages/ai/src/*.ts", "./packages/ai/src/providers/*.ts"],
+			"@ton/pi-ai/dist/*": ["./packages/ai/src/*"],
+			"@ton/pi-durable": ["./packages/durable/src/index.ts"],
+			"@ton/pi-durable/testing": ["./packages/durable/src/testing/index.ts"],
+			"@ton/pi-durable/*": [
+				"./packages/durable/src/*.ts",
+				"./packages/durable/src/*/index.ts",
+				"./packages/durable/src/*"
+			],
+			"@ton/pi-env": ["./packages/env/src/index.ts"],
+			"@ton/pi-agent-core": ["./packages/agent/src/index.ts"],
+			"@ton/pi-coding-agent": ["./packages/coding-agent/src/index.ts"],
+			"@ton/pi-coding-agent/experimental/plugin": [
+				"./packages/coding-agent/src/experimental/plugin.ts"
+			],
+			"@ton/pi-coding-agent/hooks": ["./packages/coding-agent/src/core/hooks/index.ts"],
+			"@ton/pi-coding-agent/*": ["./packages/coding-agent/src/*"],
+			"@ton/pi-protocol": ["./packages/protocol/src/index.ts"],
+			"@ton/pi-protocol/*": ["./packages/protocol/src/*"],
+			"@ton/pi-client": ["./packages/client/src/index.ts"],
+			"@ton/pi-client/unix": ["./packages/client/src/unix.ts"],
+			"@ton/pi-client/*": ["./packages/client/src/*"],
+			"@ton/pi-server": ["./packages/server/src/index.ts"],
+			"@ton/pi-server/unix": ["./packages/server/src/transports/unix/index.ts"],
+			"@ton/pi-server/*": ["./packages/server/src/*"],
+			"typebox": ["./node_modules/typebox"],
+			"@ton/pi-tui": ["./packages/tui/src/index.ts"],
+			"@ton/pi-tui/*": ["./packages/tui/src/*"],
+			"@ton/pi-agent-old": ["./packages/agent-old/src/index.ts"],
+			"@ton/pi-agent-old/*": ["./packages/agent-old/src/*"]
+		}
+	},
+	"include": ["scripts/model-catalog-protocol.ts", "scripts/model-catalog-protocol.test.ts", "packages/*/src/**/*", "packages/*/test/**/*", "packages/coding-agent/examples/**/*", "packages/agent/examples/**/*"],
+	"exclude": ["**/dist/**", "packages/coding-agent/examples/extensions/gondolin/**"]
+}
