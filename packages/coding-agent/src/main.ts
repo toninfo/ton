@@ -32,6 +32,7 @@ import { buildInitialMessage } from "./cli/initial-message.ts";
 import { listModels } from "./cli/list-models.ts";
 import { createProjectTrustContext } from "./cli/project-trust.ts";
 import { selectSession } from "./cli/session-picker.ts";
+import { loadSettingsCommand } from "./cli/settings-web/cli.lazy.ts";
 import { shouldRunFirstTimeSetup, showFirstTimeSetup, showStartupSelector } from "./cli/startup-ui.ts";
 import { APP_NAME, ENV_SESSION_DIR, expandTildePath, getAgentDir, getPackageDir, VERSION } from "./config.ts";
 import { type CreateAgentSessionRuntimeFactory, createAgentSessionRuntime } from "./core/agent-session-runtime.ts";
@@ -621,6 +622,12 @@ export async function main(args: string[], options?: MainOptions) {
 	if (args[0] === "kb") {
 		const { runKbCommand } = await loadKbCommand();
 		process.exitCode = await runKbCommand(args.slice(1), { cwd, agentDir });
+		return;
+	}
+
+	if (args[0] === "settings") {
+		const { runSettingsCommand } = await loadSettingsCommand();
+		process.exitCode = await runSettingsCommand(args.slice(1), { cwd, agentDir });
 		return;
 	}
 

@@ -21,6 +21,10 @@ export default mergeConfig(
 		},
 		resolve: {
 			alias: [
+				{ find: /^@ton\/pi-ai$/, replacement: workspaceSourcePaths.aiIndex },
+				{ find: /^@ton\/pi-ai\/oauth$/, replacement: workspaceSourcePaths.aiOAuth },
+				{ find: /^@ton\/pi-agent-core$/, replacement: workspaceSourcePaths.agentIndex },
+				{ find: /^@ton\/pi-tui$/, replacement: workspaceSourcePaths.tuiIndex },
 				{ find: /^@earendil-works\/pi-ai$/, replacement: workspaceSourcePaths.aiIndex },
 				{ find: /^@earendil-works\/pi-agent-core$/, replacement: workspaceSourcePaths.agentIndex },
 				{ find: /^@mariozechner\/pi-ai$/, replacement: workspaceSourcePaths.aiIndex },

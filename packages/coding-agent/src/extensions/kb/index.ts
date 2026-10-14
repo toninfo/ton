@@ -6,8 +6,9 @@
  * Builtin skill is advertised via resources_discover → skills/kb/SKILL.md.
  */
 
-import { getAgentDir } from "../../config.ts";
+import { APP_NAME, getAgentDir } from "../../config.ts";
 import type { ExtensionFactory } from "../../core/extensions/types.ts";
+import { ensureDefaultKbBootstrap } from "./bootstrap.ts";
 import { onKbRootsChanged } from "./events.ts";
 import { createKbService } from "./service.ts";
 import { resolveKbBuiltinSkillDir } from "./skill-path.ts";
@@ -53,6 +54,8 @@ export function createKbExtension(options: KbExtensionOptions = {}): ExtensionFa
 
 			void Promise.resolve()
 				.then(async () => {
+					// 首次使用自动挂载 ~/Documents/ton-kb，安装后即可 kb_search
+					await ensureDefaultKbBootstrap(agentDir, { cwd: ctx.cwd });
 					await kb.catchUp();
 					if (!enableWatch) return;
 					watcher?.close();
@@ -107,7 +110,7 @@ export function createKbExtension(options: KbExtensionOptions = {}): ExtensionFa
 					const lines =
 						status.roots.length === 0
 							? [
-									`尚无知识库根。执行: ton kb add <path> | ton kb connect wechat|email|obsidian`,
+									`尚无知识库根（将在下次会话自动启用默认目录）。也可: ${APP_NAME} kb add <path> | ${APP_NAME} settings`,
 									`config: ${status.configPath}`,
 								]
 							: [

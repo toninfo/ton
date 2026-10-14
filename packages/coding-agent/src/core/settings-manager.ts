@@ -947,6 +947,75 @@ export class SettingsManager {
 		this.save();
 	}
 
+	setCompactionReserveTokens(tokens: number): void {
+		if (!Number.isSafeInteger(tokens) || tokens < 0) {
+			throw new Error(`Invalid compaction.reserveTokens: ${String(tokens)}`);
+		}
+		if (!this.globalSettings.compaction) {
+			this.globalSettings.compaction = {};
+		}
+		this.globalSettings.compaction.reserveTokens = tokens;
+		this.markModified("compaction", "reserveTokens");
+		this.save();
+	}
+
+	setCompactionKeepRecentTokens(tokens: number): void {
+		if (!Number.isSafeInteger(tokens) || tokens < 0) {
+			throw new Error(`Invalid compaction.keepRecentTokens: ${String(tokens)}`);
+		}
+		if (!this.globalSettings.compaction) {
+			this.globalSettings.compaction = {};
+		}
+		this.globalSettings.compaction.keepRecentTokens = tokens;
+		this.markModified("compaction", "keepRecentTokens");
+		this.save();
+	}
+
+	setRetryMaxRetries(maxRetries: number): void {
+		if (!Number.isSafeInteger(maxRetries) || maxRetries < 0) {
+			throw new Error(`Invalid retry.maxRetries: ${String(maxRetries)}`);
+		}
+		if (!this.globalSettings.retry) {
+			this.globalSettings.retry = {};
+		}
+		this.globalSettings.retry.maxRetries = maxRetries;
+		this.markModified("retry", "maxRetries");
+		this.save();
+	}
+
+	setRetryBaseDelayMs(baseDelayMs: number): void {
+		if (!Number.isSafeInteger(baseDelayMs) || baseDelayMs < 0) {
+			throw new Error(`Invalid retry.baseDelayMs: ${String(baseDelayMs)}`);
+		}
+		if (!this.globalSettings.retry) {
+			this.globalSettings.retry = {};
+		}
+		this.globalSettings.retry.baseDelayMs = baseDelayMs;
+		this.markModified("retry", "baseDelayMs");
+		this.save();
+	}
+
+	setHttpProxy(proxy: string | undefined): void {
+		const trimmed = proxy?.trim();
+		this.globalSettings.httpProxy = trimmed && trimmed.length > 0 ? trimmed : undefined;
+		this.markModified("httpProxy");
+		this.save();
+	}
+
+	setExternalEditor(command: string | undefined): void {
+		const trimmed = command?.trim();
+		this.globalSettings.externalEditor = trimmed && trimmed.length > 0 ? trimmed : undefined;
+		this.markModified("externalEditor");
+		this.save();
+	}
+
+	/** Persist raw `defaultTools` patterns (plain / +name / -name). */
+	setDefaultTools(tools: string[] | undefined): void {
+		this.globalSettings.defaultTools = tools ? [...tools] : undefined;
+		this.markModified("defaultTools");
+		this.save();
+	}
+
 	private getCompactionTokenSetting(
 		field: keyof CompactionModelOverride,
 		model?: Pick<Model<string>, "provider" | "id">,

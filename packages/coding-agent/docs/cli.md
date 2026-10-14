@@ -14,6 +14,7 @@ pi list
 pi config [options]
 pi auth <check|print-api-key|print-bearer-token> [options]
 pi mcp <list|login|logout> [options]
+ton settings [--port <n>] [--no-open]
 ```
 
 <a id="modes"></a>
@@ -314,6 +315,22 @@ Authentication commands require `--provider <provider>` or `--model <model>`. Se
 | `--min-expiry <duration>` | `print-bearer-token` | Require remaining token lifetime using `ms`, `s`, `m`, or `h`, such as `30m` |
 
 Credential-printing commands write secrets to stdout.
+
+## Settings Web
+
+```sh
+ton settings
+ton settings --no-open
+ton settings --port 17321
+```
+
+Opens a localhost browser UI for global settings, API keys, default model, appearance, terminal, tools, and the personal knowledge base. Changes write the same `settings.json` / `auth.json` / `kb/` files as the CLI and TUI. The server binds loopback only and requires the one-time token in the printed URL.
+
+| Option | Behavior |
+|---|---|
+| `--port <n>` | Fixed port; default is an ephemeral port |
+| `--host <addr>` | Loopback only (`127.0.0.1`, `localhost`, or `::1`) |
+| `--no-open` | Print the URL without launching a browser |
 
 ## Knowledge base commands
 

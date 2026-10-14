@@ -296,7 +296,8 @@ ${chalk.bold("Commands:")}
   ${APP_NAME} auth <command>            Print credentials or check provider readiness
   ${APP_NAME} mcp <command>             Check MCP servers, sign in to or out of OAuth servers
   ${APP_NAME} kb <command>              Personal knowledge base: add/rm/status/reindex/search/connect/embedding
-  ${APP_NAME} <command> --help          Show help for install/remove/uninstall/update/list/config/auth/mcp/kb
+  ${APP_NAME} settings                  Open local browser settings UI (auth, model, KB, …)
+  ${APP_NAME} <command> --help          Show help for install/remove/uninstall/update/list/config/auth/mcp/kb/settings
 
 ${chalk.bold("Options:")}
   --provider <name>              Provider to search for --model (requires --model)

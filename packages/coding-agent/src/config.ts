@@ -435,6 +435,21 @@ export function getExportTemplateDir(): string {
 	return join(packageDir, srcOrDist, "core", "export-html");
 }
 
+/**
+ * Settings Web 静态资源目录（index.html / styles.css / app.js）
+ * - Bun binary: settings-web/ next to executable
+ * - Node dist: dist/cli/settings-web/assets/
+ * - Source: src/cli/settings-web/assets/
+ */
+export function getSettingsWebDir(): string {
+	if (isBunBinary) {
+		return join(getPackageDir(), "settings-web");
+	}
+	const packageDir = getPackageDir();
+	const srcOrDist = existsSync(join(packageDir, "src")) ? "src" : "dist";
+	return join(packageDir, srcOrDist, "cli", "settings-web", "assets");
+}
+
 /** Get path to package.json */
 export function getPackageJsonPath(): string {
 	return join(getPackageDir(), "package.json");

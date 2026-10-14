@@ -2,8 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `ton settings`: localhost Settings Web for auth, default model, appearance, terminal, tools, knowledge base, and advanced options. Same JSON truth as CLI/TUI (`settings.json` / `auth.json` / `kb/`); loopback-only with a one-time URL token.
+- Auto-enable a default personal KB at `~/Documents/ton-kb` on first session / Settings open (FTS ready out of the box). Extra folders, WeChat/email/Obsidian, and embeddings stay opt-in under Settings → 添加更多来源.
+
 ### Fixed
 
+- Fixed Settings Web: persist loopback token across `ton settings` restarts and soften stale-session errors so 「选择目录」 no longer looks like a random auth failure after rebuild/restart.
 - Fixed CI: tests used wrong agent-dir env `TONANY_CODING_AGENT_DIR` (should be `TON_CODING_AGENT_DIR`); CI builds `pi-env` daemon before `npm test`; install-lock includes `apache-arrow` for LanceDB peer (Nix offline install); docs nav links `kb.zh-CN.md`; `bin.pi` alias restored beside `ton`.
 
 ## [1.1.1] - 2026-10-10

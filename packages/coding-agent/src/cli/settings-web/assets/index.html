@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>ton Settings</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" href="/favicon-48.png" sizes="48x48" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <!-- 与 ton.ren 产品站同一套 logo，不再另造字标 -->
+        <img class="brand-mark" src="/logo-64.png" width="36" height="36" alt="" />
+        <div class="brand-text">
+          <strong>ton</strong>
+          <span>Settings</span>
+        </div>
+      </div>
+      <label class="search">
+        <span class="sr-only">搜索设置</span>
+        <input type="search" id="search" placeholder="搜索设置…" autocomplete="off" />
+      </label>
+      <nav class="nav" id="nav" aria-label="设置分区"></nav>
+      <div class="sidebar-foot" id="meta-foot"></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button type="button" class="icon-btn mobile-nav" id="nav-toggle" aria-label="打开导航">☰</button>
+        <div class="topbar-title">
+          <h1 id="section-title">概览</h1>
+          <p id="section-desc">本机配置，与 CLI / TUI 共用同一份 JSON。</p>
+        </div>
+        <div class="topbar-status" id="save-status" data-state="idle">已同步</div>
+      </header>
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <div class="toast-host" id="toasts" aria-live="polite"></div>
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+
+  <!-- 本机目录选择器：服务端列目录，浏览器无法直接拿绝对路径 -->
+  <div class="modal-root" id="picker-root" hidden>
+    <div class="modal-backdrop" id="picker-backdrop"></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-title">
+      <header class="modal-h">
+        <h2 id="picker-title">选择目录</h2>
+        <button type="button" class="icon-btn" id="picker-close" aria-label="关闭">×</button>
+      </header>
+      <div class="picker-shortcuts" id="picker-shortcuts"></div>
+      <div class="picker-path" id="picker-path"></div>
+      <div class="picker-list" id="picker-list"></div>
+      <footer class="modal-f">
+        <button type="button" class="btn ghost" id="picker-cancel">取消</button>
+        <button type="button" class="btn primary" id="picker-confirm">选用此目录</button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

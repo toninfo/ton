@@ -31,6 +31,48 @@ export const workspaceSourcePaths = {
 	tuiIndex: fileURLToPath(new URL("./packages/tui/src/index.ts", import.meta.url)),
 } as const;
 
+/** Workspace package aliases for both @ton (current) and legacy scopes. */
+function workspaceAliases(scope: "ton" | "earendil-works" | "mariozechner") {
+	const s = scope === "ton" ? "@ton" : scope === "earendil-works" ? "@earendil-works" : "@mariozechner";
+	const aliases = [
+		{ find: new RegExp(`^${s}\\/pi-telemetry$`), replacement: workspaceSourcePaths.telemetryIndex },
+		{ find: new RegExp(`^${s}\\/pi-telemetry\\/testing$`), replacement: workspaceSourcePaths.telemetryTesting },
+		{ find: new RegExp(`^${s}\\/pi-mcp$`), replacement: workspaceSourcePaths.mcpIndex },
+		{ find: new RegExp(`^${s}\\/pi-mcp\\/oauth$`), replacement: workspaceSourcePaths.mcpOAuth },
+		{ find: new RegExp(`^${s}\\/pi-mcp\\/testing$`), replacement: workspaceSourcePaths.mcpTesting },
+		{ find: new RegExp(`^${s}\\/pi-ai$`), replacement: workspaceSourcePaths.aiIndex },
+		{ find: new RegExp(`^${s}\\/pi-ai\\/compat$`), replacement: workspaceSourcePaths.aiCompat },
+		{ find: new RegExp(`^${s}\\/pi-ai\\/oauth$`), replacement: workspaceSourcePaths.aiOAuth },
+		{
+			find: new RegExp(`^${s}\\/pi-ai\\/utils\\/(.+)$`),
+			replacement: `${workspaceSourcePaths.aiUtils}/$1.ts`,
+		},
+		{
+			find: new RegExp(`^${s}\\/pi-ai\\/api\\/(.+)$`),
+			replacement: `${workspaceSourcePaths.aiApi}/$1.ts`,
+		},
+		{
+			find: new RegExp(`^${s}\\/pi-ai\\/providers\\/(.+)$`),
+			replacement: `${workspaceSourcePaths.aiProviders}/$1.ts`,
+		},
+		{ find: new RegExp(`^${s}\\/pi-agent-core$`), replacement: workspaceSourcePaths.agentIndex },
+		{ find: new RegExp(`^${s}\\/pi-codemode$`), replacement: workspaceSourcePaths.codemodeIndex },
+		{
+			find: new RegExp(`^${s}\\/pi-codemode\\/declarations$`),
+			replacement: workspaceSourcePaths.codemodeDeclarations,
+		},
+		{ find: new RegExp(`^${s}\\/pi-codemode\\/source$`), replacement: workspaceSourcePaths.codemodeSource },
+		{ find: new RegExp(`^${s}\\/pi-protocol$`), replacement: workspaceSourcePaths.protocolIndex },
+		{ find: new RegExp(`^${s}\\/pi-client$`), replacement: workspaceSourcePaths.clientIndex },
+		{ find: new RegExp(`^${s}\\/pi-client\\/unix$`), replacement: workspaceSourcePaths.clientUnix },
+		{ find: new RegExp(`^${s}\\/pi-server$`), replacement: workspaceSourcePaths.serverIndex },
+		{ find: new RegExp(`^${s}\\/pi-server\\/unix$`), replacement: workspaceSourcePaths.serverUnix },
+		{ find: new RegExp(`^${s}\\/pi-tui$`), replacement: workspaceSourcePaths.tuiIndex },
+		{ find: new RegExp(`^${s}\\/pi-coding-agent$`), replacement: workspaceSourcePaths.codingAgentIndex },
+	];
+	return aliases;
+}
+
 export default defineConfig({
 	resolve: {
 		alias: [
@@ -39,36 +81,9 @@ export default defineConfig({
 			{ find: /^@earendil-works\/chord\/delta$/, replacement: workspaceSourcePaths.chordDelta },
 			{ find: /^@earendil-works\/chord\/bundler$/, replacement: workspaceSourcePaths.chordBundler },
 			{ find: /^@earendil-works\/chord\/node$/, replacement: workspaceSourcePaths.chordNode },
-			{ find: /^@earendil-works\/pi-telemetry$/, replacement: workspaceSourcePaths.telemetryIndex },
-			{ find: /^@earendil-works\/pi-telemetry\/testing$/, replacement: workspaceSourcePaths.telemetryTesting },
-			{ find: /^@earendil-works\/pi-mcp$/, replacement: workspaceSourcePaths.mcpIndex },
-			{ find: /^@earendil-works\/pi-mcp\/oauth$/, replacement: workspaceSourcePaths.mcpOAuth },
-			{ find: /^@earendil-works\/pi-mcp\/testing$/, replacement: workspaceSourcePaths.mcpTesting },
-			{ find: /^@earendil-works\/pi-ai$/, replacement: workspaceSourcePaths.aiIndex },
-			{ find: /^@earendil-works\/pi-ai\/compat$/, replacement: workspaceSourcePaths.aiCompat },
-			{ find: /^@earendil-works\/pi-ai\/oauth$/, replacement: workspaceSourcePaths.aiOAuth },
-			{
-				find: /^@earendil-works\/pi-ai\/utils\/(.+)$/,
-				replacement: `${workspaceSourcePaths.aiUtils}/$1.ts`,
-			},
-			{
-				find: /^@earendil-works\/pi-ai\/api\/(.+)$/,
-				replacement: `${workspaceSourcePaths.aiApi}/$1.ts`,
-			},
-			{
-				find: /^@earendil-works\/pi-ai\/providers\/(.+)$/,
-				replacement: `${workspaceSourcePaths.aiProviders}/$1.ts`,
-			},
-			{ find: /^@earendil-works\/pi-agent-core$/, replacement: workspaceSourcePaths.agentIndex },
-			{ find: /^@earendil-works\/pi-codemode$/, replacement: workspaceSourcePaths.codemodeIndex },
-			{ find: /^@earendil-works\/pi-codemode\/declarations$/, replacement: workspaceSourcePaths.codemodeDeclarations },
-			{ find: /^@earendil-works\/pi-codemode\/source$/, replacement: workspaceSourcePaths.codemodeSource },
-			{ find: /^@earendil-works\/pi-protocol$/, replacement: workspaceSourcePaths.protocolIndex },
-			{ find: /^@earendil-works\/pi-client$/, replacement: workspaceSourcePaths.clientIndex },
-			{ find: /^@earendil-works\/pi-client\/unix$/, replacement: workspaceSourcePaths.clientUnix },
-			{ find: /^@earendil-works\/pi-server$/, replacement: workspaceSourcePaths.serverIndex },
-			{ find: /^@earendil-works\/pi-server\/unix$/, replacement: workspaceSourcePaths.serverUnix },
-			{ find: /^@earendil-works\/pi-tui$/, replacement: workspaceSourcePaths.tuiIndex },
+			...workspaceAliases("ton"),
+			...workspaceAliases("earendil-works"),
+			...workspaceAliases("mariozechner"),
 		],
 	},
 });

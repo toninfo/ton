@@ -2,6 +2,8 @@
 
 This reference lists user-configurable settings, their types, defaults, and purposes. Project settings override agent-directory settings. Resource lists are combined. See [Configuration](configuration.md) for file locations and trust behavior.
 
+For a visual editor over the same global files, run `ton settings` (localhost Settings Web). Interactive `/settings` remains available inside the TUI.
+
 ## Model and thinking
 
 <a id="model-cycling"></a>

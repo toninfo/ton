@@ -20,7 +20,7 @@ Pi ships with powerful defaults but skips features like sub-agents and plan mode
 
 Use Pi [interactively](docs/usage.md), automate it in [print or JSON mode](docs/cli.md), control it over [RPC](docs/rpc.md), or build apps with the [Pi TypeScript SDK](docs/sdk.md). See [OpenClaw](https://github.com/OpenClaw/OpenClaw) for a real-world integration.
 
-**Why ton:** finish jobs in the terminal, and wire notes / WeChat / email into the same agent loop — no MCP, no cloud upload first. Built-in [personal knowledge base](docs/kb.md): `ton kb add|search|connect wechat|email`, tools `kb_list` / `kb_search` / `kb_read`, FTS + optional LanceDB hybrid.
+**Why ton:** finish jobs in the terminal, and wire notes / WeChat / email into the same agent loop — no MCP, no cloud upload first. Built-in [personal knowledge base](docs/kb.md): `ton kb add|search|connect wechat|email`, tools `kb_list` / `kb_search` / `kb_read`, FTS + optional LanceDB hybrid. Prefer a browser for config? `ton settings` opens a localhost Settings UI over the same `settings.json` / `auth.json` / `kb/` files.
 
 ## Getting started
 
