@@ -6,6 +6,9 @@
 
 - Added `ton settings`: localhost Settings Web for auth, default model, appearance, terminal, tools, knowledge base, and advanced options. Same JSON truth as CLI/TUI (`settings.json` / `auth.json` / `kb/`); loopback-only with a one-time URL token.
 - Auto-enable a default personal KB at `~/Documents/ton-kb` on first session / Settings open (FTS ready out of the box). Extra folders, WeChat/email/Obsidian, and embeddings stay opt-in under Settings → 添加更多来源.
+- Added a ton-owned archive root (`ton kb archive set|sync`, Settings → 归档根). Automatic sources land in `wechat/`, `email/`, `tencent-docs/`, and `git/` under that root. WeChat sync copies `db+wal+shm` and reads only the copy. `/home/doc/wechat` is refused.
+- Knowledge sources are **collectors** (write into the archive root) plus optional attached folders (`ton kb add`). Removed Settings/CLI “connectors”; agents only read the index (`kb_list` / `kb_search` / `kb_read`) and never call collectors.
+- Collectors all write under the archive root only: WeChat, email, Notion, Obsidian, Tencent Docs, and Git (`clone`/`pull` → `git/<name>/`). Configure via `ton kb archive config`; sync with `ton kb archive sync [id|all]`.
 
 ### Fixed
 

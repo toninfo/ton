@@ -313,7 +313,7 @@ function renderOverview() {
 	return `
   <section class="card" data-search="概览 路径 版本 开箱">
     <div class="card-h"><div><h2>开箱状态</h2><p>${escapeHtml(m.appName)} ${escapeHtml(m.version)} · 装完即可跑会话；密钥与额外来源按需再配。</p></div></div>
-    ${kbReady ? `<div class="callout"><strong>知识库已自动就绪</strong> · docs=${kb?.totalDocs ?? 0} · 默认目录可用，微信 / Obsidian / 邮箱在「知识库 → 添加更多来源」。</div>` : `<div class="callout soft">知识库将在首次会话或打开本页时自动启用默认目录。</div>`}
+    ${kbReady ? `<div class="callout"><strong>知识库已自动就绪</strong> · docs=${kb?.totalDocs ?? 0} · 默认目录可用；微信等用「知识库 → 采集器」写入归档根。</div>` : `<div class="callout soft">知识库将在首次会话或打开本页时自动启用默认目录。</div>`}
     <div class="stat-grid">
       <div class="stat"><div class="k">Provider</div><div class="v">${readyProviders ? `${readyProviders} 已配` : "待配密钥"}</div></div>
       <div class="stat"><div class="k">默认模型</div><div class="v" style="font-size:.95rem">${escapeHtml(s.defaultProvider || "自动")}/${escapeHtml(s.defaultModel || "自动")}</div></div>
@@ -330,7 +330,7 @@ function renderOverview() {
     <div class="btn-row">
       <button type="button" class="btn primary" data-jump="providers">API Key</button>
       <button type="button" class="btn" data-jump="model">默认模型</button>
-      <button type="button" class="btn" data-jump="knowledge">知识库 / 更多来源</button>
+      <button type="button" class="btn" data-jump="knowledge">知识库 / 采集器</button>
       <button type="button" class="btn" data-jump="appearance">外观</button>
     </div>
   </section>`;
@@ -535,13 +535,12 @@ function renderTools() {
 
 function renderKnowledge() {
 	const status = state.kb?.status;
-	const suggestions = state.kb?.suggestions;
 	const defaults = state.kb?.defaults;
 	const defPath = defaults?.kbPathDisplay || "~/Documents/ton-kb";
 	const embDefaults = defaults?.embedding || {};
+	const emb = status?.embedding;
 	const rootList = status?.roots || [];
 	const ready = rootList.length > 0;
-	const detected = (suggestions?.connectors || []).filter((c) => c.path && !c.mounted);
 	const roots = rootList
 		.map(
 			(r) => `<div class="kb-card" data-search="${escapeHtml(`${r.id} ${r.path}`)}">
@@ -553,57 +552,57 @@ function renderKnowledge() {
     </div>`,
 		)
 		.join("");
-	const emb = status?.embedding;
-	const connectorCards = (suggestions?.connectors || [])
+	const archive = state.kb?.archive;
+	const archiveRoot = archive?.root || "";
+	const collectors = state.kb?.collectors || [];
+	const collectorCards = collectors
 		.map((c) => {
-			if (c.path) {
-				const action = c.mounted
-					? `<span class="badge ok">已挂载</span>`
-					: `<button type="button" class="btn primary" data-kb-connect="${escapeHtml(c.kind)}" data-connect-path="${escapeHtml(c.path)}">一键连接</button>`;
-				return `<div class="suggestion-card">
-          <div><div class="title">${escapeHtml(c.label)}</div><div class="sub">${escapeHtml(c.display || c.path)}${c.detail ? ` · ${escapeHtml(c.detail)}` : ""}</div></div>
-          ${action}
-        </div>`;
-			}
+			const badge =
+				c.status === "ready"
+					? `<span class="badge ok">${escapeHtml(c.statusLabel || "可同步")}</span>`
+					: c.status === "stub"
+						? `<span class="badge">${escapeHtml(c.statusLabel || "未实现")}</span>`
+						: `<span class="badge warn">${escapeHtml(c.statusLabel || c.status)}</span>`;
+			const action = c.runnable
+				? `<button type="button" class="btn primary" data-collector-sync="${escapeHtml(c.id)}">同步</button>`
+				: badge;
 			return `<div class="suggestion-card">
-        <div><div class="title">${escapeHtml(c.label)}</div><div class="sub">${escapeHtml(c.hint || "按需添加")}</div></div>
-        <button type="button" class="btn" data-pick-then-connect="${escapeHtml(c.kind)}">选择目录</button>
+        <div><div class="title">${escapeHtml(c.label)} ${badge} <span class="badge">${escapeHtml(c.slot)}</span></div>
+        <div class="sub">${escapeHtml(c.hint || "")}</div></div>
+        ${action}
       </div>`;
 		})
 		.join("");
 
-	const detectBanner =
-		detected.length > 0
-			? `<div class="callout" style="margin-top:12px"><strong>本机发现可连接来源</strong>（不自动挂载，点一下即可）
-          <div class="kb-list" style="margin-top:10px">${detected
-						.map(
-							(c) => `<div class="suggestion-card">
-            <div><div class="title">${escapeHtml(c.label)}</div><div class="sub">${escapeHtml(c.display || c.path)}</div></div>
-            <button type="button" class="btn primary" data-kb-connect="${escapeHtml(c.kind)}" data-connect-path="${escapeHtml(c.path)}">连接</button>
-          </div>`,
-						)
-						.join("")}</div></div>`
-			: "";
-
 	return `
   <section class="card" data-search="知识库 status 就绪">
     <div class="card-h"><div><h2>${ready ? "已就绪" : "准备中"}</h2>
-      <p>${ready ? `安装后已自动启用默认库 · 全文搜索可用 · docs=${status?.totalDocs ?? 0}` : "正在启用默认知识库…"}</p></div>
+      <p>${ready ? `Agent 只读索引 · docs=${status?.totalDocs ?? 0} · 不直连采集器` : "正在启用默认知识库…"}</p></div>
       ${ready ? `<button type="button" class="btn" id="kb-reindex">重建索引</button>` : ""}
     </div>
     ${ready ? "" : `<div class="callout soft">默认目录 <code>${escapeHtml(defPath)}</code> 会在打开本页 / 启动会话时自动创建并挂载。</div>`}
     <div class="kb-list">${roots}</div>
-    ${detectBanner}
     <div class="hint-inline" id="kb-hint" ${state.kbHint ? "" : "hidden"}>${escapeHtml(state.kbHint)}</div>
   </section>
-  <details class="card extras" data-search="添加更多 目录 微信 邮箱 Obsidian Notion embedding">
+  <section class="card" data-search="归档根 采集器 微信 邮件 腾讯文档 git">
+    <div class="card-h"><div><h2>归档根与采集器</h2>
+      <p>采集器把源头写入归档根子目录；Agent 只检索已索引内容。</p></div>
+    </div>
+    <div class="path-row">
+      <input class="control" id="archive-root" placeholder="~/Documents/ton-archive" value="${escapeHtml(archiveRoot)}" />
+      <button type="button" class="btn" id="archive-browse">选择目录</button>
+      <button type="button" class="btn" id="archive-save">设为归档根</button>
+    </div>
+    <div class="kb-list" style="margin-top:12px">${collectorCards || `<p class="hint">加载采集器…</p>`}</div>
+  </section>
+  <details class="card extras" data-search="附加目录 Notion Obsidian embedding">
     <summary class="extras-sum">
-      <strong>添加更多来源</strong>
-      <span>额外目录 · 微信 / 邮箱 / Obsidian · Notion 导出 · Embedding</span>
+      <strong>附加目录与 Embedding</strong>
+      <span>原路径挂载 · Notion 导出 · Obsidian vault · Embedding</span>
     </summary>
     <div class="extras-body">
-      <h3>添加目录</h3>
-      <p class="hint">笔记文件夹、Notion Markdown 导出目录都可以。</p>
+      <h3>附加目录</h3>
+      <p class="hint">笔记、Notion Markdown 导出、Obsidian vault：保持原路径索引，不搬进归档根。</p>
       <div class="path-row">
         <input class="control" id="kb-path" placeholder="${escapeHtml(defPath)}" value="" />
         <button type="button" class="btn" id="kb-browse-2">选择目录</button>
@@ -612,8 +611,6 @@ function renderKnowledge() {
         <input class="control" id="kb-id" placeholder="可选 id" />
         <button type="button" class="btn primary" id="kb-add">添加</button>
       </div>
-      <h3 style="margin-top:18px">连接器</h3>
-      <div class="kb-list">${connectorCards}</div>
       <h3 style="margin-top:18px">Embedding（可选）</h3>
       <p class="hint">${emb ? `${escapeHtml(emb.provider)}/${escapeHtml(emb.model)}` : "默认 FTS 已可用；有向量需求再开"}</p>
       <div class="grid cols-2">
@@ -812,6 +809,46 @@ function bindSectionActions() {
 		});
 	}
 
+	el.content.querySelector("#archive-browse")?.addEventListener("click", () => {
+		state.pickerTarget = "archive-root";
+		const current = el.content.querySelector("#archive-root")?.value?.trim();
+		void openPicker(current || undefined).catch((err) => setKbHint(err.message));
+	});
+	el.content.querySelector("#archive-save")?.addEventListener("click", async () => {
+		const path = el.content.querySelector("#archive-root")?.value?.trim();
+		if (!path) {
+			setKbHint("先选择归档根目录。");
+			return;
+		}
+		try {
+			await api("/api/archive/root", { method: "POST", body: JSON.stringify({ path }) });
+			toast("归档根已设置");
+			await reloadKb();
+			render();
+		} catch (err) {
+			setKbHint(err.message);
+		}
+	});
+	el.content.querySelectorAll("[data-collector-sync]").forEach((btn) => {
+		btn.addEventListener("click", async () => {
+			const id = btn.getAttribute("data-collector-sync");
+			const path = el.content.querySelector("#archive-root")?.value?.trim();
+			try {
+				const result = await api("/api/archive/sync", {
+					method: "POST",
+					body: JSON.stringify({ id, ...(path ? { path } : {}) }),
+				});
+				const notes = (result.results || []).map((r) => `${r.id}: ${r.note}`).join("；");
+				setKbHint(notes || "同步完成");
+				toast(notes || "同步完成");
+				await reloadKb();
+				render();
+			} catch (err) {
+				setKbHint(err.message);
+			}
+		});
+	});
+
 	el.content.querySelector("#kb-browse-2")?.addEventListener("click", () => {
 		const current = el.content.querySelector("#kb-path")?.value?.trim();
 		void openPicker(current || state.kb?.defaults?.kbPath).catch((err) => toast(err.message, "error"));
@@ -846,39 +883,6 @@ function bindSectionActions() {
 			} catch (err) {
 				setKbHint(err.message);
 			}
-		});
-	});
-
-	el.content.querySelectorAll("[data-kb-connect]").forEach((btn) => {
-		btn.addEventListener("click", async () => {
-			const kind = btn.getAttribute("data-kb-connect");
-			const path =
-				btn.getAttribute("data-connect-path") ||
-				el.content.querySelector("#kb-path")?.value?.trim() ||
-				undefined;
-			try {
-				const result = await api("/api/kb/connect", {
-					method: "POST",
-					body: JSON.stringify({ kind, path }),
-				});
-				if (result.ok === false) {
-					setKbHint(result.message || "连接未完成");
-					return;
-				}
-				toast(`已连接 ${kind}`);
-				state.kbHint = "";
-				await reloadKb();
-				render();
-			} catch (err) {
-				setKbHint(err.message);
-			}
-		});
-	});
-
-	el.content.querySelectorAll("[data-pick-then-connect]").forEach((btn) => {
-		btn.addEventListener("click", () => {
-			state.pickerTarget = `connect:${btn.getAttribute("data-pick-then-connect")}`;
-			void openPicker().catch((err) => setKbHint(err.message));
 		});
 	});
 
@@ -997,27 +1001,17 @@ document.getElementById("picker-confirm")?.addEventListener("click", async () =>
 	if (!path) return;
 	const target = state.pickerTarget || "kb-path";
 	closePicker();
-	if (target.startsWith("connect:")) {
-		const kind = target.slice("connect:".length);
+	if (target === "archive-root") {
+		state.section = "knowledge";
+		render();
+		const archiveInput = el.content.querySelector("#archive-root");
+		if (archiveInput) archiveInput.value = path;
 		try {
-			const result = await api("/api/kb/connect", {
-				method: "POST",
-				body: JSON.stringify({ kind, path }),
-			});
-			if (result.ok === false) {
-				state.section = "knowledge";
-				render();
-				setKbHint(result.message || "连接未完成");
-				return;
-			}
-			toast(`已连接 ${kind}`);
-			state.kbHint = "";
+			await api("/api/archive/root", { method: "POST", body: JSON.stringify({ path }) });
+			toast("归档根已设置");
 			await reloadKb();
-			state.section = "knowledge";
 			render();
 		} catch (err) {
-			state.section = "knowledge";
-			render();
 			setKbHint(err.message);
 		}
 		state.pickerTarget = "kb-path";

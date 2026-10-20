@@ -1,9 +1,4 @@
-import {
-	CustomEditor,
-	type ExtensionAPI,
-	type ExtensionContext,
-	type KeybindingsManager,
-} from "@ton/pi-coding-agent";
+import { CustomEditor, type ExtensionAPI, type ExtensionContext, type KeybindingsManager } from "@ton/pi-coding-agent";
 import type { Component, EditorTheme, TUI } from "@ton/pi-tui";
 import { truncateToWidth, visibleWidth } from "@ton/pi-tui";
 

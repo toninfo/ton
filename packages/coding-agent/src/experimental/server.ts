@@ -8,12 +8,7 @@ import type { FacetBundleArtifact } from "@earendil-works/chord/node";
 import { Client, ServerError as ClientServerError, DisconnectedError } from "@ton/pi-client";
 import { createUnixTransportFactory, type UnixServerRoute } from "@ton/pi-client/unix";
 import { isServerId, type ServerId } from "@ton/pi-protocol";
-import {
-	ServerError as RoutedServerError,
-	type Server,
-	type ServerHost,
-	SessionNotFoundError,
-} from "@ton/pi-server";
+import { ServerError as RoutedServerError, type Server, type ServerHost, SessionNotFoundError } from "@ton/pi-server";
 import { createUnixServer, getUnixSocketPath } from "@ton/pi-server/unix";
 import lockfile from "proper-lockfile";
 import type { AuthInput } from "../cli/experimental/command-options.ts";

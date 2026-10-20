@@ -34,7 +34,7 @@ export function createKbListToolDefinition(): ToolDefinition<typeof listSchema> 
 		name: "kb_list",
 		label: "KB list",
 		description:
-			"List personal knowledge-base roots (`ton kb add` / `ton kb connect wechat|email|obsidian` / project `.ton/kb.yml`). Use before searching when unsure what is indexed.",
+			"List indexed personal knowledge-base roots (archive collectors write under the archive root; users may also `ton kb add` extra folders). Agent only reads the index — do not call collectors.",
 		promptSnippet: "List KB roots",
 		parameters: listSchema,
 		defaultActive: true,
@@ -43,7 +43,7 @@ export function createKbListToolDefinition(): ToolDefinition<typeof listSchema> 
 			const status = await kb(ctx?.cwd).status();
 			const text =
 				status.roots.length === 0
-					? "尚无知识库根。用户可执行: ton kb add <path> | ton kb connect wechat|email|obsidian"
+					? "尚无知识库根。用户可在 ton settings 设归档根并跑采集器，或 ton kb add <path>。"
 					: [
 							`mode=${status.mode} totalDocs=${status.totalDocs} vectors=${status.vectorDocs} vec=${status.vectorBackend}`,
 							...status.roots.map(

@@ -7,25 +7,26 @@ ton can index your notes and archives locally — no MCP required. Full-text sea
 ## Quick start
 
 ```bash
+ton kb archive set ~/Documents/ton-archive
+ton kb archive sync
 ton kb add ~/Notes
-ton kb status
 ton kb search "keyword"
 ```
 
-In a session the agent has `kb_list`, `kb_search`, and `kb_read` (and `/skill:kb`).
+In a session the agent has `kb_list`, `kb_search`, and `kb_read` (and `/skill:kb`). **Agents only read the index; they never call collectors.**
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `ton kb add <path> [--id name]` | Track a folder (or file) and ingest |
+| `ton kb archive set <path>` | Set the archive root (wechat/email/notion/obsidian/tencent-docs/git) |
+| `ton kb archive sync [id\|all]` | Run collectors |
+| `ton kb archive config <json>` | Write `kb/collectors.json` credentials |
+| `ton kb add <path> [--id name]` | Attach an extra folder at its original path |
 | `ton kb rm <id\|path>` | Unregister a root and drop its index rows |
 | `ton kb status` | Roots, doc counts, mode (`fts` \| `hybrid`), vector backend, missing paths |
 | `ton kb reindex [id\|path]` | Incremental re-scan |
 | `ton kb search <query>` | CLI search (same engine as the tool) |
-| `ton kb connect wechat [path]` | One-shot WeChat archive link |
-| `ton kb connect email [path]` | One-shot email archive (Maildir or `*.eml`) |
-| `ton kb connect obsidian [path]` | Obsidian vault (must contain `.obsidian/`) |
 | `ton kb embedding set …` | Remote OpenAI-compatible embeddings |
 | `ton kb embedding local [--model name] [--force]` | Local Ollama embed when the machine can host it |
 | `ton kb embedding clear` | Back to FTS-only |

@@ -1,11 +1,15 @@
 /**
- * `ton kb`: 挂载/卸载知识库根、查看状态、重建索引、微信/邮箱连接、embedding 配置。
+ * `ton kb`: 挂载/卸载知识库根、查看状态、重建索引、归档采集、embedding。
+ * Agent 只读索引；采集器由 settings / CLI 跑，不暴露给 agent 工具。
  */
 
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import chalk from "chalk";
 import { APP_NAME, CONFIG_DIR_NAME, expandTildePath } from "../../config.ts";
+import { patchCollectorsConfig } from "./archive/collectors-config.ts";
+import { ensureArchiveLayout } from "./archive/layout.ts";
+import { type CollectorSyncId, runCollector } from "./archive/sync.ts";
 import { createKbService } from "./service.ts";
 import type { KbEmbeddingConfig } from "./types.ts";
 
@@ -15,23 +19,21 @@ const HELP = `${chalk.bold("Usage:")}
   ${APP_NAME} kb status
   ${APP_NAME} kb reindex [id|path]
   ${APP_NAME} kb search <query>
-  ${APP_NAME} kb connect wechat [path]
-  ${APP_NAME} kb connect email [path]
-  ${APP_NAME} kb connect obsidian [path]
+  ${APP_NAME} kb archive set <path>
+  ${APP_NAME} kb archive sync [wechat|email|notion|obsidian|tencent-docs|git|all]
+  ${APP_NAME} kb archive config <json>
   ${APP_NAME} kb embedding set --model <id> --base-url <url> --api-key-env <NAME> [--provider <name>] [--dimensions <n>]
   ${APP_NAME} kb embedding local [--model <name>] [--force]
   ${APP_NAME} kb embedding clear
 
-Personal knowledge base: folders + WeChat/email/Obsidian, FTS always, hybrid (LanceDB) when embedding is set.
+Personal knowledge base: collectors write into the archive root; agent only searches the index.
 Config/index: ~/${CONFIG_DIR_NAME}/agent/kb/
 Project roots (session-only): ./${CONFIG_DIR_NAME}/kb.yml
-Notion Markdown export: ${APP_NAME} kb add <export-dir>
+Extra folders / Notion export: ${APP_NAME} kb add <dir>
 
 Commands:
   add / rm / status / reindex / search
-  connect wechat     WeChat archive (dm|group/*/text/*.md)
-  connect email      Maildir cur/new or *.eml
-  connect obsidian   Obsidian vault (.obsidian/)
+  archive set/sync/config  归档根；采集器同步；写入 collectors.json
   embedding set      Remote OpenAI-compatible /v1/embeddings
   embedding local    Ollama embed when machine can host it
   embedding clear    Back to FTS-only
@@ -145,32 +147,58 @@ export async function runKbCommand(args: string[], options: KbCommandOptions): P
 				}
 				return 0;
 			}
+			case "archive": {
+				const sub = rest[0];
+				if (sub === "sync") {
+					const which = (rest[1] || "all") as CollectorSyncId;
+					const allowed = new Set(["all", "wechat", "email", "notion", "obsidian", "tencent-docs", "git"]);
+					if (!allowed.has(which)) {
+						error(`Unknown collector: ${which}\n${HELP_HINT}`);
+						return 1;
+					}
+					const results = await runCollector(options.agentDir, which);
+					for (const r of results) {
+						log(`${r.ok ? "ok" : "FAIL"} ${r.id}: ${r.note}`);
+					}
+					return results.every((r) => r.ok) ? 0 : 1;
+				}
+				if (sub === "config") {
+					const raw = rest.slice(1).join(" ").trim();
+					if (!raw) {
+						error(
+							`Missing JSON patch, e.g. '{"email":{"host":"imap.example.com","user":"a@b.c"}}'\n${HELP_HINT}`,
+						);
+						return 1;
+					}
+					let patch: unknown;
+					try {
+						patch = JSON.parse(raw);
+					} catch {
+						error("collectors config 必须是 JSON 对象");
+						return 1;
+					}
+					if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+						error("collectors config 必须是 JSON 对象");
+						return 1;
+					}
+					const saved = patchCollectorsConfig(options.agentDir, patch as never);
+					log(JSON.stringify(saved, null, 2));
+					return 0;
+				}
+				const pathArg = sub === "set" ? rest[1] : sub;
+				if (!pathArg) {
+					error(`Missing archive root.\n${HELP_HINT}`);
+					return 1;
+				}
+				const layout = ensureArchiveLayout(options.agentDir, resolve(options.cwd, expandTildePath(pathArg)));
+				log(`Archive root ${layout.root}`);
+				for (const [slot, dir] of Object.entries(layout.slots)) log(`  ${slot}: ${dir}`);
+				return 0;
+			}
 			case "connect": {
-				const kind = rest[0];
-				const pathArg = rest[1];
-				if (kind === "wechat") {
-					const { root, ingest, probe } = await kb.connectWechat(pathArg);
-					log(
-						`Connected wechat → ${root.path}\n  dm=${probe.dmSessions ?? "?"} group=${probe.groupSessions ?? "?"}`,
-					);
-					log(formatIngest("ingest", ingest));
-					return 0;
-				}
-				if (kind === "email") {
-					const { root, ingest, probe } = await kb.connectEmail(pathArg);
-					log(
-						`Connected email → ${root.path}\n  mailboxes=${probe.mailboxes ?? "?"} eml≈${probe.emlFiles ?? "?"}`,
-					);
-					log(formatIngest("ingest", ingest));
-					return 0;
-				}
-				if (kind === "obsidian") {
-					const { root, ingest, probe } = await kb.connectObsidian(pathArg);
-					log(`Connected obsidian → ${root.path}\n  md≈${probe.mdFiles ?? "?"}`);
-					log(formatIngest("ingest", ingest));
-					return 0;
-				}
-				error(`Unknown connector: ${kind ?? "(missing)"}. Supported: wechat, email, obsidian\n${HELP_HINT}`);
+				error(
+					`连接器已废弃。请用采集器：${APP_NAME} kb archive set <根> 与 ${APP_NAME} kb archive sync；附加目录用 ${APP_NAME} kb add <path>。\n${HELP_HINT}`,
+				);
 				return 1;
 			}
 			case "embedding": {

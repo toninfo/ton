@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title data-i18n="ta.meta.title">ton — Universal AI assistant</title>
+    <title data-i18n="ta.meta.title">ton — a real personal assistant</title>
     <meta
       name="description"
       data-i18n-content="ta.meta.description"
-      content="Local-first TUI assistant. Read, edit, run commands, remember preferences."
+      content="ton keeps what you entrust to him, and brings it back when you ask. Work, notes, chats — on your machine."
     />
     <meta name="theme-color" content="#121212" />
     <meta name="color-scheme" content="dark" />
@@ -18,7 +18,7 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://ton.ren/assets/preview.png" />
-    <link rel="stylesheet" href="../css/styles.css?v=extras37" />
+    <link rel="stylesheet" href="../css/styles.css?v=extras38" />
   </head>
   <body data-page="app">
     <div class="page page-app">
@@ -145,11 +145,10 @@
       <section class="tw-hero ta-hero">
         <div class="hero-glow ta-hero-glow" aria-hidden="true"></div>
         <div class="tw-hero-inner">
-          <p class="tw-eyebrow" data-i18n="ta.eyebrow">CLI · TUI · local-first · MIT</p>
+          <p class="tw-eyebrow" data-i18n="ta.eyebrow">Personal assistant · on your machine</p>
           <h1 class="tw-hero-title">ton</h1>
           <p class="tw-hero-lede" data-i18n="ta.hero.subtitle">
-            Finish the job in your terminal. Your notes, WeChat, and email join the same agent loop — no MCP, no
-            cloud upload first.
+            A real personal assistant. What you entrust to ton, he can bring back when you need it.
           </p>
           <div class="tw-hero-actions">
             <a class="download-btn" href="#install" data-i18n="ta.nav.install">Install</a>
@@ -160,38 +159,37 @@
 
       <!-- 竞争力：2×2 卡片铺满版心，避免左挤右空 -->
       <section class="tw-why" id="why" aria-labelledby="ta-why-title">
-        <h2 id="ta-why-title" class="tw-section-title" data-i18n="ta.why.title">Not another coding agent</h2>
+        <h2 id="ta-why-title" class="tw-section-title" data-i18n="ta.why.title">Not a chatbot. An assistant who stays.</h2>
         <p class="tw-section-sub" data-i18n="ta.why.sub">
-          Most terminal agents work on a repo. ton wires your personal corpus into the same loop — searchable,
-          local, first-class.
+          Most tools forget you the moment the tab closes. ton keeps your world close — then helps you use it.
         </p>
         <ul class="tw-why-grid">
           <li class="tw-why-card">
             <span class="tw-why-index" aria-hidden="true">01</span>
-            <h3 data-i18n="ta.why.kb.t">KB is first-class</h3>
+            <h3 data-i18n="ta.why.kb.t">He remembers for you</h3>
             <p data-i18n="ta.why.kb.d">
-              ton kb plus in-session kb_search / kb_read — not another MCP you hope the model remembers.
+              Notes, chats, and documents live with him locally. Ask in plain language — he finds what matters.
             </p>
           </li>
           <li class="tw-why-card">
             <span class="tw-why-index" aria-hidden="true">02</span>
-            <h3 data-i18n="ta.why.conn.t">WeChat &amp; email</h3>
+            <h3 data-i18n="ta.why.conn.t">Your real life, not just a repo</h3>
             <p data-i18n="ta.why.conn.d">
-              Connect local archives once. Cloud agents rarely do this; many users need it every day.
+              WeChat, email, notes, docs, and more — the places your life already happens.
             </p>
           </li>
           <li class="tw-why-card">
             <span class="tw-why-index" aria-hidden="true">03</span>
-            <h3 data-i18n="ta.why.fts.t">Search first</h3>
+            <h3 data-i18n="ta.why.fts.t">Ask, then get it back</h3>
             <p data-i18n="ta.why.fts.d">
-              FTS always on. Vectors (LanceDB) only when your machine can host them — useful before fancy.
+              No digging through folders. Say what you need; he looks it up and continues the work.
             </p>
           </li>
           <li class="tw-why-card">
             <span class="tw-why-index" aria-hidden="true">04</span>
-            <h3 data-i18n="ta.why.split.t">Memory ≠ knowledge</h3>
+            <h3 data-i18n="ta.why.split.t">Yours stays yours</h3>
             <p data-i18n="ta.why.split.d">
-              Short preferences stay in memory; long notes and chats stay in KB so context stays sane.
+              Everything stays on your machine. You decide what he holds — nothing has to leave home first.
             </p>
           </li>
         </ul>
@@ -200,10 +198,10 @@
       <!-- 真实 TUI：工具 + 知识库同环 -->
       <section class="tw-showcase" id="app" aria-labelledby="ta-showcase-title">
         <h2 id="ta-showcase-title" class="tw-section-title" data-i18n="ta.showcase.title">
-          Same loop: files and your corpus
+          One place for the job and the memory
         </h2>
         <p class="tw-section-sub" data-i18n="ta.showcase.sub">
-          Edit code, then pull a fact from notes or WeChat — without leaving the TUI or uploading an archive.
+          Finish what’s in front of you, then ask about something you once saved — without starting over.
         </p>
 
         <div class="ta-tui-window" data-i18n-aria-label="ta.terminal.aria" aria-label="ton TUI preview">
@@ -222,39 +220,33 @@
             <div class="ta-turn">
               <span class="ta-who you">you</span>
               <span class="ta-msg" data-i18n="ta.ui.you1"
-                >Fix the import in src/index.ts, then check my WeChat notes for the nebula coffee supplier.</span
+                >Fix the import in src/index.ts, then find who supplies nebula coffee from my WeChat history.</span
               >
             </div>
 
             <div class="ta-tool-card">
               <div class="ta-tool-head">edit</div>
               <code class="ta-tool-path">src/index.ts</code>
-              <div class="ta-tool-out muted" data-i18n="ta.ui.editOut">Fixed import path · 1 hunk</div>
+              <div class="ta-tool-out muted" data-i18n="ta.ui.editOut">Import fixed</div>
             </div>
 
             <div class="ta-tool-card">
-              <div class="ta-tool-head">kb_search</div>
+              <div class="ta-tool-head">search</div>
               <code class="ta-tool-path">nebula coffee</code>
               <div class="ta-tool-out muted" data-i18n="ta.ui.kbOut">
-                [wechat] 2024-01-01.md — 讨论了星云咖啡采购 · score 0.91
+                Found it — WeChat thread about the nebula coffee supplier
               </div>
             </div>
 
             <div class="ta-turn">
               <span class="ta-who ta">ton</span>
               <span class="ta-msg" data-i18n="ta.ui.ta1"
-                >Import fixed. From your WeChat archive: supplier thread on 星云咖啡 — want me to open that file?</span
+                >Import’s fixed. I also found the supplier thread in your WeChat history — want me to open it?</span
               >
             </div>
 
             <div class="ta-tui-footer">
-              <span>~/acme (main)</span>
-              <span class="ta-tui-sep">·</span>
-              <span>↑1.2k ↓840</span>
-              <span class="ta-tui-sep">·</span>
-              <span>12.4%/200k</span>
-              <span class="ta-tui-sep">·</span>
-              <span>$0.042</span>
+              <span>ton · with you</span>
             </div>
 
             <div class="ta-prompt">
@@ -267,42 +259,42 @@
 
       <!-- 功能栅格：KB 优先 -->
       <section class="tw-features" id="features">
-        <h2 class="tw-section-title" data-i18n="ta.features.title">Built for the job and the corpus</h2>
+        <h2 class="tw-section-title" data-i18n="ta.features.title">What a personal assistant should do</h2>
         <div class="tw-feature-grid">
           <article class="tw-feature-card">
-            <h3 data-i18n="ta.f.kb.t">Personal knowledge base</h3>
+            <h3 data-i18n="ta.f.kb.t">Holds your archive</h3>
             <p data-i18n="ta.f.kb.d">
-              Notes, PDF/DOCX, WeChat and email — indexed locally. FTS always; LanceDB hybrid when embedding is on.
+              Notes, WeChat, email, docs, and more — kept locally, ready when you ask.
             </p>
           </article>
           <article class="tw-feature-card">
-            <h3 data-i18n="ta.f.tools.t">Local tools</h3>
+            <h3 data-i18n="ta.f.tools.t">Gets work done</h3>
             <p data-i18n="ta.f.tools.d">
-              read / write / edit / bash — plus skills. Finish file and terminal work without leaving the TUI.
+              Files, commands, edits — he can act on the task in front of you, not only chat about it.
             </p>
           </article>
           <article class="tw-feature-card">
-            <h3 data-i18n="ta.f.memory.t">Light memory</h3>
+            <h3 data-i18n="ta.f.memory.t">Knows your preferences</h3>
             <p data-i18n="ta.f.memory.d">
-              Short preferences in ~/.ton/agent/memory — separate from the long KB corpus.
+              Small things you care about stick with him, so you don’t repeat yourself every time.
             </p>
           </article>
           <article class="tw-feature-card">
-            <h3 data-i18n="ta.f.models.t">Bring your model</h3>
+            <h3 data-i18n="ta.f.models.t">Your choice of mind</h3>
             <p data-i18n="ta.f.models.d">
-              Anthropic, OpenAI, Gemini, DeepSeek, OpenRouter, Ollama-compatible — keys stay on your machine.
+              Bring the model you trust. Keys stay with you; ton is the assistant around it.
             </p>
           </article>
           <article class="tw-feature-card">
-            <h3 data-i18n="ta.f.modes.t">Four modes</h3>
+            <h3 data-i18n="ta.f.modes.t">Always reachable</h3>
             <p data-i18n="ta.f.modes.d">
-              Interactive TUI, print/JSON, RPC, and SDK embedding — same agent loop, different surfaces.
+              Talk to him in the terminal, or wire him into your own workflows — same assistant underneath.
             </p>
           </article>
           <article class="tw-feature-card">
-            <h3 data-i18n="ta.f.ext.t">Extensions &amp; skills</h3>
+            <h3 data-i18n="ta.f.ext.t">Grows with you</h3>
             <p data-i18n="ta.f.ext.d">
-              TypeScript extensions, skills, prompt templates, and themes — project-scoped under .ton/.
+              Add skills and habits over time. He becomes more yours the longer you use him.
             </p>
           </article>
         </div>
@@ -311,7 +303,7 @@
       <section class="tw-download-block" id="install">
         <h2 class="tw-section-title" data-i18n="ta.install.title">Install</h2>
         <p class="tw-section-sub" data-i18n="ta.install.sub">
-          One-liner from GitHub Releases. Then run ton.
+          One command. Then meet ton.
         </p>
         <div class="ton-install tw-install">
           <div class="install-options">
@@ -371,10 +363,10 @@
       </section>
 
       <section class="privacy-strip tw-privacy">
-        <h2 data-i18n="ta.privacy.title">Your data stays local</h2>
+        <h2 data-i18n="ta.privacy.title">Stays on your machine</h2>
         <p data-i18n="ta.privacy.body">
-          Sessions, settings, memory, KB index, and model keys live under ~/.ton on your machine. Work context stays
-          with you — less exposure, lower leak risk.
+          Your conversations, settings, memories, and archives live with you. ton is an assistant at home — not a
+          cloud locker.
         </p>
       </section>
 
@@ -383,7 +375,7 @@
           <div class="footer-main">
             <div class="footer-brand">
               <div class="name">ton</div>
-              <div class="tag" data-i18n="ta.footer.tag">Universal assistant · TUI · finished work.</div>
+              <div class="tag" data-i18n="ta.footer.tag">A personal assistant · on your machine.</div>
             </div>
             <div class="footer-cols">
               <div class="footer-col">
@@ -419,6 +411,6 @@
         </div>
       </footer>
     </div>
-    <script src="../js/main.js?v=extras35" defer></script>
+    <script src="../js/main.js?v=extras38" defer></script>
   </body>
 </html>

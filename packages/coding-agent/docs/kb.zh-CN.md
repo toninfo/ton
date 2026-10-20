@@ -7,32 +7,33 @@ ton 在本机索引笔记与归档，不依赖 MCP。全文检索（FTS）常开
 ## 快速开始
 
 ```bash
+ton kb archive set ~/Documents/ton-archive
+ton kb archive sync
 ton kb add ~/Notes
-ton kb status
 ton kb search "关键词"
 ```
 
-会话内工具：`kb_list`、`kb_search`、`kb_read`（以及 `/skill:kb`）。
+会话内工具：`kb_list`、`kb_search`、`kb_read`（以及 `/skill:kb`）。**Agent 只读索引，不调用采集器。**
 
 ## 命令
 
 | 命令 | 说明 |
 |---|---|
-| `ton kb add <path> [--id name]` | 挂载目录/文件并入库 |
+| `ton kb archive set <path>` | 设归档根；自动建 wechat/email/notion/obsidian/tencent-docs/git |
+| `ton kb archive sync [id\|all]` | 跑采集器（wechat/email/notion/obsidian/tencent-docs） |
+| `ton kb archive config <json>` | 写入 `kb/collectors.json`（邮箱/Notion/Obsidian/腾讯文档凭据） |
+| `ton kb add <path> [--id name]` | 附加目录（原路径索引，不搬家） |
 | `ton kb rm <id\|path>` | 卸载根并删除索引行 |
 | `ton kb status` | 根列表、文档数、`fts`/`hybrid`、向量后端 |
 | `ton kb reindex [id\|path]` | 增量重扫 |
 | `ton kb search <query>` | CLI 检索（与工具同引擎） |
-| `ton kb connect wechat [path]` | 微信归档一键连接 |
-| `ton kb connect email [path]` | 邮件归档（Maildir / `*.eml`） |
-| `ton kb connect obsidian [path]` | Obsidian vault（需含 `.obsidian/`） |
 | `ton kb embedding set …` | 远程 OpenAI 兼容 embeddings |
 | `ton kb embedding local [--model] [--force]` | 本机 Ollama（资源够才启用） |
 | `ton kb embedding clear` | 回到纯 FTS |
 
 配置与索引：`~/.ton/agent/kb/`。
 
-**Notion** 官方 Markdown 导出没有单独连接器，直接：`ton kb add <导出目录>`。
+采集器负责把源头写入归档根；附加目录（笔记 / Notion 导出 / Obsidian vault）用 `ton kb add`。
 
 ## 项目级根
 
@@ -48,16 +49,20 @@ roots:
 
 Markdown/文本，以及 **PDF**、**DOCX**、**邮件**（`.eml` / Maildir）。
 
-微信布局（`connect wechat` 后）：
+微信采集结果布局（`<归档根>/wechat`）：
 
 ```text
-<root>/dm/<session>/text/*.md
-<root>/group/<session>/text/*.md
+wechat/dm/<session>/text/*.md
+wechat/group/<session>/text/*.md
 ```
 
-邮件：`**/cur/*`、`**/new/*` 或 `**/*.eml`。
+全部采集结果只写在归档根下：`wechat/`、`email/`、`notion/`、`obsidian/`、`tencent-docs/`、`git/<name>/`。
 
-自动探测会看环境变量与常见路径（含 Windows `Documents` / OneDrive / Thunderbird Profiles）。
+- 邮件：IMAP（`email.host` / `user` / `passwordEnv`）
+- Notion：`TON_NOTION_TOKEN`
+- Obsidian：`obsidian.vaultPath`
+- 腾讯文档：`TON_TENCENT_DOCS_*`
+- Git：`git.repos: [{ "url": "…" }]` 或 `[{ "path": "…" }]`
 
 ### `kb_read` 行为
 
@@ -66,7 +71,7 @@ Markdown/文本，以及 **PDF**、**DOCX**、**邮件**（`.eml` / Maildir）�
 
 ### 会话 watch
 
-交互会话启动时 catch-up，并对根目录 `fs.watch`（防抖）。同一进程内 `ton kb add/rm/connect` 会触发 watch 重挂；另开终端改配置后，需会话内再 catch-up 或 `/kb`。
+交互会话启动时 catch-up，并对根目录 `fs.watch`（防抖）。同一进程内 `ton kb add/rm` 或采集器写入后会触发 watch 重挂。
 
 ## Embedding / hybrid
 

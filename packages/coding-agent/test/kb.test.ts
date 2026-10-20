@@ -236,7 +236,7 @@ describe("kb wechat connector", () => {
 		expect(hits.some((h) => h.path === chatFile)).toBe(true);
 	});
 
-	it("CLI connect wechat", async () => {
+	it("CLI connect wechat is retired in favor of archive collectors", async () => {
 		const agentDir = tempAgentDir();
 		const archive = join(agentDir, "wx");
 		writeFakeWechat(archive);
@@ -247,8 +247,8 @@ describe("kb wechat connector", () => {
 			log: (l) => lines.push(l),
 			error: (l) => lines.push(`ERR:${l}`),
 		});
-		expect(code).toBe(0);
-		expect(lines.join("\n")).toContain("Connected wechat");
+		expect(code).toBe(1);
+		expect(lines.join("\n")).toMatch(/连接器已废弃|archive/);
 	});
 });
 
@@ -276,7 +276,7 @@ describe("kb email connector", () => {
 		expect((await kb.search("quantum tea")).some((h) => h.path === maildir)).toBe(true);
 	});
 
-	it("CLI connect email", async () => {
+	it("CLI connect email is retired in favor of archive collectors", async () => {
 		const agentDir = tempAgentDir();
 		const archive = join(agentDir, "mail");
 		writeFakeEmail(archive);
@@ -287,8 +287,8 @@ describe("kb email connector", () => {
 			log: (l) => lines.push(l),
 			error: (l) => lines.push(`ERR:${l}`),
 		});
-		expect(code).toBe(0);
-		expect(lines.join("\n")).toContain("Connected email");
+		expect(code).toBe(1);
+		expect(lines.join("\n")).toMatch(/连接器已废弃|archive/);
 	});
 });
 

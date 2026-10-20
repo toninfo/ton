@@ -156,10 +156,7 @@ export async function startSettingsWebServer(options: SettingsWebServerOptions):
 			}
 
 			// 任意合法鉴权后刷新 cookie，避免只靠 query、重启后 Bearer 与 cookie 不一致
-			res.setHeader(
-				"Set-Cookie",
-				`ton_settings_token=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
-			);
+			res.setHeader("Set-Cookie", `ton_settings_token=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
 
 			if (url.pathname.startsWith("/api/")) {
 				let body: unknown;

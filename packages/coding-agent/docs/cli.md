@@ -338,13 +338,12 @@ Personal KB (notes, WeChat/email archives, PDF/DOCX/eml). See [Personal knowledg
 
 | Command | Description |
 |---|---|
-| `ton kb add <path>` | Track a folder and ingest |
+| `ton kb archive set\|sync` | Archive root + collectors (WeChat sync copies DB copies first) |
+| `ton kb add <path>` | Attach an extra folder at its original path |
 | `ton kb rm <id\|path>` | Remove a root |
 | `ton kb status` | Roots, docs, `fts`/`hybrid`, vector backend |
 | `ton kb reindex` | Incremental re-scan |
 | `ton kb search <query>` | Search from the CLI |
-| `ton kb connect wechat [path]` | Link a WeChat archive once |
-| `ton kb connect email [path]` | Link an email archive (Maildir / `*.eml`) once |
 | `ton kb embedding set\|local\|clear` | Remote or local (Ollama) hybrid search |
 
 ## MCP commands

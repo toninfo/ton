@@ -13,6 +13,8 @@ declare module "mailparser" {
 		date?: Date;
 		text?: string;
 		html?: string | false;
+		messageId?: string;
+		attachments?: Array<{ filename?: string }>;
 	}
 
 	export function simpleParser(source: Buffer | string): Promise<ParsedMail>;

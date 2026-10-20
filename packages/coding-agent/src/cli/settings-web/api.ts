@@ -3,17 +3,19 @@
  * 凭证只写 auth.json；设置只写全局 settings.json（与 CLI 同真源）。
  */
 
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { ThinkingLevel } from "@ton/pi-agent-core";
 import { APP_NAME, CONFIG_DIR_NAME, expandTildePath, getAgentDir, VERSION } from "../../config.ts";
 import { AuthStorage } from "../../core/auth-storage.ts";
 import { ModelRuntime } from "../../core/model-runtime.ts";
 import { SettingsManager } from "../../core/settings-manager.ts";
+import { collectorStatusLabel, listCollectors } from "../../extensions/kb/archive/collectors.ts";
+import { loadCollectorsConfig, patchCollectorsConfig } from "../../extensions/kb/archive/collectors-config.ts";
+import { ensureArchiveLayout, isSpcWechatPath, loadArchiveRoot } from "../../extensions/kb/archive/layout.ts";
+import { type CollectorSyncId, runCollector } from "../../extensions/kb/archive/sync.ts";
+import { describeLiveDb } from "../../extensions/kb/archive/wechat-sync.ts";
 import { defaultKbPath, ensureDefaultKbBootstrap } from "../../extensions/kb/bootstrap.ts";
-import { autoDetectEmailArchive } from "../../extensions/kb/connectors/email.ts";
-import { autoDetectObsidianVault } from "../../extensions/kb/connectors/obsidian.ts";
-import { autoDetectWechatArchive } from "../../extensions/kb/connectors/wechat.ts";
 import { createKbService } from "../../extensions/kb/service.ts";
 import type { KbEmbeddingConfig } from "../../extensions/kb/types.ts";
 import { getAvailableThemes } from "../../modes/interactive/theme/theme.ts";
@@ -179,11 +181,19 @@ export async function handleSettingsApi(
 		const kb = createKbService(ctx.agentDir, { cwd: ctx.cwd });
 		await kb.catchUp().catch(() => {});
 		const status = await kb.status();
+		const collectors = listCollectors(ctx.agentDir).map((c) => ({
+			...c,
+			statusLabel: collectorStatusLabel(c.status),
+		}));
 		return ok({
 			status,
 			bootstrap: boot,
 			ready: status.roots.length > 0,
-			suggestions: buildKbSuggestions(status.roots.map((r) => r.path)),
+			collectors,
+			archive: {
+				root: loadArchiveRoot(ctx.agentDir) ?? null,
+				liveDb: describeLiveDb() ?? null,
+			},
 			defaults: {
 				kbPath: defaultKbPath(),
 				kbPathDisplay: displayPath(defaultKbPath()),
@@ -244,40 +254,73 @@ export async function handleSettingsApi(
 		return ok({ results });
 	}
 
-	if (method === "POST" && pathname === "/api/kb/connect") {
+	if (method === "POST" && pathname === "/api/archive/root") {
+		if (typeof body !== "object" || body === null || Array.isArray(body)) return fail("请求体必须是 { path }");
+		const pathRaw = (body as { path?: unknown }).path;
+		if (typeof pathRaw !== "string" || !pathRaw.trim()) return fail("请选择归档根目录");
+		const abs = resolve(ctx.cwd, expandTildePath(pathRaw.trim()));
+		if (isSpcWechatPath(abs)) return fail("该路径属于另一套归档程序，ton 不会使用它");
+		if (!existsSync(abs)) mkdirSync(abs, { recursive: true });
+		const layout = ensureArchiveLayout(ctx.agentDir, abs);
+		return ok({ root: layout.root, slots: layout.slots });
+	}
+
+	if (method === "GET" && pathname === "/api/archive/collectors") {
+		return ok({
+			config: loadCollectorsConfig(ctx.agentDir),
+			collectors: listCollectors(ctx.agentDir).map((c) => ({
+				...c,
+				statusLabel: collectorStatusLabel(c.status),
+			})),
+		});
+	}
+
+	if (method === "POST" && pathname === "/api/archive/collectors") {
 		if (typeof body !== "object" || body === null || Array.isArray(body)) {
-			return fail("请求体必须是 { kind, path? }");
+			return fail("请求体必须是 collectors 配置对象");
 		}
-		const kind = (body as { kind?: unknown }).kind;
-		const pathArg =
-			typeof (body as { path?: unknown }).path === "string"
-				? (body as { path: string }).path.trim() || undefined
+		const config = patchCollectorsConfig(ctx.agentDir, body as never);
+		return ok({
+			config,
+			collectors: listCollectors(ctx.agentDir).map((c) => ({
+				...c,
+				statusLabel: collectorStatusLabel(c.status),
+			})),
+		});
+	}
+
+	if (method === "POST" && pathname === "/api/archive/sync") {
+		const pathRaw =
+			typeof body === "object" && body !== null && typeof (body as { path?: unknown }).path === "string"
+				? (body as { path: string }).path
 				: undefined;
-		const kb = createKbService(ctx.agentDir, { cwd: ctx.cwd });
+		const whichRaw =
+			typeof body === "object" && body !== null && typeof (body as { id?: unknown }).id === "string"
+				? (body as { id: string }).id
+				: "all";
+		const allowed = new Set(["all", "wechat", "email", "notion", "obsidian", "tencent-docs", "git"]);
+		if (!allowed.has(whichRaw)) return fail(`未知采集器: ${whichRaw}`);
 		try {
-			if (kind === "wechat") {
-				const result = await kb.connectWechat(pathArg);
-				return ok({ ok: true, kind, root: result.root, probe: result.probe, ingest: result.ingest });
-			}
-			if (kind === "email") {
-				const result = await kb.connectEmail(pathArg);
-				return ok({ ok: true, kind, root: result.root, probe: result.probe, ingest: result.ingest });
-			}
-			if (kind === "obsidian") {
-				const result = await kb.connectObsidian(pathArg);
-				return ok({ ok: true, kind, root: result.root, probe: result.probe, ingest: result.ingest });
-			}
-			return fail("kind 必须是 wechat | email | obsidian");
+			const results = await runCollector(ctx.agentDir, whichRaw as CollectorSyncId, pathRaw);
+			return ok({ results });
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			// 软失败：返回建议，避免 UI 硬弹「没有」
-			return ok({
-				ok: false,
-				kind,
-				message: softConnectMessage(String(kind), message),
-				suggestions: buildKbSuggestions([]),
-			});
+			return fail(err instanceof Error ? err.message : String(err));
 		}
+	}
+
+	// 兼容旧路径
+	if (method === "POST" && pathname === "/api/archive/wechat/sync") {
+		try {
+			const results = await runCollector(ctx.agentDir, "wechat");
+			return ok(results[0]?.detail ?? { note: results[0]?.note });
+		} catch (err) {
+			return fail(err instanceof Error ? err.message : String(err));
+		}
+	}
+
+	// 兼容旧 CLI：挂已有目录。产品面只用采集器 + kb add，agent 不走这条。
+	if (method === "POST" && pathname === "/api/kb/connect") {
+		return fail("已改为采集器模型：设归档根后同步采集器，或用「添加目录」挂附加路径。");
 	}
 
 	if (method === "POST" && pathname === "/api/kb/embedding") {
@@ -347,77 +390,6 @@ async function listProviders(ctx: SettingsWebContext) {
 			apiKeyHint: credential === "api_key" ? maskSecret("configured-key") : undefined,
 		};
 	});
-}
-
-function buildKbSuggestions(mountedPaths: string[]) {
-	const mounted = new Set(mountedPaths.map((p) => resolve(p)));
-	const wechat = autoDetectWechatArchive().chosen;
-	const email = autoDetectEmailArchive().chosen;
-	const obsidian = autoDetectObsidianVault().chosen;
-	const def = defaultKbPath();
-	return {
-		defaultKb: {
-			path: def,
-			display: displayPath(def),
-			exists: existsSync(def),
-			mounted: mounted.has(resolve(def)),
-		},
-		connectors: [
-			wechat?.ok
-				? {
-						kind: "wechat" as const,
-						label: "微信归档",
-						path: wechat.path,
-						display: displayPath(wechat.path),
-						detail: `dm=${wechat.dmSessions ?? "?"} group=${wechat.groupSessions ?? "?"}`,
-						mounted: mounted.has(resolve(wechat.path)),
-					}
-				: {
-						kind: "wechat" as const,
-						label: "微信归档",
-						available: false,
-						hint: "可选 · 有归档时点右侧选目录即可",
-					},
-			email?.ok
-				? {
-						kind: "email" as const,
-						label: "邮箱归档",
-						path: email.path,
-						display: displayPath(email.path),
-						detail: `mailboxes=${email.mailboxes ?? "?"} eml≈${email.emlFiles ?? "?"}`,
-						mounted: mounted.has(resolve(email.path)),
-					}
-				: {
-						kind: "email" as const,
-						label: "邮箱归档",
-						available: false,
-						hint: "可选 · Maildir 或 .eml 目录",
-					},
-			obsidian?.ok
-				? {
-						kind: "obsidian" as const,
-						label: "Obsidian",
-						path: obsidian.path,
-						display: displayPath(obsidian.path),
-						detail: `md≈${obsidian.mdFiles ?? "?"}`,
-						mounted: mounted.has(resolve(obsidian.path)),
-					}
-				: {
-						kind: "obsidian" as const,
-						label: "Obsidian",
-						available: false,
-						hint: "可选 · 指向含 .obsidian 的 vault",
-					},
-		],
-	};
-}
-
-function softConnectMessage(kind: string, raw: string): string {
-	const label = kind === "wechat" ? "微信" : kind === "email" ? "邮箱" : kind === "obsidian" ? "Obsidian" : kind;
-	if (/not found|未检测|no archive|未发现|路径不存在/i.test(raw)) {
-		return `还没找到可用的${label}目录。点「选择目录」指定后即可连接；全文搜索不依赖它也能用。`;
-	}
-	return raw;
 }
 
 /** 测试辅助：固定 agentDir */

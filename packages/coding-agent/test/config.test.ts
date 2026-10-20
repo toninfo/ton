@@ -190,15 +190,7 @@ describe("detectInstallMethod", () => {
 		expect(detectInstallMethod()).toBe("npm");
 		expect(command).toEqual({
 			command: "npm",
-			args: [
-				"--prefix",
-				prefix,
-				"install",
-				"-g",
-				"--ignore-scripts",
-				"--min-release-age=0",
-				"@ton/pi-coding-agent",
-			],
+			args: ["--prefix", prefix, "install", "-g", "--ignore-scripts", "--min-release-age=0", "@ton/pi-coding-agent"],
 			display: `npm --prefix ${prefix} install -g --ignore-scripts --min-release-age=0 @ton/pi-coding-agent`,
 		});
 	});
@@ -257,15 +249,7 @@ describe("detectInstallMethod", () => {
 
 		expect(command).toEqual({
 			command: "npm",
-			args: [
-				"--prefix",
-				prefix,
-				"install",
-				"-g",
-				"--ignore-scripts",
-				"--min-release-age=0",
-				"@ton/pi-coding-agent",
-			],
+			args: ["--prefix", prefix, "install", "-g", "--ignore-scripts", "--min-release-age=0", "@ton/pi-coding-agent"],
 			display: `npm --prefix ${prefix} install -g --ignore-scripts --min-release-age=0 @ton/pi-coding-agent`,
 		});
 	});
@@ -445,9 +429,7 @@ describe("detectInstallMethod", () => {
 		chmodSync(packageDir, 0o500);
 
 		expect(getSelfUpdateCommand("@ton/pi-coding-agent")).toBeUndefined();
-		expect(getSelfUpdateUnavailableInstruction("@ton/pi-coding-agent")).toContain(
-			"the install path is not writable",
-		);
+		expect(getSelfUpdateUnavailableInstruction("@ton/pi-coding-agent")).toContain("the install path is not writable");
 	});
 });
 
