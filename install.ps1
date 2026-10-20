@@ -20,6 +20,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Windows PowerShell 5.x 默认协议栈偏旧时，大文件/跳转易半截失败
+try {
+    [Net.ServicePointManager]::SecurityProtocol = `
+        [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+} catch { }
+
+# 预编译包至少几十 MB；过小几乎一定是截断或下成了 HTML
+$script:MinZipBytes = 5MB
+
 function Get-Arch {
     # Release 资产：windows-x64 / windows-arm64
     switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -71,25 +80,99 @@ function Ensure-UserPath([string]$dir) {
     return $true
 }
 
+# 校验本地 zip：魔数 + 体积 + 能打开 ZipArchive（避免「找不到中央目录结尾」）
+function Test-TonZip([string]$path) {
+    if (-not (Test-Path $path)) { return $false }
+    $len = (Get-Item $path).Length
+    if ($len -lt $script:MinZipBytes) { return $false }
+
+    $fs = [System.IO.File]::OpenRead($path)
+    try {
+        $hdr = New-Object byte[] 4
+        if ($fs.Read($hdr, 0, 4) -ne 4) { return $false }
+        # ZIP local file header: PK\x03\x04
+        if ($hdr[0] -ne 0x50 -or $hdr[1] -ne 0x4B -or $hdr[2] -ne 0x03 -or $hdr[3] -ne 0x04) {
+            return $false
+        }
+    } finally {
+        $fs.Dispose()
+    }
+
+    try {
+        Add-Type -AssemblyName System.IO.Compression -ErrorAction SilentlyContinue | Out-Null
+        $fs2 = [System.IO.File]::OpenRead($path)
+        try {
+            $zip = New-Object System.IO.Compression.ZipArchive($fs2, [System.IO.Compression.ZipArchiveMode]::Read)
+            try {
+                # 读 Entries 会强制解析中央目录；截断包在这里失败
+                $null = $zip.Entries.Count
+                return ($zip.Entries.Count -gt 0)
+            } finally {
+                $zip.Dispose()
+            }
+        } finally {
+            $fs2.Dispose()
+        }
+    } catch {
+        return $false
+    }
+}
+
+function Save-UrlToFile([string]$url, [string]$outFile) {
+    # WebClient 对 GitHub 302 → release-assets 大文件比部分 IWR 实现更稳
+    $wc = New-Object System.Net.WebClient
+    try {
+        $wc.Headers.Add("User-Agent", "ton-install.ps1")
+        $wc.DownloadFile($url, $outFile)
+    } finally {
+        $wc.Dispose()
+    }
+}
+
 function Get-ReleaseArchive([string]$tag, [string]$platform, [string]$destDir) {
     $candidates = @(
         "ton-$platform.zip",
         "pi-$platform.zip"
     )
+    $lastHint = ""
     foreach ($name in $candidates) {
         $url = "https://github.com/$Repo/releases/download/$tag/$name"
         $zipPath = Join-Path $destDir $name
         Write-Host "==> 尝试 $url"
-        try {
-            Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
-            if ((Test-Path $zipPath) -and ((Get-Item $zipPath).Length -gt 0)) {
-                return @{ Name = $name; Path = $zipPath }
-            }
-        } catch {
+        $ok = $false
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
             Remove-Item -Force $zipPath -ErrorAction SilentlyContinue
+            try {
+                if ($attempt -gt 1) {
+                    Write-Host "==> 重试 $attempt/3 ..."
+                }
+                Save-UrlToFile -url $url -outFile $zipPath
+                $bytes = if (Test-Path $zipPath) { (Get-Item $zipPath).Length } else { 0 }
+                Write-Host ("==> 已下载 {0:N1} MB" -f ($bytes / 1MB))
+                if (Test-TonZip $zipPath) {
+                    $ok = $true
+                    break
+                }
+                $lastHint = "文件损坏或不完整（$bytes bytes）。常见原因：下载被截断、代理 MITM、下到了 HTML 错误页。"
+                Write-Host "==> $lastHint"
+            } catch {
+                $lastHint = "$_"
+                Write-Host "==> 下载失败: $_"
+            }
         }
+        if ($ok) {
+            return @{ Name = $name; Path = $zipPath }
+        }
+        Remove-Item -Force $zipPath -ErrorAction SilentlyContinue
     }
-    throw "未找到适合 $platform 的发布资产（已试: $($candidates -join ', ')）。请确认 https://github.com/$Repo/releases/tag/$tag"
+    throw @"
+未拿到可用的 $platform 发布包（已试: $($candidates -join ', ')）。
+$lastHint
+请用浏览器下载后核对体积约 80+ MB：
+  https://github.com/$Repo/releases/tag/$tag
+或开稳定代理后重跑：
+  irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
+"@
 }
 
 $arch = Get-Arch
@@ -102,12 +185,18 @@ New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
     $archive = Get-ReleaseArchive -tag $tag -platform $platform -destDir $tmp
 
-    Write-Host "==> 解压到 $InstallDir"
+    # 先解到临时目录，成功后再替换安装目录，避免半截失败把旧安装删光
+    $extractDir = Join-Path $tmp "extract"
+    New-Item -ItemType Directory -Path $extractDir | Out-Null
+    Write-Host "==> 解压到临时目录"
+    Expand-Archive -Path $archive.Path -DestinationPath $extractDir -Force
+
+    Write-Host "==> 安装到 $InstallDir"
     if (Test-Path $InstallDir) {
         Remove-Item -Recurse -Force $InstallDir
     }
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
-    Expand-Archive -Path $archive.Path -DestinationPath $InstallDir -Force
+    Copy-Item -Path (Join-Path $extractDir "*") -Destination $InstallDir -Recurse -Force
 
     # zip 根目录直接是文件（ton.exe / pi.exe），或带一层目录
     $exe = $null
