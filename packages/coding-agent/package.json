@@ -1,6 +1,6 @@
 {
 	"name": "@ton/pi-coding-agent",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"description": "Coding agent CLI with read, bash, edit, write tools and session management",
 	"type": "module",
 	"piConfig": {
@@ -50,14 +50,14 @@
 		"prepublishOnly": "npm run clean && npm run build"
 	},
 	"dependencies": {
-		"@earendil-works/chord": "^1.1.0",
+		"@earendil-works/chord": "^1.1.2",
 		"@lancedb/lancedb": "0.40.0",
 		"@silvia-odwyer/photon-node": "0.3.4",
-		"@ton/pi-agent-core": "^1.1.0",
-		"@ton/pi-ai": "^1.1.0",
-		"@ton/pi-codemode": "^1.1.0",
-		"@ton/pi-mcp": "^1.1.0",
-		"@ton/pi-tui": "^1.1.0",
+		"@ton/pi-agent-core": "^1.1.2",
+		"@ton/pi-ai": "^1.1.2",
+		"@ton/pi-codemode": "^1.1.2",
+		"@ton/pi-mcp": "^1.1.2",
+		"@ton/pi-tui": "^1.1.2",
 		"apache-arrow": "18.1.0",
 		"brace-expansion": "5.0.12",
 		"chalk": "6.0.0",
@@ -87,9 +87,9 @@
 		}
 	},
 	"devDependencies": {
-		"@ton/pi-client": "^1.1.0",
-		"@ton/pi-protocol": "^1.1.0",
-		"@ton/pi-server": "^1.1.0",
+		"@ton/pi-client": "^1.1.2",
+		"@ton/pi-protocol": "^1.1.2",
+		"@ton/pi-server": "^1.1.2",
 		"@types/cross-spawn": "6.0.6",
 		"@types/hosted-git-info": "3.0.5",
 		"@types/node": "22.19.19",
