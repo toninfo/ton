@@ -79,12 +79,18 @@ function assertPackagesAreRegisteredWithNpm() {
 	}
 
 	if (unregisteredPackages.length > 0) {
-		const usesTonanyScope = packageNames.every((name) => name.startsWith("@ton/"));
-		if (usesTonanyScope) {
-			console.log("  Skipping npm registration check for @ton/* packages (private ton release).\n");
-			return;
+		// ton 私有 fork：@ton/* 不上公共 npm，只发 GitHub Release 二进制；仍要求其它公开包已注册
+		const tonPrivate = unregisteredPackages.filter((name) => name.startsWith("@ton/"));
+		const required = unregisteredPackages.filter((name) => !name.startsWith("@ton/"));
+		if (tonPrivate.length > 0) {
+			console.log(`  Skipping npm registration check for ${tonPrivate.length} @ton/* package(s) (GitHub-release-only).\n`);
 		}
-		throw new Error(`The following public workspace packages are not registered on npm:\n${unregisteredPackages.map((packageName) => `  ${packageName}`).join("\n")}\nRegister them before running a release.`);
+		if (required.length > 0) {
+			throw new Error(
+				`The following public workspace packages are not registered on npm:\n${required.map((packageName) => `  ${packageName}`).join("\n")}\nRegister them before running a release.`,
+			);
+		}
+		return;
 	}
 
 	console.log("  All public workspace packages are registered on npm\n");
