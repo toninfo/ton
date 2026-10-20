@@ -5,7 +5,7 @@
 ### Fixed
 
 - Fixed `opencode-go` provider build after upstream catalog added `google-generative-ai` models (e.g. Gemini): register the Google API stream alongside Anthropic/OpenAI, matching `opencode` Zen.
-- Fixed AI tests after catalog churn: Xiaomi fixtures use `mimo-v2.6-*`; OpenRouter uses `anthropic/claude-sonnet-4.5` and `deepseek/deepseek-r1-0528`; `opencode-go` uses `deepseek-v4.1-flash`.
+- Fixed AI tests after catalog churn: Xiaomi fixtures use `mimo-v2.6-*`; OpenRouter uses `anthropic/claude-sonnet-4.5` and `deepseek/deepseek-r1-0528`; `opencode-go` uses `deepseek-v4.1-flash`; xAI/Kimi/ZAI thinking-level and cost assertions updated.
 
 ## [1.1.0] - 2026-10-07
 
