@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- Fixed release binaries: bump Bun compile toolchain `1.3.14` → `1.4.3` so standalone builds expose `node:sqlite` (Windows/macOS/Linux zip/tar no longer die with `No such built-in module: node:sqlite`).
 - Fixed Xiaomi default models to `mimo-v2.6-pro` (and OpenRouter override fixtures to `anthropic/claude-sonnet-4.5`) after catalog delisting of v2.5 / sonnet-4.
 - Fixed Windows `install.ps1`: validate zip magic/size and openability before extract (avoids 「找不到中央目录结尾」 on truncated/HTML downloads), retry downloads via `WebClient`, and only replace the install dir after a successful extract.
 - Fixed Settings Web: persist loopback token across `ton settings` restarts and soften stale-session errors so 「选择目录」 no longer looks like a random auth failure after rebuild/restart.
