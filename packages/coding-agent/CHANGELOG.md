@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Windows (and other Bun standalone) startup crash: lazy-load `pdf-parse` so `pdfjs`/`@napi-rs/canvas` are not evaluated at CLI boot; release zips ship sidecar `node_modules` for PDF indexing beside `ton.exe`.
+
 ## [1.1.2] - 2026-10-20
 
 ### Added

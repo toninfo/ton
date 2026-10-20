@@ -157,6 +157,25 @@ for platform in "${PLATFORMS[@]}"; do
     native_path="native/${native_platform%-*}/prebuilds"
     mkdir -p "$OUTPUT_DIR/$platform/$native_path"
     cp -R "../tui/$native_path/$native_platform" "$OUTPUT_DIR/$platform/$native_path/"
+
+    # KB PDF：Bun 单文件 exe 不内嵌 @napi-rs/canvas；旁路 node_modules 供运行时 require
+    pdf_sidecar="$OUTPUT_DIR/$platform/node_modules"
+    mkdir -p "$pdf_sidecar/@napi-rs"
+    cp -R "../../node_modules/pdf-parse" "$pdf_sidecar/"
+    cp -R "../../node_modules/pdfjs-dist" "$pdf_sidecar/"
+    cp -R "../../node_modules/@napi-rs/canvas" "$pdf_sidecar/@napi-rs/"
+    case "$platform" in
+        windows-x64)     canvas_pkg="canvas-win32-x64-msvc" ;;
+        windows-arm64)   canvas_pkg="canvas-win32-arm64-msvc" ;;
+        linux-x64)       canvas_pkg="canvas-linux-x64-gnu" ;;
+        linux-arm64)     canvas_pkg="canvas-linux-arm64-gnu" ;;
+        darwin-x64)      canvas_pkg="canvas-darwin-x64" ;;
+        darwin-arm64)    canvas_pkg="canvas-darwin-arm64" ;;
+        *) canvas_pkg="" ;;
+    esac
+    if [[ -n "$canvas_pkg" && -d "../../node_modules/@napi-rs/$canvas_pkg" ]]; then
+        cp -R "../../node_modules/@napi-rs/$canvas_pkg" "$pdf_sidecar/@napi-rs/"
+    fi
 done
 
 # 可执行文件双名：ton（产品）+ pi（兼容旧脚本/mise）

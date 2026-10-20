@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename, extname, sep } from "node:path";
 import { simpleParser } from "mailparser";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+import { loadPdfParseCtor } from "./pdf-parse-loader.ts";
 
 /** 纯文本扩展名 */
 const TEXT_EXTS = new Set([".md", ".txt", ".markdown", ".mdx", ".rst", ".org"]);
@@ -125,6 +125,8 @@ async function extractPdf(path: string, maxBytes: number): Promise<ExtractedDoc 
 	if (raw.byteLength > maxBytes * 4) {
 		raw = raw.subarray(0, maxBytes * 4);
 	}
+	const PDFParse = loadPdfParseCtor();
+	if (!PDFParse) return undefined;
 	const parser = new PDFParse({ data: raw });
 	try {
 		const result = await parser.getText();
