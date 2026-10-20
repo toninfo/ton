@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed `opencode-go` provider build after upstream catalog added `google-generative-ai` models (e.g. Gemini): register the Google API stream alongside Anthropic/OpenAI, matching `opencode` Zen.
+
 ## [1.1.0] - 2026-10-07
 
 ### Breaking Changes
