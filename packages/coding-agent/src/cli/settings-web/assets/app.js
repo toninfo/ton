@@ -125,6 +125,7 @@ function renderNav() {
 	el.nav.querySelectorAll("[data-section]").forEach((btn) => {
 		btn.addEventListener("click", () => {
 			state.section = btn.getAttribute("data-section");
+			el.search.value = "";
 			closeDrawer();
 			render();
 		});
@@ -346,31 +347,34 @@ function renderProviders() {
 				? `<span class="badge ok">${escapeHtml(p.authLabel || p.storedType || "ready")}</span>`
 				: `<span class="badge">未添加密钥</span>`;
 			const apiForm = p.supportsApiKey
-				? `<div class="inline-form" style="grid-column:1/-1">
+				? `<div class="inline-form">
             <input class="control" type="password" placeholder="粘贴 API Key…" data-api-key="${escapeHtml(p.id)}" autocomplete="off" />
             <button type="button" class="btn primary" data-save-key="${escapeHtml(p.id)}">保存</button>
           </div>`
-				: `<div class="empty" style="grid-column:1/-1">此 Provider 走 OAuth，在 TUI 用 /login 即可。</div>`;
-			return `<div class="provider-card" data-search="${escapeHtml(`${p.name} ${p.id}`)}">
-        <div>
-          <div class="name">${escapeHtml(p.name)} ${badge}</div>
-          <div class="sub">${escapeHtml(p.id)}${p.supportsOAuth ? " · OAuth" : ""}${p.supportsApiKey ? " · API Key" : ""}</div>
-        </div>
-        <div class="btn-row" style="margin:0;justify-content:flex-end">
-          ${p.configured ? `<button type="button" class="btn danger" data-logout="${escapeHtml(p.id)}">移除</button>` : ""}
+				: `<div class="empty">此 Provider 走 OAuth，在 TUI 用 /login 即可。</div>`;
+			return `<div class="provider-card" data-search="${escapeHtml(`${p.name} ${p.id} provider 认证`)}">
+        <div class="provider-top">
+          <div>
+            <div class="name">${escapeHtml(p.name)} ${badge}</div>
+            <div class="sub">${escapeHtml(p.id)}${p.supportsOAuth ? " · OAuth" : ""}${p.supportsApiKey ? " · API Key" : ""}</div>
+          </div>
+          <div class="btn-row" style="margin:0;justify-content:flex-end">
+            ${p.configured ? `<button type="button" class="btn danger" data-logout="${escapeHtml(p.id)}">移除</button>` : ""}
+          </div>
         </div>
         ${p.configured ? "" : apiForm}
-        ${p.configured && p.supportsApiKey ? `<div class="inline-form" style="grid-column:1/-1"><input class="control" type="password" placeholder="更换 API Key…" data-api-key="${escapeHtml(p.id)}" autocomplete="off" /><button type="button" class="btn" data-save-key="${escapeHtml(p.id)}">更新</button></div>` : ""}
+        ${p.configured && p.supportsApiKey ? `<div class="inline-form"><input class="control" type="password" placeholder="更换 API Key…" data-api-key="${escapeHtml(p.id)}" autocomplete="off" /><button type="button" class="btn" data-save-key="${escapeHtml(p.id)}">更新</button></div>` : ""}
       </div>`;
 		})
 		.join("");
 	const toggleLabel = state.showAllProviders
 		? "只看已配置"
 		: `显示全部（${state.providers.length}）`;
-	return `<section class="card"><div class="card-h"><div><h2>Providers</h2><p>密钥只写本地 auth.json。已配置 ${ready.length} 个。</p></div>
+	return `<section class="card" data-search="认证 provider api key">
+    <div class="card-h"><div><h2>模型服务商</h2><p>密钥只保存在本机 auth.json，不会上传。已配置 ${ready.length} 个。</p></div>
       <button type="button" class="btn ghost" id="toggle-providers">${toggleLabel}</button></div>
-    ${ready.length === 0 ? `<div class="callout">还没配密钥也没关系——先配一个常用 Provider（如 OpenAI / Anthropic），其它可以以后再说。</div>` : ""}
-    <div class="provider-list">${cards || '<div class="empty">没有可用 Provider</div>'}</div></section>`;
+    ${ready.length === 0 ? `<div class="callout">还没配密钥也能先玩默认能力；要用自己的模型，先配一个常用的（如 OpenAI、Anthropic、DeepSeek）。</div>` : ""}
+    <div class="provider-list scroll-list">${cards || '<div class="empty">没有可用 Provider</div>'}</div></section>`;
 }
 
 function renderModel() {
@@ -858,7 +862,9 @@ const RENDERERS = {
 
 function applySearchFilter() {
 	const q = el.search.value.trim().toLowerCase();
-	document.querySelectorAll("[data-search]").forEach((node) => {
+	// 只过滤当前分区内容；勿用 document 全局 query（会误伤 + 切页后旧关键词把列表藏光）
+	if (!el.content) return;
+	el.content.querySelectorAll("[data-search]").forEach((node) => {
 		if (!q) {
 			node.classList.remove("hidden-by-search");
 			return;
@@ -872,6 +878,7 @@ function bindSectionActions() {
 	el.content.querySelectorAll("[data-jump]").forEach((btn) => {
 		btn.addEventListener("click", () => {
 			state.section = btn.getAttribute("data-jump");
+			el.search.value = "";
 			render();
 		});
 	});

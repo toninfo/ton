@@ -6,6 +6,10 @@
 
 - Settings Web: per-source cards with plain-Chinese copy, 3-step KB guide, in-form save/sync; email password stored locally in `kb/collector-secrets.json` (Settings form, no env var required).
 
+### Fixed
+
+- Settings Web: provider list empty on 认证 after searching elsewhere — scope search filter to current section and clear search on navigation; provider card layout scroll for long lists.
+
 ## [1.1.3] - 2026-10-20
 
 ### Fixed
