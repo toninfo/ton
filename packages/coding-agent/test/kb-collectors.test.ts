@@ -8,8 +8,9 @@ import { listCollectors } from "../src/extensions/kb/archive/collectors.ts";
 import { patchCollectorsConfig } from "../src/extensions/kb/archive/collectors-config.ts";
 import { messageToMarkdown } from "../src/extensions/kb/archive/email-sync.ts";
 import { syncGitArchive } from "../src/extensions/kb/archive/git-sync.ts";
-import { ARCHIVE_SLOTS, ensureArchiveLayout } from "../src/extensions/kb/archive/layout.ts";
+import { ARCHIVE_SLOTS, ensureArchiveLayout, mountArchiveSlotKbRoot } from "../src/extensions/kb/archive/layout.ts";
 import { syncObsidianArchive } from "../src/extensions/kb/archive/obsidian-sync.ts";
+import { loadKbConfig } from "../src/extensions/kb/config.ts";
 
 describe("kb collectors", () => {
 	const dirs: string[] = [];
@@ -17,7 +18,7 @@ describe("kb collectors", () => {
 		for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 	});
 
-	it("creates notion and obsidian slots under the archive root", () => {
+	it("creates notion and obsidian slots under the archive root without auto-mounting KB roots", () => {
 		const agentDir = mkdtempSync(join(tmpdir(), "ton-col-agent-"));
 		const root = mkdtempSync(join(tmpdir(), "ton-col-root-"));
 		dirs.push(agentDir, root);
@@ -26,6 +27,9 @@ describe("kb collectors", () => {
 		expect(ARCHIVE_SLOTS).toContain("obsidian");
 		expect(layout.slots.notion).toContain("/notion");
 		expect(layout.slots.obsidian).toContain("/obsidian");
+		expect(loadKbConfig(agentDir).roots).toHaveLength(0);
+		mountArchiveSlotKbRoot(agentDir, "notion", layout);
+		expect(loadKbConfig(agentDir).roots.some((r) => r.id === "archive-notion")).toBe(true);
 	});
 
 	it("marks email ready when host, user, and password (env or secrets file) exist", () => {

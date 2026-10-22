@@ -13,7 +13,12 @@ import { SettingsManager } from "../../core/settings-manager.ts";
 import { hasEmailPassword, setEmailPassword } from "../../extensions/kb/archive/collector-secrets.ts";
 import { collectorStatusLabel, listCollectors } from "../../extensions/kb/archive/collectors.ts";
 import { loadCollectorsConfig, patchCollectorsConfig } from "../../extensions/kb/archive/collectors-config.ts";
-import { ensureArchiveLayout, isSpcWechatPath, loadArchiveRoot } from "../../extensions/kb/archive/layout.ts";
+import {
+	applyCollectorEnabledSideEffects,
+	ensureArchiveLayout,
+	isSpcWechatPath,
+	loadArchiveRoot,
+} from "../../extensions/kb/archive/layout.ts";
 import { type CollectorSyncId, runCollector } from "../../extensions/kb/archive/sync.ts";
 import { describeLiveDb } from "../../extensions/kb/archive/wechat-sync.ts";
 import { defaultKbPath, ensureDefaultKbBootstrap } from "../../extensions/kb/bootstrap.ts";
@@ -182,7 +187,8 @@ export async function handleSettingsApi(
 		const kb = createKbService(ctx.agentDir, { cwd: ctx.cwd });
 		await kb.catchUp().catch(() => {});
 		const status = await kb.status();
-		const collectors = listCollectors(ctx.agentDir).map((c) => ({
+		const indexedDocs = Object.fromEntries(status.roots.map((r) => [r.id, r.docs]));
+		const collectors = listCollectors(ctx.agentDir, { indexedDocs }).map((c) => ({
 			...c,
 			statusLabel: collectorStatusLabel(c.status),
 		}));
@@ -300,12 +306,17 @@ export async function handleSettingsApi(
 				setEmailPassword(ctx.agentDir, raw);
 			}
 		}
+		const before = loadCollectorsConfig(ctx.agentDir);
 		const config = patchCollectorsConfig(ctx.agentDir, payload as never);
+		applyCollectorEnabledSideEffects(ctx.agentDir, before, config);
+		const kb = createKbService(ctx.agentDir, { cwd: ctx.cwd });
+		const status = await kb.status();
+		const indexedDocs = Object.fromEntries(status.roots.map((r) => [r.id, r.docs]));
 		const emailEnv = config.email?.passwordEnv?.trim() || "TON_EMAIL_PASSWORD";
 		return ok({
 			config,
 			collectorsMeta: { emailPasswordSet: hasEmailPassword(ctx.agentDir, emailEnv) },
-			collectors: listCollectors(ctx.agentDir).map((c) => ({
+			collectors: listCollectors(ctx.agentDir, { indexedDocs }).map((c) => ({
 				...c,
 				statusLabel: collectorStatusLabel(c.status),
 			})),

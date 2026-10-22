@@ -8,9 +8,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { expandTildePath } from "../../../config.ts";
-import { addKbRoot } from "../config.ts";
+import { addKbRoot, removeKbRoot } from "../config.ts";
 import { wechatRootOptions } from "../connectors/wechat.ts";
 import { getKbDir } from "../paths.ts";
+import { archiveSlotRootId, type CollectorsConfig, isCollectorEnabled } from "./collectors-config.ts";
 
 /** SPC 归档，ton 禁止碰 */
 export const SPC_WECHAT_ARCHIVE = "/home/doc/wechat";
@@ -58,7 +59,7 @@ export function slotPath(root: string, slot: ArchiveSlot): string {
 	return join(resolve(root), slot);
 }
 
-/** 创建归档根与采集器子目录，并把子目录挂进 KB。 */
+/** 创建归档根与采集器子目录（仅磁盘布局，不自动挂进 KB）。 */
 export function ensureArchiveLayout(agentDir: string, rawRoot?: string): ArchiveLayout {
 	const chosen = rawRoot?.trim()
 		? resolve(expandTildePath(rawRoot.trim()))
@@ -75,19 +76,47 @@ export function ensureArchiveLayout(agentDir: string, rawRoot?: string): Archive
 		if (!existsSync(note)) {
 			writeFileSync(
 				note,
-				`# ${slot}\n\nton 采集器写入此目录。另挂的附加文件夹请用「添加目录」，不要放进这里。\n`,
+				`# ${slot}\n\nton 采集器写入此目录。在 Settings 启用该来源并同步后，才会加入检索索引。\n`,
 				"utf8",
 			);
 		}
 		slots[slot] = dir;
-		if (slot === "wechat") {
-			const opts = wechatRootOptions("archive-wechat");
-			addKbRoot(agentDir, dir, opts);
-		} else {
-			addKbRoot(agentDir, dir, { id: `archive-${slot}` });
-		}
 	}
 	mkdirSync(getKbDir(agentDir), { recursive: true });
 	writeFileSync(archiveFilePath(agentDir), `${JSON.stringify({ root: chosen }, null, 2)}\n`, "utf8");
 	return { root: chosen, slots };
+}
+
+/** 启用/同步成功后，把对应归档子目录挂进 KB。 */
+export function mountArchiveSlotKbRoot(agentDir: string, slot: ArchiveSlot, layout: ArchiveLayout): void {
+	const dir = layout.slots[slot];
+	if (slot === "wechat") {
+		addKbRoot(agentDir, dir, wechatRootOptions(archiveSlotRootId("wechat")));
+		return;
+	}
+	addKbRoot(agentDir, dir, { id: archiveSlotRootId(slot) });
+}
+
+/** 关闭采集来源时从 KB 卸载（不删磁盘上的归档文件）。 */
+export function unmountArchiveSlotKbRoot(agentDir: string, slot: ArchiveSlot): void {
+	removeKbRoot(agentDir, archiveSlotRootId(slot));
+}
+
+/** Settings 切换 enabled 时挂载/卸载 KB root。 */
+export function applyCollectorEnabledSideEffects(
+	agentDir: string,
+	before: CollectorsConfig,
+	after: CollectorsConfig,
+): void {
+	for (const slot of ARCHIVE_SLOTS) {
+		const was = isCollectorEnabled(agentDir, before, slot);
+		const now = isCollectorEnabled(agentDir, after, slot);
+		if (was === now) continue;
+		if (!now) {
+			unmountArchiveSlotKbRoot(agentDir, slot);
+			continue;
+		}
+		const layout = ensureArchiveLayout(agentDir);
+		mountArchiveSlotKbRoot(agentDir, slot, layout);
+	}
 }

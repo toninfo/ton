@@ -29,6 +29,7 @@ const state = {
 	modelQuery: "",
 	showAllProviders: false,
 	kbHint: "",
+	syncFlashId: null,
 	picker: null,
 	pickerTarget: "kb-path",
 };
@@ -690,25 +691,48 @@ function renderSourceCards(collectors, cfg, meta, archiveRoot) {
 	const hasArchive = Boolean(archiveRoot?.trim());
 	return (collectors || [])
 		.map((c) => {
-			const open = c.status === "needs-config" || c.status === "needs-login";
+			const enabled = Boolean(c.enabled);
+			const flash = state.syncFlashId === c.id;
+			const indexed =
+				c.indexedDocs > 0
+					? `<span class="badge ok">已索引 ${c.indexedDocs} 条</span>`
+					: enabled
+						? `<span class="badge warn">待同步</span>`
+						: "";
 			const syncBtn =
-				c.runnable && hasArchive
+				enabled && c.runnable && hasArchive
 					? `<button type="button" class="btn primary" data-collector-sync="${escapeHtml(c.id)}">同步</button>`
-					: `<button type="button" class="btn" disabled title="请先设置归档文件夹">同步</button>`;
+					: `<button type="button" class="btn" disabled title="${!hasArchive ? "请先保存归档文件夹" : "请先启用左侧开关"}">同步</button>`;
 			const saveBtn =
-				c.id === "wechat"
-					? ""
-					: `<button type="button" class="btn" data-save-source="${escapeHtml(c.id)}">保存</button>`;
-			return `<article class="source-card" id="source-${escapeHtml(c.id)}" data-search="${escapeHtml(`${c.label} ${c.id}`)}">
+				c.id !== "wechat" && enabled
+					? `<button type="button" class="btn" data-save-source="${escapeHtml(c.id)}">保存</button>`
+					: "";
+			const configBlock = enabled
+				? `<details class="source-details" ${c.status === "needs-config" || c.status === "needs-login" ? "open" : ""}>
+          <summary>${c.id === "wechat" ? "使用说明" : "连接信息（保存后再同步）"}</summary>
+          <div class="source-body">${renderSourceForm(c.id, cfg, meta)}</div>
+        </details>`
+				: `<p class="source-note muted">打开左侧开关启用；关闭后不再出现在上方索引，归档文件仍保留在磁盘。</p>`;
+			return `<article class="source-card${enabled ? " source-on" : ""}${flash ? " source-flash" : ""}" id="source-${escapeHtml(c.id)}" data-search="${escapeHtml(`${c.label} ${c.id}`)}">
         <header class="source-head">
-          <div><h3>${escapeHtml(c.label)} ${collectorStatusBadge(c)}</h3>
-          <p class="source-lead">${escapeHtml(c.hint || "")}</p></div>
+          <div class="source-title-row">
+            <label class="switch source-switch" title="启用 / 停用该来源">
+              <input type="checkbox" data-collector-enable="${escapeHtml(c.id)}" ${enabled ? "checked" : ""} ${!hasArchive ? "disabled" : ""} />
+              <span></span>
+            </label>
+            <div>
+              <h3>${escapeHtml(c.label)}</h3>
+              <div class="source-badges">
+                ${enabled ? `<span class="badge ok">已启用</span>` : `<span class="badge">未启用</span>`}
+                ${indexed}
+                ${enabled ? collectorStatusBadge(c) : ""}
+              </div>
+              <p class="source-lead">${escapeHtml(c.hint || "")}</p>
+            </div>
+          </div>
           <div class="source-actions">${saveBtn}${syncBtn}</div>
         </header>
-        <details class="source-details" ${open ? "open" : ""}>
-          <summary>${c.id === "wechat" ? "说明" : "填写连接信息"}</summary>
-          <div class="source-body">${renderSourceForm(c.id, cfg, meta)}</div>
-        </details>
+        ${configBlock}
       </article>`;
 		})
 		.join("");
@@ -720,7 +744,8 @@ function renderKnowledge() {
 	const defPath = defaults?.kbPathDisplay || "~/Documents/ton-kb";
 	const embDefaults = defaults?.embedding || {};
 	const emb = status?.embedding;
-	const rootList = status?.roots || [];
+	// archive-* 只在下方来源卡片展示；上方只保留默认笔记库与用户附加目录
+	const rootList = (status?.roots || []).filter((r) => !String(r.id).startsWith("archive-"));
 	const ready = rootList.length > 0;
 	const roots = rootList
 		.map(
@@ -739,7 +764,7 @@ function renderKnowledge() {
 	const cfg = state.kb?.collectorsConfig;
 	const meta = state.kb?.collectorsMeta;
 	const step1 = archiveRoot ? "done" : "active";
-	const step2 = collectors.some((c) => c.status === "ready") ? "done" : archiveRoot ? "active" : "";
+	const step2 = collectors.some((c) => c.enabled) ? "done" : archiveRoot ? "active" : "";
 	const step3 = (status?.totalDocs ?? 0) > 0 ? "done" : "";
 
 	return `
@@ -751,7 +776,7 @@ function renderKnowledge() {
     ${ready ? "" : `<div class="callout soft">首次使用会自动创建 <code>${escapeHtml(defPath)}</code> 作为默认笔记文件夹。</div>`}
     <ol class="kb-steps">
       <li class="kb-step ${step1}"><span class="kb-step-n">1</span><div><strong>选一个「归档文件夹」</strong><span>同步下来的微信/邮件等副本会放在这里</span></div></li>
-      <li class="kb-step ${step2}"><span class="kb-step-n">2</span><div><strong>打开要用的来源，填表并点保存</strong><span>不用改配置文件，填完就能同步</span></div></li>
+      <li class="kb-step ${step2}"><span class="kb-step-n">2</span><div><strong>打开来源开关，填表并保存</strong><span>只有启用的来源会进检索；未用的保持折叠</span></div></li>
       <li class="kb-step ${step3}"><span class="kb-step-n">3</span><div><strong>点「同步」，然后在 ton 里直接问</strong><span>例如：「我微信里关于 XX 说了什么」</span></div></li>
     </ol>
     <div class="kb-list">${roots}</div>
@@ -1036,6 +1061,31 @@ function bindSectionActions() {
 			setKbHint(err.message);
 		}
 	});
+	el.content.querySelectorAll("[data-collector-enable]").forEach((input) => {
+		input.addEventListener("change", async () => {
+			const id = input.getAttribute("data-collector-enable");
+			const on = input.checked;
+			try {
+				const result = await api("/api/archive/collectors", {
+					method: "POST",
+					body: JSON.stringify({ enabled: { [id]: on } }),
+				});
+				state.kb = {
+					...state.kb,
+					collectors: result.collectors,
+					collectorsConfig: result.config,
+					collectorsMeta: result.collectorsMeta ?? state.kb?.collectorsMeta,
+				};
+				toast(on ? "已启用，可填写连接信息并同步" : "已停用，已从检索索引移除");
+				await reloadKb();
+				render();
+			} catch (err) {
+				input.checked = !on;
+				setKbHint(err.message);
+			}
+		});
+	});
+
 	el.content.querySelectorAll("[data-collector-sync]").forEach((btn) => {
 		btn.addEventListener("click", async () => {
 			const id = btn.getAttribute("data-collector-sync");
@@ -1048,8 +1098,13 @@ function bindSectionActions() {
 				const notes = (result.results || []).map((r) => `${r.id}: ${r.note}`).join("；");
 				setKbHint(notes || "同步完成");
 				toast(notes || "同步完成");
+				state.syncFlashId = id;
 				await reloadKb();
 				render();
+				setTimeout(() => {
+					state.syncFlashId = null;
+					render();
+				}, 2600);
 			} catch (err) {
 				setKbHint(err.message);
 			}

@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { expandTildePath } from "../../../config.ts";
+import { loadKbConfig } from "../config.ts";
 import { getKbDir } from "../paths.ts";
 import type { ArchiveSlot } from "./layout.ts";
 
@@ -56,12 +57,28 @@ export interface GitCollectorConfig {
 	repos?: GitRepoEntry[];
 }
 
+/** 用户在 Settings 启用的采集来源；未启用的不挂 KB、不在列表里占一行 */
+export type CollectorEnabledMap = Partial<Record<ArchiveSlot, boolean>>;
+
 export interface CollectorsConfig {
+	enabled?: CollectorEnabledMap;
 	email?: EmailCollectorConfig;
 	notion?: NotionCollectorConfig;
 	obsidian?: ObsidianCollectorConfig;
 	"tencent-docs"?: TencentDocsCollectorConfig;
 	git?: GitCollectorConfig;
+}
+
+export function archiveSlotRootId(slot: ArchiveSlot): string {
+	return slot === "wechat" ? "archive-wechat" : `archive-${slot}`;
+}
+
+/** 是否启用该采集器（未写 enabled 时：已挂载过 archive root 视为启用，兼容旧数据） */
+export function isCollectorEnabled(agentDir: string, cfg: CollectorsConfig, slot: ArchiveSlot): boolean {
+	const flag = cfg.enabled?.[slot];
+	if (flag === true) return true;
+	if (flag === false) return false;
+	return loadKbConfig(agentDir).roots.some((r) => r.id === archiveSlotRootId(slot));
 }
 
 function configPath(agentDir: string): string {

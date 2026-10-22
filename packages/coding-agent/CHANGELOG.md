@@ -9,6 +9,7 @@
 ### Fixed
 
 - Settings Web: provider list empty on 认证 after searching elsewhere — scope search filter to current section and clear search on navigation; provider card layout scroll for long lists.
+- KB archive: do not auto-mount all `archive-*` roots when setting archive folder; mount only on collector enable/sync. Settings shows enable switch, indexed doc count, sync flash, and hides archive slots from the top root list.
 
 ## [1.1.3] - 2026-10-20
 

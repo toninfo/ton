@@ -4,9 +4,16 @@
  */
 
 import { existsSync } from "node:fs";
+import { loadKbConfig } from "../config.ts";
 import { autoDetectObsidianVault } from "../connectors/obsidian.ts";
 import { hasEmailPassword } from "./collector-secrets.ts";
-import { type CollectorsConfig, loadCollectorsConfig, resolveObsidianVault } from "./collectors-config.ts";
+import {
+	archiveSlotRootId,
+	type CollectorsConfig,
+	isCollectorEnabled,
+	loadCollectorsConfig,
+	resolveObsidianVault,
+} from "./collectors-config.ts";
 import { type ArchiveSlot, loadArchiveRoot } from "./layout.ts";
 import { describeLiveDb } from "./wechat-sync.ts";
 
@@ -19,6 +26,12 @@ export interface CollectorInfo {
 	status: "idle" | "ready" | "needs-config" | "needs-login" | "stub";
 	hint: string;
 	runnable: boolean;
+	/** 用户是否在 Settings 启用（会挂进 KB 索引） */
+	enabled: boolean;
+	/** 对应 archive root 是否已挂载 */
+	mounted: boolean;
+	/** 已索引文档数（来自 status） */
+	indexedDocs: number;
 }
 
 function emailReady(agentDir: string, cfg: CollectorsConfig): boolean {
@@ -46,16 +59,42 @@ function gitReady(cfg: CollectorsConfig): boolean {
 	return (cfg.git?.repos || []).some((r) => Boolean(r.url?.trim() || r.path?.trim()));
 }
 
+export interface ListCollectorsOptions {
+	/** rootId → docs，来自 kb.status() */
+	indexedDocs?: Record<string, number>;
+}
+
+function collectorMeta(
+	agentDir: string,
+	cfg: CollectorsConfig,
+	slot: ArchiveSlot,
+	indexedDocs: Record<string, number>,
+) {
+	const rootId = archiveSlotRootId(slot);
+	const enabled = isCollectorEnabled(agentDir, cfg, slot);
+	const mounted = loadKbConfig(agentDir).roots.some((r) => r.id === rootId);
+	return { enabled, mounted, indexedDocs: indexedDocs[rootId] ?? 0 };
+}
+
 /** 所有自动来源采集器；附加目录不是采集器。 */
-export function listCollectors(agentDir: string): CollectorInfo[] {
+export function listCollectors(agentDir: string, options?: ListCollectorsOptions): CollectorInfo[] {
 	const root = loadArchiveRoot(agentDir);
 	const hasRoot = Boolean(root);
 	const cfg = loadCollectorsConfig(agentDir);
 	const liveDb = describeLiveDb();
 	const vault = resolveObsidianVault(cfg.obsidian) || autoDetectObsidianVault().chosen?.path;
+	const indexedDocs = options?.indexedDocs ?? {};
+
+	const wrap = (
+		slot: ArchiveSlot,
+		base: Omit<CollectorInfo, "enabled" | "mounted" | "indexedDocs">,
+	): CollectorInfo => ({
+		...base,
+		...collectorMeta(agentDir, cfg, slot, indexedDocs),
+	});
 
 	return [
-		{
+		wrap("wechat", {
 			id: "wechat",
 			label: "微信",
 			slot: "wechat",
@@ -66,8 +105,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 					? "本机已检测到微信数据，点「同步」导出聊天记录"
 					: "请先在电脑上登录微信，再点「同步」",
 			runnable: true,
-		},
-		{
+		}),
+		wrap("email", {
 			id: "email",
 			label: "邮件",
 			slot: "email",
@@ -76,8 +115,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 				? "点「同步」从邮箱拉取邮件到本机归档（只读，不改已读）"
 				: "在下方填写 IMAP 服务器、邮箱账号和密码，保存后点「同步」",
 			runnable: true,
-		},
-		{
+		}),
+		wrap("notion", {
 			id: "notion",
 			label: "Notion",
 			slot: "notion",
@@ -86,8 +125,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 				? "点「同步」把 Notion 页面拉到本机归档"
 				: "在下方粘贴 Notion 集成 Token（notion.so/my-integrations 创建）",
 			runnable: true,
-		},
-		{
+		}),
+		wrap("obsidian", {
 			id: "obsidian",
 			label: "Obsidian",
 			slot: "obsidian",
@@ -96,8 +135,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 				? `已选库：${vault} · 点「同步」复制笔记到归档`
 				: "在下方选择 Obsidian 笔记库文件夹（里面要有 .obsidian）",
 			runnable: true,
-		},
-		{
+		}),
+		wrap("tencent-docs", {
 			id: "tencent-docs",
 			label: "腾讯文档",
 			slot: "tencent-docs",
@@ -106,8 +145,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 				? "点「同步」导出腾讯文档到本机归档"
 				: "在下方填写开放平台应用 ID 与访问令牌（高级，可暂时跳过）",
 			runnable: true,
-		},
-		{
+		}),
+		wrap("git", {
 			id: "git",
 			label: "Git 仓库",
 			slot: "git",
@@ -116,7 +155,7 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 				? `已添加 ${cfg.git?.repos?.length ?? 0} 个仓库 · 点「同步」拉取/更新`
 				: "在下方每行填一个 Git 地址或本机仓库路径",
 			runnable: true,
-		},
+		}),
 	];
 }
 
