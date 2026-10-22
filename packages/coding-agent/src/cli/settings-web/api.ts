@@ -190,6 +190,7 @@ export async function handleSettingsApi(
 			bootstrap: boot,
 			ready: status.roots.length > 0,
 			collectors,
+			collectorsConfig: loadCollectorsConfig(ctx.agentDir),
 			archive: {
 				root: loadArchiveRoot(ctx.agentDir) ?? null,
 				liveDb: describeLiveDb() ?? null,

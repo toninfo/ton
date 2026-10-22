@@ -533,6 +533,69 @@ function renderTools() {
   </section>`;
 }
 
+/** 采集器凭据表单（写入 kb/collectors.json；密码类只存 env 名或 token 字段） */
+function renderCollectorConfigPanel(cfg) {
+	const c = cfg || {};
+	const email = c.email || {};
+	const notion = c.notion || {};
+	const obsidian = c.obsidian || {};
+	const tencent = c["tencent-docs"] || {};
+	const gitLines = (c.git?.repos || [])
+		.map((r) => (r.url || r.path || "").trim())
+		.filter(Boolean)
+		.join("\n");
+	const notionTokenHint = notion.token ? "已保存；输入新值可覆盖" : "integration token";
+	return `
+  <details class="collector-panel" open data-search="采集器配置 email notion obsidian 腾讯 git">
+    <summary class="extras-sum">
+      <strong>采集器配置</strong>
+      <span>保存到 <code>kb/collectors.json</code>（本机 loopback，不上传云端）</span>
+    </summary>
+    <div class="extras-body">
+      <p class="hint">微信无需填表：设好归档根后点「同步」。邮件/Notion 等填完点底部「保存采集器配置」，再点各卡片「同步」。</p>
+      <h3>邮件（IMAP）</h3>
+      <div class="grid cols-2">
+        <div class="field"><label>host</label><input class="control" id="col-email-host" value="${escapeHtml(email.host || "")}" placeholder="imap.example.com" /></div>
+        <div class="field"><label>port</label><input class="control" id="col-email-port" type="number" value="${email.port ?? ""}" placeholder="993" /></div>
+        <div class="field"><label>user</label><input class="control" id="col-email-user" value="${escapeHtml(email.user || "")}" /></div>
+        <div class="field"><label>passwordEnv</label><input class="control" id="col-email-password-env" value="${escapeHtml(email.passwordEnv || "TON_EMAIL_PASSWORD")}" /><span class="field-hint">在系统/终端设该环境变量为邮箱密码</span></div>
+        <div class="field" style="grid-column:1/-1"><label>folders（逗号分隔，可选）</label><input class="control" id="col-email-folders" value="${escapeHtml((email.folders || []).join(", "))}" placeholder="INBOX" /></div>
+      </div>
+      <label class="toggle-row" style="margin-top:8px"><input type="checkbox" id="col-email-tls" ${email.tls !== false ? "checked" : ""} /> 使用 TLS</label>
+
+      <h3 style="margin-top:18px">Notion</h3>
+      <div class="grid cols-2">
+        <div class="field"><label>token</label><input class="control" type="password" id="col-notion-token" autocomplete="off" placeholder="${escapeHtml(notionTokenHint)}" /></div>
+        <div class="field"><label>tokenEnv（可选）</label><input class="control" id="col-notion-token-env" value="${escapeHtml(notion.tokenEnv || "TON_NOTION_TOKEN")}" /></div>
+        <div class="field" style="grid-column:1/-1"><label>pageIds（逗号分隔，可选）</label><input class="control" id="col-notion-page-ids" value="${escapeHtml((notion.pageIds || []).join(", "))}" /></div>
+      </div>
+
+      <h3 style="margin-top:18px">Obsidian</h3>
+      <div class="path-row">
+        <input class="control" id="col-obsidian-vault" placeholder="~/vault（含 .obsidian）" value="${escapeHtml(obsidian.vaultPath || "")}" />
+        <button type="button" class="btn" id="col-obsidian-browse">选择目录</button>
+      </div>
+
+      <h3 style="margin-top:18px">腾讯文档</h3>
+      <div class="grid cols-2">
+        <div class="field"><label>clientId</label><input class="control" id="col-tencent-client-id" value="${escapeHtml(tencent.clientId || "")}" /></div>
+        <div class="field"><label>clientSecret</label><input class="control" type="password" id="col-tencent-client-secret" autocomplete="off" placeholder="${tencent.clientSecret ? "已保存" : ""}" /></div>
+        <div class="field"><label>openId</label><input class="control" id="col-tencent-open-id" value="${escapeHtml(tencent.openId || "")}" /></div>
+        <div class="field"><label>accessToken</label><input class="control" type="password" id="col-tencent-access-token" autocomplete="off" placeholder="${tencent.accessToken ? "已保存" : ""}" /></div>
+        <div class="field" style="grid-column:1/-1"><label>refreshToken（可选）</label><input class="control" type="password" id="col-tencent-refresh-token" autocomplete="off" placeholder="${tencent.refreshToken ? "已保存" : ""}" /></div>
+      </div>
+
+      <h3 style="margin-top:18px">Git 仓库</h3>
+      <p class="hint">每行一个：远程 URL 或本机路径；同步到归档根 <code>git/&lt;name&gt;/</code></p>
+      <textarea class="control" id="col-git-repos" rows="4" placeholder="https://github.com/org/repo.git">${escapeHtml(gitLines)}</textarea>
+
+      <div class="btn-row" style="margin-top:14px">
+        <button type="button" class="btn primary" id="collectors-save">保存采集器配置</button>
+      </div>
+    </div>
+  </details>`;
+}
+
 function renderKnowledge() {
 	const status = state.kb?.status;
 	const defaults = state.kb?.defaults;
@@ -594,6 +657,7 @@ function renderKnowledge() {
       <button type="button" class="btn" id="archive-save">设为归档根</button>
     </div>
     <div class="kb-list" style="margin-top:12px">${collectorCards || `<p class="hint">加载采集器…</p>`}</div>
+    ${renderCollectorConfigPanel(state.kb?.collectorsConfig)}
   </section>
   <details class="card extras" data-search="附加目录 Notion Obsidian embedding">
     <summary class="extras-sum">
@@ -814,6 +878,88 @@ function bindSectionActions() {
 		const current = el.content.querySelector("#archive-root")?.value?.trim();
 		void openPicker(current || undefined).catch((err) => setKbHint(err.message));
 	});
+	el.content.querySelector("#col-obsidian-browse")?.addEventListener("click", () => {
+		state.pickerTarget = "obsidian-vault";
+		const current = el.content.querySelector("#col-obsidian-vault")?.value?.trim();
+		void openPicker(current || undefined).catch((err) => setKbHint(err.message));
+	});
+	el.content.querySelector("#collectors-save")?.addEventListener("click", async () => {
+		try {
+			const patch = {};
+			const host = el.content.querySelector("#col-email-host")?.value?.trim();
+			const user = el.content.querySelector("#col-email-user")?.value?.trim();
+			if (host || user) {
+				const email = {};
+				if (host) email.host = host;
+				if (user) email.user = user;
+				const portRaw = el.content.querySelector("#col-email-port")?.value?.trim();
+				if (portRaw) email.port = Number(portRaw);
+				const passwordEnv = el.content.querySelector("#col-email-password-env")?.value?.trim();
+				if (passwordEnv) email.passwordEnv = passwordEnv;
+				const foldersRaw = el.content.querySelector("#col-email-folders")?.value?.trim();
+				if (foldersRaw) {
+					email.folders = foldersRaw
+						.split(/[,，]/)
+						.map((x) => x.trim())
+						.filter(Boolean);
+				}
+				email.tls = el.content.querySelector("#col-email-tls")?.checked ?? true;
+				patch.email = email;
+			}
+			const notionToken = el.content.querySelector("#col-notion-token")?.value?.trim();
+			const notionEnv = el.content.querySelector("#col-notion-token-env")?.value?.trim();
+			const notionPages = el.content.querySelector("#col-notion-page-ids")?.value?.trim();
+			if (notionToken || notionEnv || notionPages) {
+				const notion = {};
+				if (notionToken) notion.token = notionToken;
+				if (notionEnv) notion.tokenEnv = notionEnv;
+				if (notionPages) {
+					notion.pageIds = notionPages
+						.split(/[,，]/)
+						.map((x) => x.trim())
+						.filter(Boolean);
+				}
+				patch.notion = notion;
+			}
+			const vaultPath = el.content.querySelector("#col-obsidian-vault")?.value?.trim();
+			if (vaultPath) patch.obsidian = { vaultPath };
+
+			const tencent = {};
+			const tcId = el.content.querySelector("#col-tencent-client-id")?.value?.trim();
+			const tcSecret = el.content.querySelector("#col-tencent-client-secret")?.value?.trim();
+			const tcOpen = el.content.querySelector("#col-tencent-open-id")?.value?.trim();
+			const tcAccess = el.content.querySelector("#col-tencent-access-token")?.value?.trim();
+			const tcRefresh = el.content.querySelector("#col-tencent-refresh-token")?.value?.trim();
+			if (tcId) tencent.clientId = tcId;
+			if (tcSecret) tencent.clientSecret = tcSecret;
+			if (tcOpen) tencent.openId = tcOpen;
+			if (tcAccess) tencent.accessToken = tcAccess;
+			if (tcRefresh) tencent.refreshToken = tcRefresh;
+			if (Object.keys(tencent).length) patch["tencent-docs"] = tencent;
+
+			const gitRaw = el.content.querySelector("#col-git-repos")?.value?.trim();
+			if (gitRaw) {
+				const repos = gitRaw
+					.split("\n")
+					.map((line) => line.trim())
+					.filter(Boolean)
+					.map((line) => (line.startsWith("/") || /^[A-Za-z]:\\/.test(line) ? { path: line } : { url: line }));
+				patch.git = { repos };
+			}
+
+			if (!Object.keys(patch).length) {
+				setKbHint("至少填写一项再保存。");
+				return;
+			}
+			const result = await api("/api/archive/collectors", { method: "POST", body: JSON.stringify(patch) });
+			state.kb = { ...state.kb, collectors: result.collectors, collectorsConfig: result.config };
+			toast("采集器配置已保存");
+			setKbHint("");
+			render();
+		} catch (err) {
+			setKbHint(err.message);
+		}
+	});
 	el.content.querySelector("#archive-save")?.addEventListener("click", async () => {
 		const path = el.content.querySelector("#archive-root")?.value?.trim();
 		if (!path) {
@@ -1014,6 +1160,14 @@ document.getElementById("picker-confirm")?.addEventListener("click", async () =>
 		} catch (err) {
 			setKbHint(err.message);
 		}
+		state.pickerTarget = "kb-path";
+		return;
+	}
+	if (target === "obsidian-vault") {
+		state.section = "knowledge";
+		render();
+		const vaultInput = el.content.querySelector("#col-obsidian-vault");
+		if (vaultInput) vaultInput.value = path;
 		state.pickerTarget = "kb-path";
 		return;
 	}

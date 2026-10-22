@@ -717,6 +717,26 @@ textarea.control {
   font-size: 0.95rem;
 }
 
+/* 归档区内的采集器配置（与 card.extras 同结构，嵌在 section 里） */
+.collector-panel {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--panel-2);
+}
+
+.collector-panel .extras-body {
+  padding-top: 12px;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--text-3);
+}
+
 .extras-body .hint {
   margin: 0 0 10px;
   color: var(--text-3);

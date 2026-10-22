@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Settings Web: collector configuration forms (email, Notion, Obsidian, Tencent Docs, Git) wired to `kb/collectors.json` via `/api/archive/collectors`.
+
 ## [1.1.3] - 2026-10-20
 
 ### Fixed
