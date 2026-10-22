@@ -20,7 +20,7 @@ describe("Baseten models", () => {
 	});
 
 	it("models Kimi K2.6 reasoning as an explicit off/on toggle", async () => {
-		const model = getModel("baseten", "moonshotai/Kimi-K2.6");
+		const model = getModel("baseten", "moonshotai/Kimi-K3");
 		let payload: Record<string, unknown> | undefined;
 
 		expect(model.thinkingLevelMap).toEqual({
