@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { extname, relative, resolve, sep } from "node:path";
 import { expandTildePath } from "../../config.ts";
+import { reconcileArchiveKbRoots } from "./archive/layout.ts";
 import { addKbRoot, findKbRoot, loadKbConfig, removeKbRoot, setKbEmbedding } from "./config.ts";
 import { autoDetectEmailArchive, emailRootOptions, probeEmailArchive } from "./connectors/email.ts";
 import { autoDetectObsidianVault, obsidianRootOptions, probeObsidianVault } from "./connectors/obsidian.ts";
@@ -431,5 +432,7 @@ export class KbService {
 }
 
 export function createKbService(agentDir: string, options?: Omit<KbServiceOptions, "agentDir">): KbService {
+	// 未在 collectors.json 显式 enabled 的 archive-* 不保留在索引里
+	reconcileArchiveKbRoots(agentDir);
 	return new KbService(agentDir, options);
 }

@@ -71,7 +71,7 @@ function collectorMeta(
 	indexedDocs: Record<string, number>,
 ) {
 	const rootId = archiveSlotRootId(slot);
-	const enabled = isCollectorEnabled(agentDir, cfg, slot);
+	const enabled = isCollectorEnabled(cfg, slot);
 	const mounted = loadKbConfig(agentDir).roots.some((r) => r.id === rootId);
 	return { enabled, mounted, indexedDocs: indexedDocs[rootId] ?? 0 };
 }

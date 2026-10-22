@@ -11,7 +11,7 @@ import { expandTildePath } from "../../../config.ts";
 import { addKbRoot, removeKbRoot } from "../config.ts";
 import { wechatRootOptions } from "../connectors/wechat.ts";
 import { getKbDir } from "../paths.ts";
-import { archiveSlotRootId, type CollectorsConfig, isCollectorEnabled } from "./collectors-config.ts";
+import { archiveSlotRootId, isCollectorEnabled, loadCollectorsConfig } from "./collectors-config.ts";
 
 /** SPC 归档，ton 禁止碰 */
 export const SPC_WECHAT_ARCHIVE = "/home/doc/wechat";
@@ -102,21 +102,24 @@ export function unmountArchiveSlotKbRoot(agentDir: string, slot: ArchiveSlot): v
 	removeKbRoot(agentDir, archiveSlotRootId(slot));
 }
 
-/** Settings 切换 enabled 时挂载/卸载 KB root。 */
-export function applyCollectorEnabledSideEffects(
-	agentDir: string,
-	before: CollectorsConfig,
-	after: CollectorsConfig,
-): void {
-	for (const slot of ARCHIVE_SLOTS) {
-		const was = isCollectorEnabled(agentDir, before, slot);
-		const now = isCollectorEnabled(agentDir, after, slot);
-		if (was === now) continue;
-		if (!now) {
+/**
+ * 按 collectors.json 的 enabled 对齐 KB：未显式启用的 archive-* 一律卸载。
+ * 打开 Settings / 改配置 / 同步后调用。
+ */
+export function reconcileArchiveKbRoots(agentDir: string): void {
+	const cfg = loadCollectorsConfig(agentDir);
+	if (!loadArchiveRoot(agentDir)) {
+		for (const slot of ARCHIVE_SLOTS) {
 			unmountArchiveSlotKbRoot(agentDir, slot);
-			continue;
 		}
-		const layout = ensureArchiveLayout(agentDir);
-		mountArchiveSlotKbRoot(agentDir, slot, layout);
+		return;
+	}
+	const layout = ensureArchiveLayout(agentDir);
+	for (const slot of ARCHIVE_SLOTS) {
+		if (isCollectorEnabled(cfg, slot)) {
+			mountArchiveSlotKbRoot(agentDir, slot, layout);
+		} else {
+			unmountArchiveSlotKbRoot(agentDir, slot);
+		}
 	}
 }

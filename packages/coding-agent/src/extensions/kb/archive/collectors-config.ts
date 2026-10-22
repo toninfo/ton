@@ -5,7 +5,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { expandTildePath } from "../../../config.ts";
-import { loadKbConfig } from "../config.ts";
 import { getKbDir } from "../paths.ts";
 import type { ArchiveSlot } from "./layout.ts";
 
@@ -73,12 +72,9 @@ export function archiveSlotRootId(slot: ArchiveSlot): string {
 	return slot === "wechat" ? "archive-wechat" : `archive-${slot}`;
 }
 
-/** 是否启用该采集器（未写 enabled 时：已挂载过 archive root 视为启用，兼容旧数据） */
-export function isCollectorEnabled(agentDir: string, cfg: CollectorsConfig, slot: ArchiveSlot): boolean {
-	const flag = cfg.enabled?.[slot];
-	if (flag === true) return true;
-	if (flag === false) return false;
-	return loadKbConfig(agentDir).roots.some((r) => r.id === archiveSlotRootId(slot));
+/** 是否启用该采集器（仅 collectors.json 里 enabled[slot]===true） */
+export function isCollectorEnabled(cfg: CollectorsConfig, slot: ArchiveSlot): boolean {
+	return cfg.enabled?.[slot] === true;
 }
 
 function configPath(agentDir: string): string {

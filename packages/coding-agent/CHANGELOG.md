@@ -6,10 +6,14 @@
 
 - Settings Web: per-source cards with plain-Chinese copy, 3-step KB guide, in-form save/sync; email password stored locally in `kb/collector-secrets.json` (Settings form, no env var required).
 
+### Breaking Changes
+
+- KB archive collectors require `collectors.json` `enabled.<slot>: true` to mount `archive-*` roots. Setting an archive folder no longer auto-indexes all slots; legacy auto-mounted archive roots are dropped on the next KB load (`reconcileArchiveKbRoots`).
+
 ### Fixed
 
 - Settings Web: provider list empty on 认证 after searching elsewhere — scope search filter to current section and clear search on navigation; provider card layout scroll for long lists.
-- KB archive: do not auto-mount all `archive-*` roots when setting archive folder; mount only on collector enable/sync. Settings shows enable switch, indexed doc count, sync flash, and hides archive slots from the top root list.
+- KB archive: mount only on explicit enable/sync; Settings enable switch, indexed doc count, sync flash, compact source cards.
 
 ## [1.1.3] - 2026-10-20
 

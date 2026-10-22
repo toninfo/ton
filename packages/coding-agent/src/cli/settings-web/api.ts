@@ -14,10 +14,10 @@ import { hasEmailPassword, setEmailPassword } from "../../extensions/kb/archive/
 import { collectorStatusLabel, listCollectors } from "../../extensions/kb/archive/collectors.ts";
 import { loadCollectorsConfig, patchCollectorsConfig } from "../../extensions/kb/archive/collectors-config.ts";
 import {
-	applyCollectorEnabledSideEffects,
 	ensureArchiveLayout,
 	isSpcWechatPath,
 	loadArchiveRoot,
+	reconcileArchiveKbRoots,
 } from "../../extensions/kb/archive/layout.ts";
 import { type CollectorSyncId, runCollector } from "../../extensions/kb/archive/sync.ts";
 import { describeLiveDb } from "../../extensions/kb/archive/wechat-sync.ts";
@@ -184,6 +184,7 @@ export async function handleSettingsApi(
 	if (method === "GET" && pathname === "/api/kb") {
 		// 开箱：无 root 时自动挂载默认知识库，用户无需先点「启用」
 		const boot = await ensureDefaultKbBootstrap(ctx.agentDir, { cwd: ctx.cwd });
+		reconcileArchiveKbRoots(ctx.agentDir);
 		const kb = createKbService(ctx.agentDir, { cwd: ctx.cwd });
 		await kb.catchUp().catch(() => {});
 		const status = await kb.status();
@@ -306,9 +307,8 @@ export async function handleSettingsApi(
 				setEmailPassword(ctx.agentDir, raw);
 			}
 		}
-		const before = loadCollectorsConfig(ctx.agentDir);
 		const config = patchCollectorsConfig(ctx.agentDir, payload as never);
-		applyCollectorEnabledSideEffects(ctx.agentDir, before, config);
+		reconcileArchiveKbRoots(ctx.agentDir);
 		const kb = createKbService(ctx.agentDir, { cwd: ctx.cwd });
 		const status = await kb.status();
 		const indexedDocs = Object.fromEntries(status.roots.map((r) => [r.id, r.docs]));
