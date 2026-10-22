@@ -10,7 +10,7 @@ const SECTIONS = [
 	{ id: "appearance", label: "外观", icon: "◐", desc: "主题、思考块显示与启动安静模式。" },
 	{ id: "terminal", label: "终端", icon: "⌘", desc: "TUI 模式与全屏交互细节。" },
 	{ id: "tools", label: "工具", icon: "⚒", desc: "启动时启用的内置工具集合。" },
-	{ id: "knowledge", label: "知识库", icon: "☰", desc: "挂载目录、连接器与 embedding。" },
+	{ id: "knowledge", label: "知识库", icon: "☰", desc: "三步挂来源：归档文件夹 → 填表 → 同步。" },
 	{ id: "advanced", label: "高级", icon: "⚙", desc: "压缩、重试、代理与遥测。" },
 ];
 
@@ -344,7 +344,7 @@ function renderProviders() {
 		.map((p) => {
 			const badge = p.configured
 				? `<span class="badge ok">${escapeHtml(p.authLabel || p.storedType || "ready")}</span>`
-				: `<span class="badge">待配置</span>`;
+				: `<span class="badge">未添加密钥</span>`;
 			const apiForm = p.supportsApiKey
 				? `<div class="inline-form" style="grid-column:1/-1">
             <input class="control" type="password" placeholder="粘贴 API Key…" data-api-key="${escapeHtml(p.id)}" autocomplete="off" />
@@ -533,67 +533,181 @@ function renderTools() {
   </section>`;
 }
 
-/** 采集器凭据表单（写入 kb/collectors.json；密码类只存 env 名或 token 字段） */
-function renderCollectorConfigPanel(cfg) {
+/** 按来源收集表单 → POST /api/archive/collectors */
+function buildCollectorPayloadForSource(id) {
+	const patch = {};
+	const secrets = {};
+	if (id === "email") {
+		const host = el.content.querySelector("#col-email-host")?.value?.trim();
+		const user = el.content.querySelector("#col-email-user")?.value?.trim();
+		const pwd = el.content.querySelector("#col-email-password")?.value?.trim();
+		if (!host || !user) {
+			return { emptyMessage: "请填写 IMAP 服务器和邮箱账号。" };
+		}
+		const email = { host, user, tls: el.content.querySelector("#col-email-tls")?.checked ?? true };
+		const portRaw = el.content.querySelector("#col-email-port")?.value?.trim();
+		if (portRaw) email.port = Number(portRaw);
+		const foldersRaw = el.content.querySelector("#col-email-folders")?.value?.trim();
+		if (foldersRaw) {
+			email.folders = foldersRaw
+				.split(/[,，]/)
+				.map((x) => x.trim())
+				.filter(Boolean);
+		}
+		patch.email = email;
+		if (pwd) secrets.emailPassword = pwd;
+		else if (!state.kb?.collectorsMeta?.emailPasswordSet) {
+			return { emptyMessage: "请填写邮箱密码（或授权码）。" };
+		}
+		return { patch, secrets: Object.keys(secrets).length ? secrets : undefined };
+	}
+	if (id === "notion") {
+		const notionToken = el.content.querySelector("#col-notion-token")?.value?.trim();
+		const notionPages = el.content.querySelector("#col-notion-page-ids")?.value?.trim();
+		if (!notionToken && !state.kb?.collectorsConfig?.notion?.token) {
+			return { emptyMessage: "请粘贴 Notion 集成 Token。" };
+		}
+		const notion = {};
+		if (notionToken) notion.token = notionToken;
+		if (notionPages) {
+			notion.pageIds = notionPages
+				.split(/[,，]/)
+				.map((x) => x.trim())
+				.filter(Boolean);
+		}
+		patch.notion = notion;
+		return { patch };
+	}
+	if (id === "obsidian") {
+		const vaultPath = el.content.querySelector("#col-obsidian-vault")?.value?.trim();
+		if (!vaultPath) return { emptyMessage: "请选择 Obsidian 笔记库文件夹。" };
+		patch.obsidian = { vaultPath };
+		return { patch };
+	}
+	if (id === "tencent-docs") {
+		const tencent = {};
+		const tcId = el.content.querySelector("#col-tencent-client-id")?.value?.trim();
+		const tcSecret = el.content.querySelector("#col-tencent-client-secret")?.value?.trim();
+		const tcOpen = el.content.querySelector("#col-tencent-open-id")?.value?.trim();
+		const tcAccess = el.content.querySelector("#col-tencent-access-token")?.value?.trim();
+		if (tcId) tencent.clientId = tcId;
+		if (tcSecret) tencent.clientSecret = tcSecret;
+		if (tcOpen) tencent.openId = tcOpen;
+		if (tcAccess) tencent.accessToken = tcAccess;
+		if (!tcId || !tcOpen || !tcAccess) {
+			return { emptyMessage: "腾讯文档至少需要：应用 ID、openId、访问令牌。" };
+		}
+		patch["tencent-docs"] = tencent;
+		return { patch };
+	}
+	if (id === "git") {
+		const gitRaw = el.content.querySelector("#col-git-repos")?.value?.trim();
+		if (!gitRaw) return { emptyMessage: "请至少填一行 Git 地址或本机路径。" };
+		const repos = gitRaw
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean)
+			.map((line) => (line.startsWith("/") || /^[A-Za-z]:\\/.test(line) ? { path: line } : { url: line }));
+		patch.git = { repos };
+		return { patch };
+	}
+	return { emptyMessage: "未知来源。" };
+}
+
+function collectorStatusBadge(c) {
+	if (c.status === "ready") return `<span class="badge ok">${escapeHtml(c.statusLabel || "可同步")}</span>`;
+	if (c.status === "needs-login") return `<span class="badge warn">${escapeHtml(c.statusLabel || "待登录")}</span>`;
+	if (c.status === "needs-config") return `<span class="badge warn">${escapeHtml(c.statusLabel || "待填写")}</span>`;
+	if (c.status === "stub") return `<span class="badge">${escapeHtml(c.statusLabel || "暂未开放")}</span>`;
+	return `<span class="badge">${escapeHtml(c.statusLabel || "先选归档文件夹")}</span>`;
+}
+
+/** 每个来源：说明 + 表单 + 保存/同步（小白不用碰 JSON） */
+function renderSourceForm(id, cfg, meta) {
 	const c = cfg || {};
-	const email = c.email || {};
-	const notion = c.notion || {};
-	const obsidian = c.obsidian || {};
-	const tencent = c["tencent-docs"] || {};
-	const gitLines = (c.git?.repos || [])
-		.map((r) => (r.url || r.path || "").trim())
-		.filter(Boolean)
-		.join("\n");
-	const notionTokenHint = notion.token ? "已保存；输入新值可覆盖" : "integration token";
-	return `
-  <details class="collector-panel" open data-search="采集器配置 email notion obsidian 腾讯 git">
-    <summary class="extras-sum">
-      <strong>采集器配置</strong>
-      <span>保存到 <code>kb/collectors.json</code>（本机 loopback，不上传云端）</span>
-    </summary>
-    <div class="extras-body">
-      <p class="hint">微信无需填表：设好归档根后点「同步」。邮件/Notion 等填完点底部「保存采集器配置」，再点各卡片「同步」。</p>
-      <h3>邮件（IMAP）</h3>
+	if (id === "wechat") {
+		return `<p class="source-note">不用填表。电脑登录微信后，直接点右上角「同步」。</p>`;
+	}
+	if (id === "email") {
+		const email = c.email || {};
+		const pwdPh = meta?.emailPasswordSet ? "已保存；留空表示不修改" : "邮箱密码或授权码";
+		return `
       <div class="grid cols-2">
-        <div class="field"><label>host</label><input class="control" id="col-email-host" value="${escapeHtml(email.host || "")}" placeholder="imap.example.com" /></div>
-        <div class="field"><label>port</label><input class="control" id="col-email-port" type="number" value="${email.port ?? ""}" placeholder="993" /></div>
-        <div class="field"><label>user</label><input class="control" id="col-email-user" value="${escapeHtml(email.user || "")}" /></div>
-        <div class="field"><label>passwordEnv</label><input class="control" id="col-email-password-env" value="${escapeHtml(email.passwordEnv || "TON_EMAIL_PASSWORD")}" /><span class="field-hint">在系统/终端设该环境变量为邮箱密码</span></div>
-        <div class="field" style="grid-column:1/-1"><label>folders（逗号分隔，可选）</label><input class="control" id="col-email-folders" value="${escapeHtml((email.folders || []).join(", "))}" placeholder="INBOX" /></div>
+        <div class="field"><label>IMAP 服务器</label><input class="control" id="col-email-host" value="${escapeHtml(email.host || "")}" placeholder="例如 imap.qq.com" /></div>
+        <div class="field"><label>端口</label><input class="control" id="col-email-port" type="number" value="${email.port ?? ""}" placeholder="993" /><span class="field-hint">一般填 993</span></div>
+        <div class="field"><label>邮箱账号</label><input class="control" id="col-email-user" value="${escapeHtml(email.user || "")}" placeholder="name@example.com" /></div>
+        <div class="field"><label>密码</label><input class="control" type="password" id="col-email-password" autocomplete="new-password" placeholder="${escapeHtml(pwdPh)}" /></div>
+        <div class="field" style="grid-column:1/-1"><label>收件箱（可选）</label><input class="control" id="col-email-folders" value="${escapeHtml((email.folders || []).join(", "))}" placeholder="INBOX，多个用逗号分隔" /></div>
       </div>
-      <label class="toggle-row" style="margin-top:8px"><input type="checkbox" id="col-email-tls" ${email.tls !== false ? "checked" : ""} /> 使用 TLS</label>
-
-      <h3 style="margin-top:18px">Notion</h3>
-      <div class="grid cols-2">
-        <div class="field"><label>token</label><input class="control" type="password" id="col-notion-token" autocomplete="off" placeholder="${escapeHtml(notionTokenHint)}" /></div>
-        <div class="field"><label>tokenEnv（可选）</label><input class="control" id="col-notion-token-env" value="${escapeHtml(notion.tokenEnv || "TON_NOTION_TOKEN")}" /></div>
-        <div class="field" style="grid-column:1/-1"><label>pageIds（逗号分隔，可选）</label><input class="control" id="col-notion-page-ids" value="${escapeHtml((notion.pageIds || []).join(", "))}" /></div>
-      </div>
-
-      <h3 style="margin-top:18px">Obsidian</h3>
+      <label class="toggle-row" style="margin-top:8px"><input type="checkbox" id="col-email-tls" ${email.tls !== false ? "checked" : ""} /> 加密连接（TLS）</label>`;
+	}
+	if (id === "notion") {
+		const notion = c.notion || {};
+		const tokenPh = notion.token ? "已保存；输入新 Token 可覆盖" : "secret_… 开头的一串字符";
+		return `
+      <div class="field"><label>集成 Token</label><input class="control" type="password" id="col-notion-token" autocomplete="off" placeholder="${escapeHtml(tokenPh)}" />
+        <span class="field-hint">打开 <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener">notion.so/my-integrations</a> 创建集成并复制 Token，记得在 Notion 里给页面「连接」该集成。</span></div>
+      <div class="field" style="margin-top:10px"><label>只同步指定页面（可选）</label><input class="control" id="col-notion-page-ids" value="${escapeHtml((notion.pageIds || []).join(", "))}" placeholder="页面 ID，逗号分隔；留空则按集成权限同步" /></div>`;
+	}
+	if (id === "obsidian") {
+		const obsidian = c.obsidian || {};
+		return `
       <div class="path-row">
-        <input class="control" id="col-obsidian-vault" placeholder="~/vault（含 .obsidian）" value="${escapeHtml(obsidian.vaultPath || "")}" />
-        <button type="button" class="btn" id="col-obsidian-browse">选择目录</button>
+        <input class="control" id="col-obsidian-vault" placeholder="点右侧选择 Obsidian 库文件夹" value="${escapeHtml(obsidian.vaultPath || "")}" />
+        <button type="button" class="btn" id="col-obsidian-browse">选择文件夹</button>
       </div>
-
-      <h3 style="margin-top:18px">腾讯文档</h3>
+      <span class="field-hint">文件夹里应能看到 <code>.obsidian</code> 配置目录。</span>`;
+	}
+	if (id === "tencent-docs") {
+		const tencent = c["tencent-docs"] || {};
+		return `
+      <p class="source-note soft">需要腾讯开放平台应用，适合已有开发者账号的用户；个人可先跳过。</p>
       <div class="grid cols-2">
-        <div class="field"><label>clientId</label><input class="control" id="col-tencent-client-id" value="${escapeHtml(tencent.clientId || "")}" /></div>
-        <div class="field"><label>clientSecret</label><input class="control" type="password" id="col-tencent-client-secret" autocomplete="off" placeholder="${tencent.clientSecret ? "已保存" : ""}" /></div>
-        <div class="field"><label>openId</label><input class="control" id="col-tencent-open-id" value="${escapeHtml(tencent.openId || "")}" /></div>
-        <div class="field"><label>accessToken</label><input class="control" type="password" id="col-tencent-access-token" autocomplete="off" placeholder="${tencent.accessToken ? "已保存" : ""}" /></div>
-        <div class="field" style="grid-column:1/-1"><label>refreshToken（可选）</label><input class="control" type="password" id="col-tencent-refresh-token" autocomplete="off" placeholder="${tencent.refreshToken ? "已保存" : ""}" /></div>
-      </div>
+        <div class="field"><label>应用 ID (clientId)</label><input class="control" id="col-tencent-client-id" value="${escapeHtml(tencent.clientId || "")}" /></div>
+        <div class="field"><label>应用密钥</label><input class="control" type="password" id="col-tencent-client-secret" autocomplete="off" placeholder="${tencent.clientSecret ? "已保存" : ""}" /></div>
+        <div class="field"><label>用户 openId</label><input class="control" id="col-tencent-open-id" value="${escapeHtml(tencent.openId || "")}" /></div>
+        <div class="field"><label>访问令牌</label><input class="control" type="password" id="col-tencent-access-token" autocomplete="off" placeholder="${tencent.accessToken ? "已保存" : ""}" /></div>
+      </div>`;
+	}
+	if (id === "git") {
+		const gitLines = (c.git?.repos || [])
+			.map((r) => (r.url || r.path || "").trim())
+			.filter(Boolean)
+			.join("\n");
+		return `
+      <div class="field"><label>仓库列表</label>
+        <textarea class="control" id="col-git-repos" rows="4" placeholder="每行一个，例如：&#10;https://github.com/你的账号/笔记仓库.git&#10;D:\\\\notes\\\\my-repo">${escapeHtml(gitLines)}</textarea>
+        <span class="field-hint">同步后会出现在归档文件夹下的 git 子目录。</span></div>`;
+	}
+	return "";
+}
 
-      <h3 style="margin-top:18px">Git 仓库</h3>
-      <p class="hint">每行一个：远程 URL 或本机路径；同步到归档根 <code>git/&lt;name&gt;/</code></p>
-      <textarea class="control" id="col-git-repos" rows="4" placeholder="https://github.com/org/repo.git">${escapeHtml(gitLines)}</textarea>
-
-      <div class="btn-row" style="margin-top:14px">
-        <button type="button" class="btn primary" id="collectors-save">保存采集器配置</button>
-      </div>
-    </div>
-  </details>`;
+function renderSourceCards(collectors, cfg, meta, archiveRoot) {
+	const hasArchive = Boolean(archiveRoot?.trim());
+	return (collectors || [])
+		.map((c) => {
+			const open = c.status === "needs-config" || c.status === "needs-login";
+			const syncBtn =
+				c.runnable && hasArchive
+					? `<button type="button" class="btn primary" data-collector-sync="${escapeHtml(c.id)}">同步</button>`
+					: `<button type="button" class="btn" disabled title="请先设置归档文件夹">同步</button>`;
+			const saveBtn =
+				c.id === "wechat"
+					? ""
+					: `<button type="button" class="btn" data-save-source="${escapeHtml(c.id)}">保存</button>`;
+			return `<article class="source-card" id="source-${escapeHtml(c.id)}" data-search="${escapeHtml(`${c.label} ${c.id}`)}">
+        <header class="source-head">
+          <div><h3>${escapeHtml(c.label)} ${collectorStatusBadge(c)}</h3>
+          <p class="source-lead">${escapeHtml(c.hint || "")}</p></div>
+          <div class="source-actions">${saveBtn}${syncBtn}</div>
+        </header>
+        <details class="source-details" ${open ? "open" : ""}>
+          <summary>${c.id === "wechat" ? "说明" : "填写连接信息"}</summary>
+          <div class="source-body">${renderSourceForm(c.id, cfg, meta)}</div>
+        </details>
+      </article>`;
+		})
+		.join("");
 }
 
 function renderKnowledge() {
@@ -618,55 +732,47 @@ function renderKnowledge() {
 	const archive = state.kb?.archive;
 	const archiveRoot = archive?.root || "";
 	const collectors = state.kb?.collectors || [];
-	const collectorCards = collectors
-		.map((c) => {
-			const badge =
-				c.status === "ready"
-					? `<span class="badge ok">${escapeHtml(c.statusLabel || "可同步")}</span>`
-					: c.status === "stub"
-						? `<span class="badge">${escapeHtml(c.statusLabel || "未实现")}</span>`
-						: `<span class="badge warn">${escapeHtml(c.statusLabel || c.status)}</span>`;
-			const action = c.runnable
-				? `<button type="button" class="btn primary" data-collector-sync="${escapeHtml(c.id)}">同步</button>`
-				: badge;
-			return `<div class="suggestion-card">
-        <div><div class="title">${escapeHtml(c.label)} ${badge} <span class="badge">${escapeHtml(c.slot)}</span></div>
-        <div class="sub">${escapeHtml(c.hint || "")}</div></div>
-        ${action}
-      </div>`;
-		})
-		.join("");
+	const cfg = state.kb?.collectorsConfig;
+	const meta = state.kb?.collectorsMeta;
+	const step1 = archiveRoot ? "done" : "active";
+	const step2 = collectors.some((c) => c.status === "ready") ? "done" : archiveRoot ? "active" : "";
+	const step3 = (status?.totalDocs ?? 0) > 0 ? "done" : "";
 
 	return `
-  <section class="card" data-search="知识库 status 就绪">
-    <div class="card-h"><div><h2>${ready ? "已就绪" : "准备中"}</h2>
-      <p>${ready ? `Agent 只读索引 · docs=${status?.totalDocs ?? 0} · 不直连采集器` : "正在启用默认知识库…"}</p></div>
-      ${ready ? `<button type="button" class="btn" id="kb-reindex">重建索引</button>` : ""}
+  <section class="card" data-search="知识库 怎么用 三步">
+    <div class="card-h"><div><h2>${ready ? "默认笔记库已就绪" : "正在准备…"}</h2>
+      <p>AI 只读这里的索引来回答，不会直接登录你的微信/邮箱。</p></div>
+      ${ready ? `<button type="button" class="btn" id="kb-reindex">刷新索引</button>` : ""}
     </div>
-    ${ready ? "" : `<div class="callout soft">默认目录 <code>${escapeHtml(defPath)}</code> 会在打开本页 / 启动会话时自动创建并挂载。</div>`}
+    ${ready ? "" : `<div class="callout soft">首次使用会自动创建 <code>${escapeHtml(defPath)}</code> 作为默认笔记文件夹。</div>`}
+    <ol class="kb-steps">
+      <li class="kb-step ${step1}"><span class="kb-step-n">1</span><div><strong>选一个「归档文件夹」</strong><span>同步下来的微信/邮件等副本会放在这里</span></div></li>
+      <li class="kb-step ${step2}"><span class="kb-step-n">2</span><div><strong>打开要用的来源，填表并点保存</strong><span>不用改配置文件，填完就能同步</span></div></li>
+      <li class="kb-step ${step3}"><span class="kb-step-n">3</span><div><strong>点「同步」，然后在 ton 里直接问</strong><span>例如：「我微信里关于 XX 说了什么」</span></div></li>
+    </ol>
     <div class="kb-list">${roots}</div>
     <div class="hint-inline" id="kb-hint" ${state.kbHint ? "" : "hidden"}>${escapeHtml(state.kbHint)}</div>
   </section>
-  <section class="card" data-search="归档根 采集器 微信 邮件 腾讯文档 git">
-    <div class="card-h"><div><h2>归档根与采集器</h2>
-      <p>采集器把源头写入归档根子目录；Agent 只检索已索引内容。</p></div>
+  <section class="card" data-search="归档 微信 邮件 Notion Obsidian">
+    <div class="card-h"><div><h2>归档文件夹</h2>
+      <p>专门存放「从别处同步来的副本」，和上面的默认笔记库是两回事。</p></div>
     </div>
     <div class="path-row">
-      <input class="control" id="archive-root" placeholder="~/Documents/ton-archive" value="${escapeHtml(archiveRoot)}" />
-      <button type="button" class="btn" id="archive-browse">选择目录</button>
-      <button type="button" class="btn" id="archive-save">设为归档根</button>
+      <input class="control" id="archive-root" placeholder="例如 ~/Documents/ton-archive" value="${escapeHtml(archiveRoot)}" />
+      <button type="button" class="btn" id="archive-browse">选择文件夹</button>
+      <button type="button" class="btn primary" id="archive-save">保存</button>
     </div>
-    <div class="kb-list" style="margin-top:12px">${collectorCards || `<p class="hint">加载采集器…</p>`}</div>
-    ${renderCollectorConfigPanel(state.kb?.collectorsConfig)}
+    <h3 class="sources-title">内容来源</h3>
+    <div class="source-list">${renderSourceCards(collectors, cfg, meta, archiveRoot) || `<p class="hint">加载中…</p>`}</div>
   </section>
-  <details class="card extras" data-search="附加目录 Notion Obsidian embedding">
+  <details class="card extras" data-search="附加目录 向量 embedding 高级">
     <summary class="extras-sum">
-      <strong>附加目录与 Embedding</strong>
-      <span>原路径挂载 · Notion 导出 · Obsidian vault · Embedding</span>
+      <strong>更多选项（一般不用动）</strong>
+      <span>额外挂载文件夹 · 语义搜索 Embedding</span>
     </summary>
     <div class="extras-body">
-      <h3>附加目录</h3>
-      <p class="hint">笔记、Notion Markdown 导出、Obsidian vault：保持原路径索引，不搬进归档根。</p>
+      <h3>额外挂载文件夹</h3>
+      <p class="hint">已有文件夹想原样索引、不经过同步：选目录后添加（适合 Notion 导出包、只读资料库）。</p>
       <div class="path-row">
         <input class="control" id="kb-path" placeholder="${escapeHtml(defPath)}" value="" />
         <button type="button" class="btn" id="kb-browse-2">选择目录</button>
@@ -675,18 +781,18 @@ function renderKnowledge() {
         <input class="control" id="kb-id" placeholder="可选 id" />
         <button type="button" class="btn primary" id="kb-add">添加</button>
       </div>
-      <h3 style="margin-top:18px">Embedding（可选）</h3>
-      <p class="hint">${emb ? `${escapeHtml(emb.provider)}/${escapeHtml(emb.model)}` : "默认 FTS 已可用；有向量需求再开"}</p>
+      <h3 style="margin-top:18px">语义搜索 Embedding（可选）</h3>
+      <p class="hint">${emb ? `已开启：${escapeHtml(emb.provider)}/${escapeHtml(emb.model)}` : "默认关键词搜索就够用；想「找意思相近」再开。"}</p>
       <div class="grid cols-2">
-        <div class="field"><label>model</label><input class="control" id="emb-model" value="${escapeHtml(emb?.model || embDefaults.model || "text-embedding-3-small")}" /></div>
-        <div class="field"><label>baseUrl</label><input class="control" id="emb-base" value="${escapeHtml(emb?.baseUrl || embDefaults.baseUrl || "https://api.openai.com/v1")}" /></div>
-        <div class="field"><label>apiKeyEnv</label><input class="control" id="emb-env" value="${escapeHtml(emb?.apiKeyEnv || embDefaults.apiKeyEnv || "OPENAI_API_KEY")}" /></div>
-        <div class="field"><label>provider</label><input class="control" id="emb-provider" value="${escapeHtml(emb?.provider || embDefaults.provider || "openai-compatible")}" /></div>
+        <div class="field"><label>模型名</label><input class="control" id="emb-model" value="${escapeHtml(emb?.model || embDefaults.model || "text-embedding-3-small")}" /></div>
+        <div class="field"><label>API 地址</label><input class="control" id="emb-base" value="${escapeHtml(emb?.baseUrl || embDefaults.baseUrl || "https://api.openai.com/v1")}" /></div>
+        <div class="field"><label>密钥环境变量名</label><input class="control" id="emb-env" value="${escapeHtml(emb?.apiKeyEnv || embDefaults.apiKeyEnv || "OPENAI_API_KEY")}" /><span class="field-hint">在「认证」页或系统里配置同名 Key</span></div>
+        <div class="field"><label>提供方类型</label><input class="control" id="emb-provider" value="${escapeHtml(emb?.provider || embDefaults.provider || "openai-compatible")}" /></div>
       </div>
       <div class="btn-row">
-        <button type="button" class="btn primary" id="emb-save">保存远程</button>
+        <button type="button" class="btn primary" id="emb-save">保存 Embedding</button>
         <button type="button" class="btn" id="emb-local">尝试本机 Ollama</button>
-        ${emb ? `<button type="button" class="btn ghost" id="emb-clear">清除（回 FTS）</button>` : ""}
+        ${emb ? `<button type="button" class="btn ghost" id="emb-clear">关闭 Embedding</button>` : ""}
       </div>
     </div>
   </details>`;
@@ -883,82 +989,30 @@ function bindSectionActions() {
 		const current = el.content.querySelector("#col-obsidian-vault")?.value?.trim();
 		void openPicker(current || undefined).catch((err) => setKbHint(err.message));
 	});
-	el.content.querySelector("#collectors-save")?.addEventListener("click", async () => {
-		try {
-			const patch = {};
-			const host = el.content.querySelector("#col-email-host")?.value?.trim();
-			const user = el.content.querySelector("#col-email-user")?.value?.trim();
-			if (host || user) {
-				const email = {};
-				if (host) email.host = host;
-				if (user) email.user = user;
-				const portRaw = el.content.querySelector("#col-email-port")?.value?.trim();
-				if (portRaw) email.port = Number(portRaw);
-				const passwordEnv = el.content.querySelector("#col-email-password-env")?.value?.trim();
-				if (passwordEnv) email.passwordEnv = passwordEnv;
-				const foldersRaw = el.content.querySelector("#col-email-folders")?.value?.trim();
-				if (foldersRaw) {
-					email.folders = foldersRaw
-						.split(/[,，]/)
-						.map((x) => x.trim())
-						.filter(Boolean);
+	el.content.querySelectorAll("[data-save-source]").forEach((btn) => {
+		btn.addEventListener("click", async () => {
+			const id = btn.getAttribute("data-save-source");
+			try {
+				const { patch, secrets, emptyMessage } = buildCollectorPayloadForSource(id);
+				if (emptyMessage) {
+					setKbHint(emptyMessage);
+					return;
 				}
-				email.tls = el.content.querySelector("#col-email-tls")?.checked ?? true;
-				patch.email = email;
+				const body = secrets ? { ...patch, secrets } : patch;
+				const result = await api("/api/archive/collectors", { method: "POST", body: JSON.stringify(body) });
+				state.kb = {
+					...state.kb,
+					collectors: result.collectors,
+					collectorsConfig: result.config,
+					collectorsMeta: result.collectorsMeta ?? state.kb?.collectorsMeta,
+				};
+				toast("已保存");
+				setKbHint("");
+				render();
+			} catch (err) {
+				setKbHint(err.message);
 			}
-			const notionToken = el.content.querySelector("#col-notion-token")?.value?.trim();
-			const notionEnv = el.content.querySelector("#col-notion-token-env")?.value?.trim();
-			const notionPages = el.content.querySelector("#col-notion-page-ids")?.value?.trim();
-			if (notionToken || notionEnv || notionPages) {
-				const notion = {};
-				if (notionToken) notion.token = notionToken;
-				if (notionEnv) notion.tokenEnv = notionEnv;
-				if (notionPages) {
-					notion.pageIds = notionPages
-						.split(/[,，]/)
-						.map((x) => x.trim())
-						.filter(Boolean);
-				}
-				patch.notion = notion;
-			}
-			const vaultPath = el.content.querySelector("#col-obsidian-vault")?.value?.trim();
-			if (vaultPath) patch.obsidian = { vaultPath };
-
-			const tencent = {};
-			const tcId = el.content.querySelector("#col-tencent-client-id")?.value?.trim();
-			const tcSecret = el.content.querySelector("#col-tencent-client-secret")?.value?.trim();
-			const tcOpen = el.content.querySelector("#col-tencent-open-id")?.value?.trim();
-			const tcAccess = el.content.querySelector("#col-tencent-access-token")?.value?.trim();
-			const tcRefresh = el.content.querySelector("#col-tencent-refresh-token")?.value?.trim();
-			if (tcId) tencent.clientId = tcId;
-			if (tcSecret) tencent.clientSecret = tcSecret;
-			if (tcOpen) tencent.openId = tcOpen;
-			if (tcAccess) tencent.accessToken = tcAccess;
-			if (tcRefresh) tencent.refreshToken = tcRefresh;
-			if (Object.keys(tencent).length) patch["tencent-docs"] = tencent;
-
-			const gitRaw = el.content.querySelector("#col-git-repos")?.value?.trim();
-			if (gitRaw) {
-				const repos = gitRaw
-					.split("\n")
-					.map((line) => line.trim())
-					.filter(Boolean)
-					.map((line) => (line.startsWith("/") || /^[A-Za-z]:\\/.test(line) ? { path: line } : { url: line }));
-				patch.git = { repos };
-			}
-
-			if (!Object.keys(patch).length) {
-				setKbHint("至少填写一项再保存。");
-				return;
-			}
-			const result = await api("/api/archive/collectors", { method: "POST", body: JSON.stringify(patch) });
-			state.kb = { ...state.kb, collectors: result.collectors, collectorsConfig: result.config };
-			toast("采集器配置已保存");
-			setKbHint("");
-			render();
-		} catch (err) {
-			setKbHint(err.message);
-		}
+		});
 	});
 	el.content.querySelector("#archive-save")?.addEventListener("click", async () => {
 		const path = el.content.querySelector("#archive-root")?.value?.trim();

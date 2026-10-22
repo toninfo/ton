@@ -4,7 +4,7 @@
 
 ### Added
 
-- Settings Web: collector configuration forms (email, Notion, Obsidian, Tencent Docs, Git) wired to `kb/collectors.json` via `/api/archive/collectors`.
+- Settings Web: per-source cards with plain-Chinese copy, 3-step KB guide, in-form save/sync; email password stored locally in `kb/collector-secrets.json` (Settings form, no env var required).
 
 ## [1.1.3] - 2026-10-20
 

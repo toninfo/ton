@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { setEmailPassword } from "../src/extensions/kb/archive/collector-secrets.ts";
 import { listCollectors } from "../src/extensions/kb/archive/collectors.ts";
 import { patchCollectorsConfig } from "../src/extensions/kb/archive/collectors-config.ts";
 import { messageToMarkdown } from "../src/extensions/kb/archive/email-sync.ts";
@@ -27,7 +28,7 @@ describe("kb collectors", () => {
 		expect(layout.slots.obsidian).toContain("/obsidian");
 	});
 
-	it("marks email ready only when host user and password env are set", () => {
+	it("marks email ready when host, user, and password (env or secrets file) exist", () => {
 		const agentDir = mkdtempSync(join(tmpdir(), "ton-col-cfg-"));
 		const root = mkdtempSync(join(tmpdir(), "ton-col-root2-"));
 		dirs.push(agentDir, root);
@@ -38,9 +39,14 @@ describe("kb collectors", () => {
 		const before = listCollectors(agentDir).find((c) => c.id === "email");
 		expect(before?.status).toBe("needs-config");
 		process.env.TON_TEST_MAIL_PASS = "secret";
-		const after = listCollectors(agentDir).find((c) => c.id === "email");
-		expect(after?.status).toBe("ready");
+		const viaEnv = listCollectors(agentDir).find((c) => c.id === "email");
+		expect(viaEnv?.status).toBe("ready");
 		delete process.env.TON_TEST_MAIL_PASS;
+		const mid = listCollectors(agentDir).find((c) => c.id === "email");
+		expect(mid?.status).toBe("needs-config");
+		setEmailPassword(agentDir, "local-secret");
+		const viaFile = listCollectors(agentDir).find((c) => c.id === "email");
+		expect(viaFile?.status).toBe("ready");
 	});
 
 	it("converts eml bytes into markdown for the email collector", async () => {

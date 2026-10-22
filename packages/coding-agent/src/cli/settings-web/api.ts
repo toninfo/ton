@@ -10,6 +10,7 @@ import { APP_NAME, CONFIG_DIR_NAME, expandTildePath, getAgentDir, VERSION } from
 import { AuthStorage } from "../../core/auth-storage.ts";
 import { ModelRuntime } from "../../core/model-runtime.ts";
 import { SettingsManager } from "../../core/settings-manager.ts";
+import { hasEmailPassword, setEmailPassword } from "../../extensions/kb/archive/collector-secrets.ts";
 import { collectorStatusLabel, listCollectors } from "../../extensions/kb/archive/collectors.ts";
 import { loadCollectorsConfig, patchCollectorsConfig } from "../../extensions/kb/archive/collectors-config.ts";
 import { ensureArchiveLayout, isSpcWechatPath, loadArchiveRoot } from "../../extensions/kb/archive/layout.ts";
@@ -185,12 +186,17 @@ export async function handleSettingsApi(
 			...c,
 			statusLabel: collectorStatusLabel(c.status),
 		}));
+		const collectorsCfg = loadCollectorsConfig(ctx.agentDir);
+		const emailEnv = collectorsCfg.email?.passwordEnv?.trim() || "TON_EMAIL_PASSWORD";
 		return ok({
 			status,
 			bootstrap: boot,
 			ready: status.roots.length > 0,
 			collectors,
-			collectorsConfig: loadCollectorsConfig(ctx.agentDir),
+			collectorsConfig: collectorsCfg,
+			collectorsMeta: {
+				emailPasswordSet: hasEmailPassword(ctx.agentDir, emailEnv),
+			},
 			archive: {
 				root: loadArchiveRoot(ctx.agentDir) ?? null,
 				liveDb: describeLiveDb() ?? null,
@@ -280,9 +286,25 @@ export async function handleSettingsApi(
 		if (typeof body !== "object" || body === null || Array.isArray(body)) {
 			return fail("请求体必须是 collectors 配置对象");
 		}
-		const config = patchCollectorsConfig(ctx.agentDir, body as never);
+		const payload = { ...(body as Record<string, unknown>) };
+		const secrets =
+			payload.secrets && typeof payload.secrets === "object" && !Array.isArray(payload.secrets)
+				? (payload.secrets as Record<string, unknown>)
+				: undefined;
+		delete payload.secrets;
+		if (secrets && "emailPassword" in secrets) {
+			const raw = secrets.emailPassword;
+			if (raw === null || raw === "") {
+				setEmailPassword(ctx.agentDir, null);
+			} else if (typeof raw === "string") {
+				setEmailPassword(ctx.agentDir, raw);
+			}
+		}
+		const config = patchCollectorsConfig(ctx.agentDir, payload as never);
+		const emailEnv = config.email?.passwordEnv?.trim() || "TON_EMAIL_PASSWORD";
 		return ok({
 			config,
+			collectorsMeta: { emailPasswordSet: hasEmailPassword(ctx.agentDir, emailEnv) },
 			collectors: listCollectors(ctx.agentDir).map((c) => ({
 				...c,
 				statusLabel: collectorStatusLabel(c.status),

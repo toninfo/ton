@@ -5,6 +5,7 @@
 
 import { existsSync } from "node:fs";
 import { autoDetectObsidianVault } from "../connectors/obsidian.ts";
+import { hasEmailPassword } from "./collector-secrets.ts";
 import { type CollectorsConfig, loadCollectorsConfig, resolveObsidianVault } from "./collectors-config.ts";
 import { type ArchiveSlot, loadArchiveRoot } from "./layout.ts";
 import { describeLiveDb } from "./wechat-sync.ts";
@@ -20,11 +21,11 @@ export interface CollectorInfo {
 	runnable: boolean;
 }
 
-function emailReady(cfg: CollectorsConfig): boolean {
+function emailReady(agentDir: string, cfg: CollectorsConfig): boolean {
 	const e = cfg.email;
 	if (!e?.host?.trim() || !e.user?.trim()) return false;
 	const envName = e.passwordEnv?.trim() || "TON_EMAIL_PASSWORD";
-	return Boolean(process.env[envName]?.trim());
+	return hasEmailPassword(agentDir, envName);
 }
 
 function notionReady(cfg: CollectorsConfig): boolean {
@@ -60,20 +61,20 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 			slot: "wechat",
 			status: !hasRoot ? "idle" : liveDb ? "ready" : "needs-login",
 			hint: !hasRoot
-				? "先设归档根。登录微信后可拷贝库并导出到 wechat/"
+				? "先在上面选好「归档文件夹」，再回来点同步"
 				: liveDb
-					? "可同步：拷贝本机微信库副本 → wechat/"
-					: "归档根已就绪。登录微信后再同步",
+					? "本机已检测到微信数据，点「同步」导出聊天记录"
+					: "请先在电脑上登录微信，再点「同步」",
 			runnable: true,
 		},
 		{
 			id: "email",
 			label: "邮件",
 			slot: "email",
-			status: !hasRoot ? "idle" : emailReady(cfg) ? "ready" : "needs-config",
-			hint: emailReady(cfg)
-				? "可同步：IMAP 只读拉取 → email/"
-				: "配置 email.host / user / passwordEnv（默认 TON_EMAIL_PASSWORD）",
+			status: !hasRoot ? "idle" : emailReady(agentDir, cfg) ? "ready" : "needs-config",
+			hint: emailReady(agentDir, cfg)
+				? "点「同步」从邮箱拉取邮件到本机归档（只读，不改已读）"
+				: "在下方填写 IMAP 服务器、邮箱账号和密码，保存后点「同步」",
 			runnable: true,
 		},
 		{
@@ -82,8 +83,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 			slot: "notion",
 			status: !hasRoot ? "idle" : notionReady(cfg) ? "ready" : "needs-config",
 			hint: notionReady(cfg)
-				? "可同步：Notion API → notion/"
-				: "设置 TON_NOTION_TOKEN 或 collectors.json notion.token",
+				? "点「同步」把 Notion 页面拉到本机归档"
+				: "在下方粘贴 Notion 集成 Token（notion.so/my-integrations 创建）",
 			runnable: true,
 		},
 		{
@@ -91,7 +92,9 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 			label: "Obsidian",
 			slot: "obsidian",
 			status: !hasRoot ? "idle" : vault ? "ready" : "needs-config",
-			hint: vault ? `可同步：镜像 vault → obsidian/（${vault}）` : "配置 obsidian.vaultPath（需含 .obsidian）",
+			hint: vault
+				? `已选库：${vault} · 点「同步」复制笔记到归档`
+				: "在下方选择 Obsidian 笔记库文件夹（里面要有 .obsidian）",
 			runnable: true,
 		},
 		{
@@ -100,8 +103,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 			slot: "tencent-docs",
 			status: !hasRoot ? "idle" : tencentReady(cfg) ? "ready" : "needs-config",
 			hint: tencentReady(cfg)
-				? "可同步：导出纯文本 → tencent-docs/"
-				: "配置 clientId / openId / accessToken（或 TON_TENCENT_DOCS_*）",
+				? "点「同步」导出腾讯文档到本机归档"
+				: "在下方填写开放平台应用 ID 与访问令牌（高级，可暂时跳过）",
 			runnable: true,
 		},
 		{
@@ -110,8 +113,8 @@ export function listCollectors(agentDir: string): CollectorInfo[] {
 			slot: "git",
 			status: !hasRoot ? "idle" : gitReady(cfg) ? "ready" : "needs-config",
 			hint: gitReady(cfg)
-				? `可同步：clone/pull → git/（${cfg.git?.repos?.length ?? 0} 个仓库）`
-				: "配置 git.repos: [{ url }] 或 [{ path }]；内容写入归档根 git/",
+				? `已添加 ${cfg.git?.repos?.length ?? 0} 个仓库 · 点「同步」拉取/更新`
+				: "在下方每行填一个 Git 地址或本机仓库路径",
 			runnable: true,
 		},
 	];

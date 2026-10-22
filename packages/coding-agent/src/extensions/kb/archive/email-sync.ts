@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { connect as tlsConnect } from "node:tls";
 import { simpleParser } from "mailparser";
+import { loadEmailPassword } from "./collector-secrets.ts";
 import { loadCollectorsConfig } from "./collectors-config.ts";
 import { ensureArchiveLayout } from "./layout.ts";
 
@@ -192,7 +193,7 @@ export async function syncEmailArchive(agentDir: string, rawRoot?: string): Prom
 	const host = cfg.host?.trim();
 	const user = cfg.user?.trim();
 	const passwordEnv = cfg.passwordEnv?.trim() || "TON_EMAIL_PASSWORD";
-	const password = process.env[passwordEnv] || "";
+	const password = process.env[passwordEnv]?.trim() || loadEmailPassword(agentDir) || "";
 	const port = cfg.port && cfg.port > 0 ? cfg.port : 993;
 	const folders = cfg.folders?.length ? cfg.folders : ["INBOX"];
 
@@ -202,7 +203,7 @@ export async function syncEmailArchive(agentDir: string, rawRoot?: string): Prom
 			emailDir,
 			written: 0,
 			skipped: 0,
-			note: "邮件采集器未配置。在 collectors.json 设 email.host / email.user / email.passwordEnv。",
+			note: "邮件未配齐：请在 ton settings → 知识库 填写 IMAP 服务器与邮箱账号。",
 		};
 	}
 	if (!password) {
@@ -211,7 +212,7 @@ export async function syncEmailArchive(agentDir: string, rawRoot?: string): Prom
 			emailDir,
 			written: 0,
 			skipped: 0,
-			note: `缺少密码：请设置环境变量 ${passwordEnv}。`,
+			note: `缺少邮箱密码：在设置页填写，或设置环境变量 ${passwordEnv}。`,
 		};
 	}
 
