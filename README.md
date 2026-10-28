@@ -51,7 +51,7 @@ npm install --ignore-scripts
 npm run hydrate:model-data
 npm run build:offline
 npm --prefix packages/coding-agent run build
-node packages/coding-agent/dist/cli.js
+node packages/coding-agent/dist/bundle/cli.js
 ```
 
 ## 快速开始
