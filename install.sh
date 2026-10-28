@@ -18,7 +18,8 @@ REPO="${TON_REPO:-toninfo/ton}"
 INSTALL_DIR="${TON_INSTALL_DIR:-${HOME}/.local/share/ton}"
 BIN_DIR="${TON_BIN_DIR:-${HOME}/.local/bin}"
 
-info() { printf '==> %s\n' "$*"; }
+# info 必须进 stderr：download_archive 的 stdout 只回传归档文件名
+info() { printf '==> %s\n' "$*" >&2; }
 warn() { printf 'warn: %s\n' "$*" >&2; }
 die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 
