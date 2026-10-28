@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Bun release packages omit `settings-web/` next to the executable, so `ton settings` failed with missing `index.html`. Archives now ship the Settings Web static assets.
+
 ## [1.1.4] - 2026-10-22
 
 ### Added

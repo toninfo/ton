@@ -149,6 +149,17 @@ for platform in "${PLATFORMS[@]}"; do
     mkdir -p "$OUTPUT_DIR/$platform/assets"
     cp dist/modes/interactive/assets/* "$OUTPUT_DIR/$platform/assets/"
     cp -r dist/core/export-html "$OUTPUT_DIR/$platform/"
+    # Bun 单文件旁路：ton settings 读 getPackageDir()/settings-web/index.html
+    mkdir -p "$OUTPUT_DIR/$platform/settings-web"
+    if [[ -d dist/cli/settings-web/assets ]]; then
+        cp dist/cli/settings-web/assets/* "$OUTPUT_DIR/$platform/settings-web/"
+    else
+        cp src/cli/settings-web/assets/* "$OUTPUT_DIR/$platform/settings-web/"
+    fi
+    if [[ ! -f "$OUTPUT_DIR/$platform/settings-web/index.html" ]]; then
+        echo "error: missing settings-web/index.html for $platform (ton settings would fail)" >&2
+        exit 1
+    fi
     cp -r docs "$OUTPUT_DIR/$platform/"
     cp -r examples "$OUTPUT_DIR/$platform/"
 
