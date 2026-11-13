@@ -8,17 +8,23 @@
 		<script type="module" src="bubble.js"></script>
 	</head>
 	<body>
-		<div id="frame">
+		<div id="stage">
+			<svg id="shape" aria-hidden="true">
+				<path id="silhouette" />
+				<path id="edge" />
+			</svg>
 			<section id="bubble">
 				<div id="cards"></div>
-				<footer id="footer">
-					<span id="toast" hidden></span>
-					<span class="spacer"></span>
-					<button id="all-later" class="link">全部知道了</button>
-					<button id="pause" class="link">暂停 1 小时</button>
-				</footer>
+				<div id="toast" hidden></div>
+				<button id="more" title="更多" aria-label="更多" aria-haspopup="menu" aria-expanded="false"><span class="more-dot"></span></button>
+				<div id="more-menu" class="pop" role="menu" hidden>
+					<button data-action="all-later" role="menuitem">全部知道了（2 小时后再提醒）</button>
+					<hr />
+					<button data-action="pause-1h" role="menuitem">暂停 1 小时</button>
+					<button data-action="pause-2h" role="menuitem">暂停 2 小时</button>
+					<button data-action="pause-4h" role="menuitem">暂停 4 小时</button>
+				</div>
 			</section>
-			<div id="tail"></div>
 		</div>
 	</body>
 </html>

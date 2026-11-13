@@ -1,18 +1,16 @@
 :root {
-	--bg: rgba(24, 27, 31, 0.92);
-	--border: rgba(255, 255, 255, 0.08);
-	--text: #e8eaed;
-	--muted: #9aa0a6;
-	--card: rgba(255, 255, 255, 0.04);
-	--accent: #60a5fa;
-	--p0: #ef4444;
-	--p1: #f59e0b;
+	--bg: #f5f5f7;
+	--line: rgba(17, 22, 30, 0.14);
+	--text: #1d1d1f;
+	--muted: #6e6e73;
+	--card: #ffffff;
+	--accent: #2f6fdb;
+	--p0: #e5484d;
+	--p1: #d97706;
 	--p2: #3b82f6;
-	--p3: #6b7280;
-	--tail: 12px;
-	--radius: 24px;
-	--tail-at: 50%;
-	color-scheme: dark;
+	--p3: #9aa3b0;
+	--tail: 30px;
+	color-scheme: light;
 }
 
 * {
@@ -24,119 +22,122 @@ body {
 	margin: 0;
 	background: transparent;
 	color: var(--text);
-	font: 13px/1.45 "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+	font: 15px/1.5 "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 	overflow: hidden;
 	user-select: none;
 	-webkit-user-select: none;
 }
 
-#frame {
+/* The whole window slides and fades as one piece; the shell moves the window itself. */
+#stage {
 	position: relative;
 	display: flex;
 	height: 100vh;
-}
-
-/* The window has a tail strip on the side that faces the screen edge. */
-body.edge-top #frame {
-	padding-top: var(--tail);
-}
-body.edge-bottom #frame {
-	padding-bottom: var(--tail);
-}
-body.edge-left #frame {
-	padding-left: var(--tail);
-}
-body.edge-right #frame {
-	padding-right: var(--tail);
-}
-
-/* Fills the window; the shell sizes the window from the content height the page reports. */
-#bubble {
-	width: 100%;
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-	background: var(--bg);
-	border: 1px solid var(--border);
-	border-radius: var(--radius);
-	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-	overflow: hidden;
 	opacity: 0;
 	transform: scale(0.96);
 	transition:
 		opacity 420ms cubic-bezier(0.22, 1.1, 0.36, 1),
 		transform 420ms cubic-bezier(0.22, 1.1, 0.36, 1);
 }
-
-body.shown #bubble {
+body.shown #stage {
 	opacity: 1;
 	transform: none;
 }
 
-/* No compositor: opaque body, no shadow, the window is cut to shape by XShape. */
-body.opaque {
-	--bg: #181b1f;
+/* The bubble silhouette (body + tail) is a single path filled with the bubble colour. Without a
+   compositor the X11 window is cut to the same outline (the `opaque` class), and then every pixel
+   inside the cut is painted: an unpainted pixel inside a shaped window shows the compositor's
+   black. With a compositor the window is alpha and the path is simply the only visible paint.
+   `bubble.js` regenerates `d`. */
+#shape {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
 }
-body.opaque #bubble {
-	box-shadow: none;
-	border-width: 1.5px;
-	border-color: rgba(255, 255, 255, 0.14);
+#silhouette {
+	fill: var(--bg);
 }
-body.opaque #tail {
-	display: none;
+#edge {
+	fill: none;
+	stroke: var(--line);
+	stroke-width: 1.4;
 }
 
-#tail {
-	position: absolute;
-	width: 18px;
-	height: var(--tail);
-	background: var(--bg);
-	clip-path: polygon(0 0, 100% 0, 50% 100%);
+/* Translucent sheet where the compositor really blends window alpha; `opaque` is the no-compositor
+   fallback, where a see-through fill would land on an uncut, black window. */
+body:not(.opaque) {
+	--bg: rgba(245, 245, 247, 0.94);
 }
-body.edge-bottom #tail {
-	bottom: 1px;
-	left: calc(var(--tail-at) - 9px);
+
+#bubble {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	/* Not `hidden`: the dot sits out in the tail strip; the list clips itself. */
+	overflow: visible;
 }
-body.edge-top #tail {
-	top: 1px;
-	left: calc(var(--tail-at) - 9px);
-	transform: rotate(180deg);
+
+/* The tail strip is margin, not padding: the shape has to cover it too. */
+body.edge-top #bubble {
+	margin-top: var(--tail);
 }
-body.edge-left #tail {
-	left: -2px;
-	top: calc(var(--tail-at) - 6px);
-	transform: rotate(90deg);
+body.edge-bottom #bubble {
+	margin-bottom: var(--tail);
 }
-body.edge-right #tail {
-	right: -2px;
-	top: calc(var(--tail-at) - 6px);
-	transform: rotate(-90deg);
+body.edge-left #bubble {
+	margin-left: var(--tail);
+}
+body.edge-right #bubble {
+	margin-right: var(--tail);
 }
 
 #cards {
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow-y: auto;
-	padding: 14px 14px 4px;
+	padding: 16px;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 12px;
+}
+#cards::-webkit-scrollbar {
+	width: 6px;
+}
+#cards::-webkit-scrollbar-thumb {
+	background: rgba(17, 22, 30, 0.16);
+	border-radius: 3px;
+}
+#cards::-webkit-scrollbar-track {
+	background: transparent;
 }
 
+/* Grouped white cards on the light-grey sheet: Apple's grouped list. */
 .card {
 	position: relative;
 	flex-shrink: 0;
-	padding: 12px 14px 12px 18px;
-	border-radius: 16px;
+	padding: 15px 18px 12px;
+	/* Concentric with the sheet's silhouette (`RADIUS` 30) at the 16px padding: the gap stays 16px
+	   along the straight edges and around the corners alike. */
+	border-radius: 14px;
 	background: var(--card);
+	border: 1px solid rgba(17, 22, 30, 0.05);
+	box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
 	overflow: hidden;
 	transition:
+		background 140ms ease,
 		opacity 180ms ease,
 		transform 180ms ease,
 		max-height 180ms ease,
 		margin 180ms ease,
 		padding 180ms ease;
 	max-height: 600px;
+}
+.card:hover {
+	background: #fcfcfd;
 }
 
 .card.closing {
@@ -148,21 +149,21 @@ body.edge-right #tail {
 	margin-top: -10px;
 }
 
-.card .bar {
-	position: absolute;
-	left: 0;
-	top: 0;
-	bottom: 0;
-	width: 4px;
+/* Urgency is one small dot before the source badge. */
+.dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
 	background: var(--p3);
+	flex-shrink: 0;
 }
-.card.p0 .bar {
+.card.p0 .dot {
 	background: var(--p0);
 }
-.card.p1 .bar {
+.card.p1 .dot {
 	background: var(--p1);
 }
-.card.p2 .bar {
+.card.p2 .dot {
 	background: var(--p2);
 }
 
@@ -175,17 +176,15 @@ body.edge-right #tail {
 	align-items: center;
 	gap: 8px;
 	color: var(--muted);
-	font-size: 12px;
+	font-size: 12.5px;
 }
 
 .badge {
-	padding: 1px 8px;
+	padding: 2px 9px;
 	border-radius: 999px;
-	background: rgba(255, 255, 255, 0.08);
-	color: var(--text);
-}
-.card.p0 .badge {
-	background: rgba(239, 68, 68, 0.2);
+	background: rgba(17, 22, 30, 0.05);
+	color: #55555a;
+	font-size: 12px;
 }
 
 .card header .context {
@@ -195,63 +194,102 @@ body.edge-right #tail {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
-
-.card h2 {
-	margin: 6px 0 2px;
-	font-size: 17px;
-	font-weight: 600;
-	line-height: 1.35;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.card header time {
+	font-size: 12px;
+	color: #8e8e93;
+	flex-shrink: 0;
 }
 
-.card .why {
-	margin: 0;
-	color: var(--muted);
+.card h2 {
+	margin: 7px 0 3px;
+	font-size: 17px;
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: -0.01em;
 	display: -webkit-box;
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 }
 
+.card .why {
+	margin: 0;
+	font-size: 14px;
+	color: var(--muted);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
 .actions {
 	display: flex;
-	gap: 8px;
+	align-items: center;
+	gap: 4px;
 	margin-top: 10px;
+	margin-right: -6px;
+	justify-content: flex-end;
 }
 
 button {
 	font: inherit;
+	font-size: 14px;
 	color: var(--text);
-	background: rgba(255, 255, 255, 0.08);
+	background: rgba(16, 22, 32, 0.07);
 	border: 0;
-	border-radius: 10px;
-	padding: 6px 12px;
+	border-radius: 11px;
+	padding: 9px 16px;
 	cursor: pointer;
 	transition:
 		background 120ms ease,
 		opacity 120ms ease;
 }
 button:hover {
-	background: rgba(255, 255, 255, 0.14);
+	background: rgba(16, 22, 32, 0.12);
 }
 button.primary {
 	background: var(--accent);
-	color: #0b1220;
+	color: #fff;
 	font-weight: 600;
 }
 button.primary:hover {
-	background: #93c5fd;
+	background: #4a86e8;
 }
-button.icon {
-	margin-left: auto;
-	padding: 6px 10px;
+
+/* Actions are bare icons at the card's lower right: no button chrome, a faint tint on hover. */
+.actions .act {
+	width: 34px;
+	height: 34px;
+	padding: 0;
+	background: transparent;
+	border-radius: 10px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--muted);
+	font-size: 19px;
+	line-height: 1;
+}
+.actions .act svg {
+	width: 20px;
+	height: 20px;
+}
+.actions .act:hover {
+	background: rgba(16, 22, 32, 0.06);
+	color: var(--text);
+}
+.actions .act.primary {
+	background: transparent;
+	color: var(--accent);
+}
+.actions .act.primary:hover {
+	background: rgba(47, 111, 219, 0.1);
+	color: var(--accent);
 }
 button.link {
 	background: none;
 	color: var(--muted);
-	padding: 4px 6px;
+	padding: 4px 8px;
 }
 button.link:hover {
 	color: var(--text);
@@ -265,19 +303,19 @@ button:disabled,
 .menu {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 6px;
-	margin-top: 8px;
+	gap: 8px;
+	margin-top: 10px;
 }
 .menu button {
 	text-align: left;
-	font-size: 12px;
+	font-size: 13px;
 }
 
 .result {
 	margin-top: 10px;
 	padding: 10px;
 	border-radius: 10px;
-	background: rgba(0, 0, 0, 0.25);
+	background: rgba(16, 22, 32, 0.05);
 }
 .result pre {
 	margin: 0 0 8px;
@@ -292,22 +330,143 @@ button:disabled,
 }
 
 .error {
-	color: #fca5a5;
+	color: #c0262d;
 	margin-top: 8px;
 }
 
-footer {
-	display: flex;
+/* No footer row and the same padding on all four sides: a small dot sits in the middle of the
+   tail, on the tail's centre line, and opens the global menu into the sheet. */
+#more {
+	position: absolute;
+	z-index: 2;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	display: inline-flex;
 	align-items: center;
-	gap: 4px;
-	padding: 6px 12px 10px;
+	justify-content: center;
+	background: transparent;
+	border-radius: 50%;
+}
+/* The dot's centre is half-way down the 30px tail, i.e. 15px outside the sheet edge; `--tail-at`
+   is the tail centre along that edge, in CSS px (set by `bubble.js`). */
+body.edge-bottom #more {
+	left: var(--tail-at);
+	bottom: -28px;
+	transform: translateX(-50%);
+}
+body.edge-top #more {
+	left: var(--tail-at);
+	top: -28px;
+	transform: translateX(-50%);
+}
+body.edge-left #more {
+	left: -28px;
+	top: var(--tail-at);
+	transform: translateY(-50%);
+}
+body.edge-right #more {
+	right: -28px;
+	top: var(--tail-at);
+	transform: translateY(-50%);
+}
+/* Invisible until hovered: the tail stays clean, the dot only appears under the pointer. Size,
+   not transform: scaling a 5px box rasterises to a rounded square at this size. */
+#more .more-dot {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: transparent;
+	transition:
+		background 120ms ease,
+		width 120ms ease,
+		height 120ms ease;
+}
+#more:hover {
+	background: transparent;
+}
+#more:hover .more-dot {
+	width: 8px;
+	height: 8px;
+	background: rgba(17, 22, 30, 0.65);
+}
+
+/* The menu opens from the dot, towards the inside of the sheet; `--pop-at` (also CSS px) is the
+   dot's centre, clamped so the menu stays inside the sheet. */
+.pop {
+	position: absolute;
+	z-index: 5;
+	min-width: 196px;
+	max-height: calc(100% - 16px);
+	overflow-y: auto;
+	padding: 5px;
+	border-radius: 13px;
+	background: #fff;
+	border: 1px solid rgba(17, 22, 30, 0.08);
+	box-shadow:
+		0 12px 32px rgba(16, 24, 40, 0.16),
+		0 2px 8px rgba(16, 24, 40, 0.08);
+}
+body.edge-bottom #more-menu {
+	left: var(--pop-at);
+	bottom: 6px;
+	transform: translateX(-50%);
+}
+body.edge-top #more-menu {
+	left: var(--pop-at);
+	top: 6px;
+	transform: translateX(-50%);
+}
+body.edge-left #more-menu {
+	left: 6px;
+	top: var(--pop-at);
+	transform: translateY(-50%);
+}
+body.edge-right #more-menu {
+	right: 6px;
+	top: var(--pop-at);
+	transform: translateY(-50%);
+}
+body.edge-bottom .pop,
+body.edge-top .pop {
+	max-height: calc(100% - 22px);
+}
+.pop button {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 7px 10px;
+	border-radius: 8px;
+	background: none;
 	font-size: 13px;
 }
-footer .spacer {
-	flex: 1;
+.pop button:hover {
+	background: rgba(16, 22, 32, 0.06);
 }
+.pop hr {
+	border: 0;
+	border-top: 1px solid rgba(17, 22, 30, 0.07);
+	margin: 4px 6px;
+}
+
+/* Undo feedback floats over the list's lower edge instead of reserving a row. */
 #toast {
-	color: var(--muted);
+	position: absolute;
+	left: 50%;
+	bottom: 10px;
+	transform: translateX(-50%);
+	z-index: 3;
+	max-width: calc(100% - 104px);
+	padding: 5px 14px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.94);
+	border: 1px solid rgba(17, 22, 30, 0.08);
+	box-shadow: 0 4px 16px rgba(16, 24, 40, 0.12);
+	color: var(--text);
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 #toast button {
 	padding: 2px 6px;

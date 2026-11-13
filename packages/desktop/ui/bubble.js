@@ -9,6 +9,140 @@ const CLOSE_MS = 180;
 const cardsEl = document.getElementById("cards");
 const bubbleEl = document.getElementById("bubble");
 const toastEl = document.getElementById("toast");
+const silhouetteEl = document.getElementById("silhouette");
+const edgeEl = document.getElementById("edge");
+
+// The bubble outline: a rounded body with a small curved tail on the side that faces the screen
+// edge. The X11 window is cut to the same outline (position.rs / platform.rs), so these constants
+// and the curve must match the Rust side, which also means every pixel inside the cut is painted:
+// an unpainted pixel in a shaped window shows the compositor's black.
+const TAIL = 30;
+const TAIL_WIDTH = 54;
+const RADIUS = 30;
+const TAIL_CURVE = 1.6;
+
+/** Half-width of the tail `depth` px from its tip. Mirrors `apply_shape` in platform.rs. */
+function tailHalf(depth) {
+	const u = Math.min(Math.max(depth, 0) + 0.5, TAIL + 1) / (TAIL + 2);
+	return (TAIL_WIDTH / 2) * u ** TAIL_CURVE;
+}
+
+/**
+ * `d` for the bubble outline, `inset` px inside the window. Generated in "tail on top" coordinates
+ * and then mirrored onto the real edge, so there is one geometry to keep in sync with Rust.
+ */
+function silhouette(edge, width, height, along, inset) {
+	const vertical = edge === "top" || edge === "bottom";
+	const span = vertical ? width : height;
+	const depth = vertical ? height : width;
+	const radius = Math.max(RADIUS - inset, 4);
+	const halfBase = Math.max(TAIL_WIDTH / 2 - inset, 2);
+	const center = Math.min(Math.max(along * span, TAIL_WIDTH / 2), span - TAIL_WIDTH / 2);
+	const start = inset + radius;
+	const end = span - inset - radius;
+	const far = depth - inset;
+	const map =
+		edge === "top"
+			? (x, y) => [x, y]
+			: edge === "bottom"
+				? (x, y) => [x, depth - y]
+				: edge === "left"
+					? (x, y) => [y, x]
+					: (x, y) => [depth - y, x];
+	const points = [];
+	const push = (x, y) => {
+		const [px, py] = map(x, y);
+		points.push(`${Math.round(px * 10) / 10} ${Math.round(py * 10) / 10}`);
+	};
+	const arc = (cx, cy, from, to) => {
+		for (let i = 1; i <= 6; i += 1) {
+			const angle = ((from + ((to - from) * i) / 6) * Math.PI) / 180;
+			push(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
+		}
+	};
+	push(start, TAIL);
+	push(center - halfBase, TAIL);
+	for (let i = 0; i <= 10; i += 1) {
+		const d = TAIL - (TAIL * i) / 10;
+		push(center - tailHalf(d), d);
+	}
+	push(center, 0);
+	for (let i = 0; i <= 10; i += 1) {
+		const d = (TAIL * i) / 10;
+		push(center + tailHalf(d), d);
+	}
+	push(center + halfBase, TAIL);
+	push(end, TAIL);
+	arc(end, TAIL + radius, 270, 360);
+	push(span - inset, far - radius);
+	arc(end, far - radius, 0, 90);
+	push(start, far);
+	arc(start, far - radius, 90, 180);
+	push(inset, TAIL + radius);
+	arc(start, TAIL + radius, 180, 270);
+	return `M${points[0]}L${points.slice(1).join("L")}Z`;
+}
+
+/** Wrap state → the tail position on the screen-edge side, 0..1. */
+let placement = { edge: "bottom", at: 0.5 };
+
+function drawShape() {
+	const width = window.innerWidth;
+	const height = window.innerHeight;
+	if (width < 2 || height < 2) return;
+	silhouetteEl.setAttribute("d", silhouette(placement.edge, width, height, placement.at, 0));
+	edgeEl.setAttribute("d", silhouette(placement.edge, width, height, placement.at, 0.9));
+	// The dot rides on the tail, so it uses the same clamped centre as the silhouette.
+	const vertical = placement.edge === "top" || placement.edge === "bottom";
+	const span = vertical ? width : height;
+	const center = Math.min(Math.max(placement.at * span, TAIL_WIDTH / 2), span - TAIL_WIDTH / 2);
+	bubbleEl.style.setProperty("--tail-at", `${center}px`);
+}
+
+window.addEventListener("resize", drawShape);
+drawShape();
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** A 24×24 stroke icon: `d` paths joined, fills when `filled`. */
+function icon(paths, filled = false) {
+	const svg = document.createElementNS(SVG_NS, "svg");
+	svg.setAttribute("viewBox", "0 0 24 24");
+	svg.setAttribute("aria-hidden", "true");
+	svg.setAttribute("fill", filled ? "currentColor" : "none");
+	svg.setAttribute("stroke", filled ? "none" : "currentColor");
+	svg.setAttribute("stroke-width", "2");
+	svg.setAttribute("stroke-linecap", "round");
+	svg.setAttribute("stroke-linejoin", "round");
+	for (const d of [paths].flat()) {
+		const path = document.createElementNS(SVG_NS, "path");
+		path.setAttribute("d", d);
+		svg.append(path);
+	}
+	return svg;
+}
+
+/** The bubble stays out of the way: one dot on the tail opens the shell-wide actions. */
+const moreEl = document.getElementById("more");
+const moreMenuEl = document.getElementById("more-menu");
+
+function setMoreMenu(open) {
+	moreMenuEl.hidden = !open;
+	moreEl.setAttribute("aria-expanded", String(open));
+	if (open) placeMenu();
+}
+
+/** Centre the menu on the dot and keep it inside the sheet on the axis it can slide along. */
+function placeMenu() {
+	const vertical = placement.edge === "top" || placement.edge === "bottom";
+	const span = vertical ? window.innerWidth : window.innerHeight;
+	const half = (vertical ? moreMenuEl.offsetWidth : moreMenuEl.offsetHeight) / 2;
+	const center = Number.parseFloat(bubbleEl.style.getPropertyValue("--tail-at")) || span / 2;
+	const low = half + 8;
+	const high = span - half - 8;
+	const at = low > high ? span / 2 : Math.min(Math.max(center, low), high);
+	moreMenuEl.style.setProperty("--pop-at", `${at}px`);
+}
 
 /** id → { item, node, draft } for cards on screen. */
 const cards = new Map();
@@ -37,8 +171,6 @@ bubbleEl.addEventListener("pointerleave", () => {
 	hovering = false;
 });
 
-const footerEl = document.getElementById("footer");
-
 /** Natural content height, independent of the current window size (which it determines). */
 function reportHeight() {
 	const style = getComputedStyle(cardsEl);
@@ -49,7 +181,10 @@ function reportHeight() {
 		gap * Math.max(0, kids.length - 1) +
 		Number.parseFloat(style.paddingTop) +
 		Number.parseFloat(style.paddingBottom);
-	void invoke("bubble_resize", { height: Math.ceil(content + footerEl.offsetHeight + 2) });
+	void invoke("bubble_resize", {
+		height: Math.ceil(content + 2),
+		dpr: window.devicePixelRatio,
+	});
 }
 
 const sizeObserver = new ResizeObserver(() => reportHeight());
@@ -101,6 +236,8 @@ function closeCard(card, label) {
 	}, CLOSE_MS);
 	cards.delete(card.item.id);
 	closing.add(card.item.id);
+	// Nothing left to read: leave the screen now instead of waiting out the undo window.
+	if (cards.size === 0) void invoke("bubble_close");
 	let undone = false;
 	showToast(`${label} · `, async () => {
 		undone = true;
@@ -208,10 +345,10 @@ function renderCard(item) {
 	card.node = el(
 		`article.card.${urgency}`,
 		{ dataset: { id: item.id } },
-		el("div.bar"),
 		el(
 			"header",
 			{},
+			el("span.dot"),
 			el("span.badge", { text: SOURCE_LABEL[item.source] ?? item.source ?? "事项" }),
 			el("span.context", { text: item.context ?? "" }),
 			el("time", { text: relativeTime(item.observed_at) }),
@@ -221,10 +358,22 @@ function renderCard(item) {
 		el(
 			"div.actions",
 			{},
-			el("button.primary", { text: "马上做", onclick: () => void doNow(card) }),
-			el("button", { text: "知道了", onclick: () => void ack(card, "2 小时后再提醒", "--state", "later", "--for", "2h") }),
-			el("button", { text: "别再说了", onclick: () => void ack(card, "3 天内不再提醒", "--state", "muted", "--for", "3d") }),
-			el("button.icon", { text: "⋯", title: "更多", onclick: () => toggleMenu(card) }),
+			el("button.act.primary", {
+				title: "马上做",
+				"aria-label": "马上做",
+				onclick: () => void doNow(card),
+			}, icon("M13 2 4.5 13H11l-1 9L19.5 11H13z", true)),
+			el("button.act", {
+				title: "知道了（2 小时后再提醒）",
+				"aria-label": "知道了",
+				onclick: () => void ack(card, "2 小时后再提醒", "--state", "later", "--for", "2h"),
+			}, icon("M5 12.5 9.5 17 19 7")),
+			el("button.act", {
+				title: "别再说了（3 天内不再提醒）",
+				"aria-label": "别再说了",
+				onclick: () => void ack(card, "3 天内不再提醒", "--state", "muted", "--for", "3d"),
+			}, icon(["M6 9a6 6 0 0 1 10.2-4.2", "M18 9c0 5 2 6 2 6H4s2-1 2-6", "M3 3l18 18"])),
+			el("button.act", { title: "更多", "aria-label": "更多", onclick: () => toggleMenu(card) }, "⋯"),
 		),
 	);
 	return card;
@@ -240,7 +389,9 @@ async function refresh() {
 	]
 		.filter(Boolean)
 		.join(" ");
-	document.documentElement.style.setProperty("--tail-at", `${Math.round((state.tail ?? 0.5) * 100)}%`);
+	placement = { edge: state.edge ?? "bottom", at: state.tail ?? 0.5 };
+	drawShape();
+	if (!moreMenuEl.hidden) placeMenu();
 	const wanted = new Set(state.items.map((item) => item.id));
 	// A fresh show (the shell cleared its list) replaces whatever the page still had.
 	for (const [id, card] of cards) {
@@ -259,23 +410,40 @@ async function refresh() {
 	resetDeadline();
 }
 
-document.getElementById("all-later").addEventListener("click", async () => {
+async function ackAllLater() {
 	const open = [...cards.values()];
 	await Promise.all(open.map((card) => ton("ack", card.item.id, "--state", "later", "--for", "2h").catch(() => undefined)));
 	await invoke("bubble_close");
-});
+}
 
-document.getElementById("pause").addEventListener("click", async () => {
+async function pauseFor(duration) {
 	try {
-		await ton("pause", "--for", "1h");
+		await ton("pause", "--for", duration);
 		await invoke("bubble_close");
 	} catch (error) {
 		showToast(`暂停失败：${errorText(error)}`);
 	}
+}
+
+moreEl.addEventListener("click", () => setMoreMenu(moreMenuEl.hidden));
+moreMenuEl.addEventListener("click", (event) => {
+	const target = event.target.closest("button[data-action]");
+	if (!target) return;
+	setMoreMenu(false);
+	const action = target.dataset.action;
+	if (action === "all-later") void ackAllLater();
+	else if (action.startsWith("pause-")) void pauseFor(action.slice("pause-".length));
+});
+
+// The bubble never takes focus, so there is no blur to close the menu: any press outside closes it.
+document.addEventListener("pointerdown", (event) => {
+	if (!moreMenuEl.hidden && !moreMenuEl.contains(event.target) && !moreEl.contains(event.target)) setMoreMenu(false);
 });
 
 document.addEventListener("keydown", (event) => {
-	if (event.key === "Escape") document.getElementById("all-later").click();
+	if (event.key !== "Escape") return;
+	if (!moreMenuEl.hidden) setMoreMenu(false);
+	else void ackAllLater();
 });
 
 await listen("bubble-update", () => void refresh());

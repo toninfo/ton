@@ -1,18 +1,27 @@
 //! Where a bubble goes: a random screen edge of the monitor under the cursor, inside its work area.
-//! All values are logical pixels; callers convert with the monitor's own scale factor.
+//! All values are CSS pixels, the unit the page lays itself out in and reports its height in;
+//! `bubble::Screen` converts to physical pixels using the WebView's `devicePixelRatio`.
 
 use rand::Rng;
 use serde::Serialize;
 
-pub const WIDTH: f64 = 460.0;
-pub const MIN_HEIGHT: f64 = 220.0;
-pub const MAX_HEIGHT: f64 = 560.0;
-/// Gap between the bubble and the work-area edge once it has slid in.
+pub const WIDTH: f64 = 720.0;
+/// The bubble sizes itself to its content so the sheet's padding stays equal on all four sides;
+/// the floor only keeps the silhouette well-formed (the tail strip plus a rounded corner).
+pub const MIN_HEIGHT: f64 = 160.0;
+pub const MAX_HEIGHT: f64 = 800.0;
+/// Gap between the bubble and the work-area edge on the sides without the tail.
 pub const MARGIN: f64 = 24.0;
 /// How far outside its final position the slide-in starts.
 pub const SLIDE: f64 = 140.0;
 /// Room on the edge side of the window for the tail that points at the screen edge.
-pub const TAIL: f64 = 12.0;
+pub const TAIL: f64 = 30.0;
+/// Base width of that tail (the page draws the same curved wedge).
+pub const TAIL_WIDTH: f64 = 54.0;
+/// The tail's sides bow inwards: half-width = `TAIL_WIDTH / 2 * (distance-from-tip / (TAIL + 2))^TAIL_CURVE`.
+/// `bubble.js` and the XShape cutter in `platform.rs` must use the same value, or the drawn tail
+/// and the window cut disagree and the leftover strip shows as black.
+pub const TAIL_CURVE: f64 = 1.6;
 const CURSOR_CLEARANCE: f64 = 80.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -66,10 +75,11 @@ pub fn window_size(edge: Edge, body_height: f64) -> (f64, f64) {
 
 /// Clamp the body height so the window always fits inside the work area.
 pub fn clamp_height(height: f64, work: Rect) -> f64 {
-    let room = (work.h - 2.0 * MARGIN - TAIL).max(120.0);
+    let room = (work.h - TAIL - MARGIN).max(120.0);
     height.clamp(MIN_HEIGHT.min(room), MAX_HEIGHT.min(room))
 }
 
+/// The tail points at the work-area edge and its tip touches it; the other sides keep `MARGIN`.
 pub fn final_rect(work: Rect, size: (f64, f64), placement: Placement) -> Rect {
     let (w, h) = size;
     let span = |start: f64, length: f64, size: f64| {
@@ -82,10 +92,10 @@ pub fn final_rect(work: Rect, size: (f64, f64), placement: Placement) -> Rect {
         }
     };
     let (x, y) = match placement.edge {
-        Edge::Top => (span(work.x, work.w, w), work.y + MARGIN),
-        Edge::Bottom => (span(work.x, work.w, w), work.y + work.h - MARGIN - h),
-        Edge::Left => (work.x + MARGIN, span(work.y, work.h, h)),
-        Edge::Right => (work.x + work.w - MARGIN - w, span(work.y, work.h, h)),
+        Edge::Top => (span(work.x, work.w, w), work.y),
+        Edge::Bottom => (span(work.x, work.w, w), work.y + work.h - h),
+        Edge::Left => (work.x, span(work.y, work.h, h)),
+        Edge::Right => (work.x + work.w - w, span(work.y, work.h, h)),
     };
     Rect { x, y, w, h }
 }
@@ -127,12 +137,16 @@ pub fn choose<R: Rng>(
     fallback.unwrap_or(Placement { edge: edges[0], along: 0.5 })
 }
 
+/// Ease-out cubic for the slide; a linear window move reads as a jump.
+pub fn ease(t: f64) -> f64 {
+    1.0 - (1.0 - t).powi(3)
+}
+
 /// Ease-out positions from `from` to `to` in `steps` moves (X11 stutters with many more).
 pub fn slide_path(from: Rect, to: Rect, steps: usize) -> Vec<(f64, f64)> {
     (1..=steps)
         .map(|step| {
-            let t = step as f64 / steps as f64;
-            let eased = 1.0 - (1.0 - t).powi(3);
+            let eased = ease(step as f64 / steps as f64);
             (from.x + (to.x - from.x) * eased, from.y + (to.y - from.y) * eased)
         })
         .collect()
@@ -166,14 +180,27 @@ mod tests {
         let left = Rect { x: -1280.0, y: -200.0, w: 1280.0, h: 1000.0 };
         let rect = final_rect(left, window_size(Edge::Left, 300.0), Placement { edge: Edge::Left, along: 0.3 });
         assert!(inside(rect, left));
-        assert_eq!(rect.x, -1280.0 + MARGIN);
+        assert_eq!(rect.x, -1280.0);
+    }
+
+    #[test]
+    fn tail_tip_touches_the_edge() {
+        for edge in EDGES {
+            let rect = final_rect(WORK, window_size(edge, 560.0), Placement { edge, along: 0.5 });
+            match edge {
+                Edge::Top => assert_eq!(rect.y, WORK.y),
+                Edge::Bottom => assert_eq!(rect.y + rect.h, WORK.y + WORK.h),
+                Edge::Left => assert_eq!(rect.x, WORK.x),
+                Edge::Right => assert_eq!(rect.x + rect.w, WORK.x + WORK.w),
+            }
+        }
     }
 
     #[test]
     fn height_is_clamped_to_small_screens() {
         let small = Rect { x: 0.0, y: 0.0, w: 1024.0, h: 400.0 };
         let height = clamp_height(560.0, small);
-        assert!(height + TAIL + 2.0 * MARGIN <= 400.0);
+        assert!(height + TAIL + MARGIN <= 400.0);
         assert_eq!(clamp_height(100.0, WORK), MIN_HEIGHT);
     }
 
