@@ -35,7 +35,7 @@ type Candidate = {
 
 ### 2.1 spc 侧规格：`wechat_recent`
 
-> 实现在 `/home/work/github/spc`，不在本仓库。M2 开始前必须先交付，接口按此冻结。
+> 实现在 `/home/work/github/spc`，不在本仓库，已上线。**以 [SPC_REQUIREMENTS.md](./SPC_REQUIREMENTS.md) 为准**，下面是早期草案，字段已变（`chat_id`→`peer`，`mentions_me`→`mention` + `mention_at`，去掉 `unread_hint`，新鲜度看 `archive.fresh`）。
 
 ```text
 wechat_recent(since: str, limit: int = 50) -> ChatDigest[]
@@ -80,7 +80,8 @@ wechat_recent(since: str, limit: int = 50) -> ChatDigest[]
 | 条件 | 结果 |
 |---|---|
 | `kind=dm` 且 `last_incoming.ts > last_me_at` 且距现在 2–72 小时 | `kind=unanswered`，`urgencyHint=P2`；超过 24 小时升 `P1` |
-| `kind=group` 且 `mentions_me` 且之后我没有发言且距今 ≤ 12 小时 | `kind=mention`，`urgencyHint=P1` |
+| `kind=group` 且 `mention != null`（spc 已保证是我最后发言之后的 @）且 `mention_at` 距今 ≤ 12 小时 | `kind=mention`，`urgencyHint=P1` |
+| `archive.fresh=false` | 本轮不产出 `unanswered`，`mention` 照常 |
 | 私聊 emoji/「收到」类短回复且已在 2 小时内回过 | 不产出 |
 | 会话在 `prefs.md` 的静音名单里 | 不产出 |
 
@@ -122,15 +123,15 @@ wechat_recent(since: str, limit: int = 50) -> ChatDigest[]
 
 ## 4. 记忆/承诺 probe
 
-spc `list_memories(status=open)`，取 `kind in (commitment, todo)`：
+spc `list_memories(status=open)`，取 `needs_action=true` 的记忆（字段与 kind 列表见 SPC_REQUIREMENTS.md 第 2 节；`commitment` 是我答应别人的事，`todo` 是别人等我处理的事；历史条目 `needs_action=null` 当 false）：
 
 | 条件 | 结果 |
 |---|---|
-| 正文或 frontmatter 有 `due:` 且 ≤ 24h | `kind=promise_due`，`P1` |
-| 已逾期 | `kind=promise_overdue`，`P0` |
+| `due_at` 距今 ≤ 24h | `kind=promise_due`，`P1` |
+| `due_at` 已过 | `kind=promise_overdue`，`P0` |
 | 创建超过 7 天、无 due、无进展 | 不报（避免翻旧账） |
 
-闭环：`close_memory` 后下一轮 `list_memories` 不再返回 → `done`。
+闭环：每轮 `list_memories(status=all, updated_after=上一轮, order=asc)`，看到 `done/cancelled` 即置 `done`（`closed_at` 为关闭时间）。
 
 ## 5. 候选合并与排序
 

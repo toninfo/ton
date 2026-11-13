@@ -13,6 +13,7 @@
 | [PLAN.md](./PLAN.md) | 里程碑、验收、风险、排期 | 所有人，先读 |
 | [DESIGN.md](./DESIGN.md) | 架构、状态机、数据模型、CLI 与 JSON 契约 | 核心/后端开发 |
 | [PROBES.md](./PROBES.md) | 数据源接入、候选生成、triage prompt | 核心/后端开发 |
+| [SPC_REQUIREMENTS.md](./SPC_REQUIREMENTS.md) | spc 侧需新增/增强的 MCP 工具（`wechat_recent`、`list_memories`） | spc 开发 |
 | [DESKTOP.md](./DESKTOP.md) | Tauri 桌面端：定时、窗口、托盘、X11 细节 | 桌面端开发 |
 | [TASKS.md](./TASKS.md) | 可勾选的任务清单，按里程碑分组 | 所有人 |
 
