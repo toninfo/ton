@@ -1,12 +1,12 @@
-# ton 计划（TUI-only）
+# ton 计划
 
-> 原则：**换皮 + 克制演进**。不改 agent 内核架构，不上桌面壳，不跟 ton 抢定位。  
+> 原则：**换皮 + 克制演进**。不改 agent 内核架构；主动助理另起常驻桌面壳（Tauri），不跟 ton 抢定位。  
 > 产品线背景见 [PRODUCT_LINE.md](./PRODUCT_LINE.md)。  
 > ton 已可用；ton 负责助理入口与交办 brief。
 
 ## 目标
 
-**ton：本地 TUI 万能助理**——常驻终端，能读改跑、能用技能，默认帮你把眼前事办完。
+**ton：本地万能助理**——TUI 常驻终端，能读改跑、能用技能，默认帮你把眼前事办完；另有一个常驻桌面壳负责定时探测与主动提醒。
 
 ## 已完成
 
@@ -42,9 +42,13 @@ TonHandOff { intent, brief, cwd?, permission, notes? }
 
 更深集成（拉起 ton TUI）另开任务，不塞进本轮。
 
+## Phase D — 主动助理（设计中）
+
+每约 30 分钟探测微信/禅道/承诺，由模型判断是否值得打扰，通过常驻桌面端的大口气泡推送，支持逐条批复与静默。设计与任务拆分见 [assistant/](./assistant/README.md)。
+
 ## 明确不做（当前）
 
-- Electron / Tauri 桌面壳
+- Electron 桌面壳（主动助理改用 Tauri）
 - 重写 TUI / 换 UI 框架
 - 合并 ton 引擎
 - 大规模 npm 内部包名去 Pi 化
