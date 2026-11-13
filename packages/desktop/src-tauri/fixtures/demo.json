@@ -1,0 +1,38 @@
+{
+	"items": [
+		{
+			"id": "itm_demo_p0",
+			"urgency": "P0",
+			"source": "zentao",
+			"kind": "bug_urgent",
+			"title": "Bug #101 导出 PDF 页码错乱",
+			"why": "优先级 1、指派给你，客户今天要用导出功能",
+			"context": "禅道 · 文达智校",
+			"observed_at": "",
+			"state": "reported",
+			"suggested": "open",
+			"actions": ["now", "later", "mute", "more"]
+		},
+		{
+			"id": "itm_demo_p1",
+			"urgency": "P1",
+			"source": "wechat",
+			"kind": "unanswered",
+			"title": "王老师问周五家长会能不能来",
+			"why": "私聊等你回复已经 3 小时，对方又追问了一次。这是一段故意写得很长的说明，用来检查两行截断和省略号是否正常显示，不应该把卡片撑高。",
+			"context": "私聊 · 王老师",
+			"observed_at": "",
+			"state": "reported",
+			"suggested": "draft_reply",
+			"actions": ["now", "later", "mute", "more"]
+		},
+		{
+			"id": "itm_demo_p2",
+			"urgency": "P2",
+			"source": "memory",
+			"title": "答应周五前给李四发报价",
+			"why": "",
+			"state": "reported"
+		}
+	]
+}

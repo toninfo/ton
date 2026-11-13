@@ -1,4 +1,5 @@
 import type { InlineExtension } from "../core/extensions/types.ts";
+import assistantExtension from "./assistant/index.ts";
 import codemodeExtension from "./codemode/index.ts";
 import kbExtension from "./kb/index.ts";
 import llamaExtension from "./llama/index.ts";
@@ -13,4 +14,5 @@ export const builtInExtensions: InlineExtension[] = [
 	{ name: "tool-search", factory: toolSearchExtension, replaceable: true, builtin: true },
 	{ name: "mcp", factory: mcpExtension, replaceable: true, builtin: true },
 	{ name: "kb", factory: kbExtension, replaceable: true, builtin: true },
+	{ name: "assistant", factory: assistantExtension, replaceable: true, builtin: true },
 ];

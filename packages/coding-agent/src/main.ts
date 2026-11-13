@@ -62,6 +62,7 @@ import { collectSettingsDiagnostics, deduplicateDiagnostics } from "./core/setti
 import { SettingsManager } from "./core/settings-manager.ts";
 import { printTimings, resetTimings, time } from "./core/timings.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/trust-manager.ts";
+import { loadAssistantCommand } from "./extensions/assistant/cli.lazy.ts";
 import { builtInExtensions } from "./extensions/index.ts";
 import { loadKbCommand } from "./extensions/kb/cli.lazy.ts";
 import { loadMcpCommand } from "./extensions/mcp/cli.lazy.ts";
@@ -622,6 +623,12 @@ export async function main(args: string[], options?: MainOptions) {
 	if (args[0] === "kb") {
 		const { runKbCommand } = await loadKbCommand();
 		process.exitCode = await runKbCommand(args.slice(1), { cwd, agentDir });
+		return;
+	}
+
+	if (args[0] === "assistant") {
+		const { runAssistantCommand } = await loadAssistantCommand();
+		process.exitCode = await runAssistantCommand(args.slice(1), { cwd, agentDir });
 		return;
 	}
 

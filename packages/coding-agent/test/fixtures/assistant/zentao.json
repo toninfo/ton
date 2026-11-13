@@ -1,0 +1,40 @@
+{
+	"bugs": {
+		"bugs": [
+			{
+				"id": 101,
+				"title": "导出 PDF 时页码错乱",
+				"status": "active",
+				"pri": 1,
+				"severity": 2,
+				"openedDate": "2026-11-10 09:00:00",
+				"lastEditedDate": "2026-11-12 18:00:00",
+				"assignedTo": { "account": "silen", "realname": "Silen" },
+				"steps": "<p>1. 打开文档</p><p>2. 导出 PDF</p>",
+				"productName": "文达智校"
+			},
+			{
+				"id": 102,
+				"title": "登录页文案错别字",
+				"status": "active",
+				"pri": 3,
+				"openedDate": "2026-11-13 08:00:00",
+				"assignedTo": "silen"
+			},
+			{ "id": 103, "title": "旧问题", "status": "active", "pri": 3, "openedDate": "2026-10-01 08:00:00" },
+			{ "id": 104, "title": "已解决", "status": "resolved", "pri": 1, "openedDate": "2026-11-12 08:00:00" }
+		],
+		"pager": { "recTotal": 4 },
+		"status": "success"
+	},
+	"tasks": {
+		"tasks": [
+			{ "id": 201, "name": "上线检查单", "status": "doing", "deadline": "2026-11-14", "executionName": "2.1 迭代" },
+			{ "id": 202, "name": "周报", "status": "wait", "deadline": "2026-11-12" },
+			{ "id": 203, "name": "远期规划", "status": "wait", "deadline": "2026-12-31" },
+			{ "id": 204, "name": "无截止", "status": "wait", "deadline": "0000-00-00" },
+			{ "id": 205, "name": "完成的", "status": "done", "deadline": "2026-11-13" }
+		]
+	},
+	"todos": { "todos": [] }
+}

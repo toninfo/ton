@@ -1,0 +1,97 @@
+{
+	"as_of": "2026-11-13T10:00:00+08:00",
+	"archive": { "last_sync_at": "2026-11-13T09:58:00+08:00", "fresh": true },
+	"self": { "wxid": "wxid_me", "names": ["Silen", "老刘"] },
+	"truncated": false,
+	"chats": [
+		{
+			"peer": "wxid_wang",
+			"session": "0315.03_15__wxid_wang",
+			"kind": "dm",
+			"name": "王老师",
+			"last_message_at": "2026-11-13T07:12:00+08:00",
+			"last_incoming": {
+				"ts": "2026-11-13T07:12:00+08:00",
+				"sender": "王老师",
+				"sender_id": "wxid_wang",
+				"text": "周五家长会能来吗",
+				"path": "/archive/wechat/dm/0315.03_15__wxid_wang/text/2026-11-13.md",
+				"line_no": 42
+			},
+			"last_me_at": "2026-11-12T21:03:00+08:00",
+			"incoming_since_me": 2,
+			"mention": null,
+			"recent": [
+				{ "ts": "2026-11-12T21:03:00+08:00", "sender": "Silen", "sender_id": "wxid_me", "is_me": true, "text": "好的" },
+				{ "ts": "2026-11-13T07:10:00+08:00", "sender": "王老师", "sender_id": "wxid_wang", "is_me": false, "text": "[图片]" },
+				{ "ts": "2026-11-13T07:12:00+08:00", "sender": "王老师", "sender_id": "wxid_wang", "is_me": false, "text": "周五家长会能来吗" }
+			]
+		},
+		{
+			"peer": "wxid_fresh",
+			"session": "0101__wxid_fresh",
+			"kind": "dm",
+			"name": "张三",
+			"last_message_at": "2026-11-13T09:30:00+08:00",
+			"last_incoming": { "ts": "2026-11-13T09:30:00+08:00", "sender": "张三", "is_me": false, "text": "下午有空吗" },
+			"last_me_at": "2026-11-13T09:00:00+08:00",
+			"incoming_since_me": 1,
+			"mention": null,
+			"recent": []
+		},
+		{
+			"peer": "wxid_ack",
+			"session": "0102__wxid_ack",
+			"kind": "dm",
+			"name": "李四",
+			"last_message_at": "2026-11-13T06:00:00+08:00",
+			"last_incoming": { "ts": "2026-11-13T06:00:00+08:00", "sender": "李四", "is_me": false, "text": "收到！" },
+			"last_me_at": "2026-11-13T05:50:00+08:00",
+			"incoming_since_me": 1,
+			"mention": null,
+			"recent": [
+				{ "ts": "2026-11-13T05:50:00+08:00", "sender": "Silen", "is_me": true, "text": "文件发你了" },
+				{ "ts": "2026-11-13T06:00:00+08:00", "sender": "李四", "is_me": false, "text": "收到！" }
+			]
+		},
+		{
+			"peer": "wxid_replied",
+			"session": "0103__wxid_replied",
+			"kind": "dm",
+			"name": "赵六",
+			"last_message_at": "2026-11-13T08:00:00+08:00",
+			"last_incoming": { "ts": "2026-11-13T06:00:00+08:00", "sender": "赵六", "is_me": false, "text": "方案看了吗" },
+			"last_me_at": "2026-11-13T08:00:00+08:00",
+			"incoming_since_me": 0,
+			"mention": null,
+			"recent": []
+		},
+		{
+			"peer": "1234@chatroom",
+			"session": "group__1234_at_chatroom",
+			"kind": "group",
+			"name": "项目群",
+			"last_message_at": "2026-11-13T09:40:00+08:00",
+			"last_incoming": { "ts": "2026-11-13T09:40:00+08:00", "sender": "杨雷", "is_me": false, "text": "好的" },
+			"last_me_at": "2026-11-12T18:00:00+08:00",
+			"incoming_since_me": 5,
+			"mention": "me",
+			"recent": [
+				{ "ts": "2026-11-13T09:20:00+08:00", "sender": "杨雷", "is_me": false, "text": "@Silen 融讯社能升国元 UAT 了吗" },
+				{ "ts": "2026-11-13T09:40:00+08:00", "sender": "杨雷", "is_me": false, "text": "好的" }
+			]
+		},
+		{
+			"peer": "5678@chatroom",
+			"session": "group__5678_at_chatroom",
+			"kind": "group",
+			"name": "闲聊群",
+			"last_message_at": "2026-11-13T09:50:00+08:00",
+			"last_incoming": { "ts": "2026-11-13T09:50:00+08:00", "sender": "某人", "is_me": false, "text": "午饭吃啥" },
+			"last_me_at": null,
+			"incoming_since_me": 30,
+			"mention": null,
+			"recent": []
+		}
+	]
+}

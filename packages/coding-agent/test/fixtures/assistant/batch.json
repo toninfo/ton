@@ -1,0 +1,37 @@
+{
+	"fresh": true,
+	"items": [
+		{
+			"source": "wechat",
+			"kind": "unanswered",
+			"urgency": "P1",
+			"title": "王老师问周五家长会能不能到",
+			"why": "3 小时前发的，明天上午截止，你还没回",
+			"context": "私聊 · 王老师",
+			"suggested": "draft_reply",
+			"payload": {
+				"name": "王老师",
+				"recent": [{ "ts": "2026-11-13T07:12:00+08:00", "sender": "王老师", "is_me": false, "text": "周五家长会能来吗" }]
+			}
+		},
+		{
+			"source": "zentao",
+			"kind": "bug_urgent",
+			"urgency": "P0",
+			"title": "Bug #101 导出 PDF 时页码错乱",
+			"why": "优先级 1，指派给你 3 天未处理",
+			"context": "禅道 Bug · 文达智校",
+			"suggested": "open",
+			"payload": { "type": "bug", "id": 101, "title": "导出 PDF 时页码错乱", "status": "active", "pri": 1 }
+		},
+		{
+			"source": "memory",
+			"kind": "promise_due",
+			"urgency": "P2",
+			"title": "答应周五前给国元出 UAT 版本，这是一条故意写得很长的标题用来测试折行",
+			"why": "明天到期；你在项目群里答应的，到现在还没有看到版本发布记录，建议今天确认一下进度",
+			"context": "承诺/记忆 · 项目群",
+			"suggested": "todo"
+		}
+	]
+}

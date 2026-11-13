@@ -1,0 +1,21 @@
+# Optional fallback autostart for ton-desktop (the tray's 开机自启 is the normal way).
+#
+#   install -Dm644 ton-desktop.service ~/.config/systemd/user/ton-desktop.service
+#   systemctl --user daemon-reload && systemctl --user enable --now ton-desktop.service
+#
+# XFCE does not always start graphical-session.target; if the unit never starts, add this to
+# 会话和启动 → 应用程序自启动:  systemctl --user import-environment DISPLAY XAUTHORITY && systemctl --user start ton-desktop
+# A second instance just opens the panel, so running both autostart paths is harmless.
+
+[Unit]
+Description=ton proactive assistant desktop shell
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/ton-desktop --hidden
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=graphical-session.target

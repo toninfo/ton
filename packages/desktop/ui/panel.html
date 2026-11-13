@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>ton 主动助理</title>
+		<link rel="stylesheet" href="panel.css" />
+		<script type="module" src="panel.js"></script>
+	</head>
+	<body>
+		<header class="top">
+			<h1>ton 主动助理</h1>
+			<span id="summary"></span>
+			<span class="spacer"></span>
+			<button id="tick">现在探测</button>
+			<button id="pause-1h">暂停 1 小时</button>
+			<button id="pause-today">暂停今天</button>
+			<button id="resume" hidden>恢复</button>
+		</header>
+		<nav id="tabs">
+			<button data-tab="inbox">待处理</button>
+			<button data-tab="quiet">稍后 / 已静默</button>
+			<button data-tab="history">历史</button>
+			<button data-tab="runs">决策日志</button>
+			<button data-tab="settings">状态与偏好</button>
+		</nav>
+		<main id="content"></main>
+		<div id="toast" hidden></div>
+	</body>
+</html>
