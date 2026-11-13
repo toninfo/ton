@@ -144,13 +144,12 @@ import { CustomEditor } from "./components/custom-editor.ts";
 import { CustomEntryComponent } from "./components/custom-entry.ts";
 import { CustomMessageComponent } from "./components/custom-message.ts";
 import { DynamicBorder } from "./components/dynamic-border.ts";
-import { EarendilAnnouncementComponent } from "./components/earendil-announcement.ts";
-import { playArmin3d, playPiLogo3d } from "./components/easter-egg-3d.lazy.ts";
+import { playArmin3d, playTonLogo3d } from "./components/easter-egg-3d.lazy.ts";
 import { ExtensionEditorComponent } from "./components/extension-editor.ts";
 import { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
 import { FooterComponent, formatTokens } from "./components/footer.ts";
-import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
+import { formatKeyText, keyDisplayText, keyText } from "./components/keybinding-hints.ts";
 import { LoginDialogComponent } from "./components/login-dialog.ts";
 import { createMermaidMarkdownTransformer } from "./components/mermaid.ts";
 import { ModelSelectorComponent } from "./components/model-selector.ts";
@@ -160,7 +159,6 @@ import {
 	formatAuthSelectorProviderType,
 	OAuthSelectorComponent,
 } from "./components/oauth-selector.ts";
-import { piLogoLines, piWordmark, supportsPiLogo } from "./components/pi-logo.ts";
 import { createLoginMenuSelector } from "./components/radius-login-selector.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
@@ -176,6 +174,7 @@ import {
 } from "./components/status-indicator.ts";
 import { ThemedText } from "./components/themed-text.ts";
 import { ThinkingSelectorComponent } from "./components/thinking-selector.ts";
+import { tonLogoText } from "./components/ton-logo.ts";
 import { ToolExecutionComponent } from "./components/tool-execution.ts";
 import { TreeSelectorComponent } from "./components/tree-selector.ts";
 import { TrustSelectorComponent } from "./components/trust-selector.ts";
@@ -253,12 +252,12 @@ class ExpandableText extends ThemedText implements Expandable {
 	}
 }
 
-/** The built-in header. Clicking its logo (the first two lines, after one column of padding) plays an easter egg. */
+/** The built-in header. Clicking the wordmark (first line, first three cells) plays an easter egg. */
 class BuiltInHeader extends ExpandableText {
 	onLogoClick: ((column: number, row: number) => void) | undefined;
 
 	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-		if (event.type !== "click" || event.y > 1 || event.x < 1 || event.x > 4 || !this.onLogoClick) return undefined;
+		if (event.type !== "click" || event.y > 1 || event.x < 1 || event.x > 3 || !this.onLogoClick) return undefined;
 		this.onLogoClick(event.screenX - event.x + 1, event.screenY - event.y);
 		return { handled: true };
 	}
@@ -368,7 +367,7 @@ type LoginProviderCompletionOption = {
 	subscription?: boolean;
 };
 
-const RADIUS_LOGIN_INTRO = "Radius is a service crafted for Pi by the builders of Pi, Earendil Works";
+const RADIUS_LOGIN_INTRO = "Radius is a service crafted for Ton by Earendil Works";
 
 const AUTH_TYPE_ORDER = { oauth: 0, api_key: 1 } satisfies Record<AuthSelectorProvider["authType"], number>;
 
@@ -1005,70 +1004,14 @@ export class InteractiveMode {
 		// reported its colors. This ends at the terminal's DA1 reply, or after 100 ms if it answers nothing.
 		await this.themeController.waitForTerminalColors();
 
-		// Add header with keybindings from config (unless silenced)
+		// Add the wordmark header (unless silenced). Startup hints stay out of the way: /hotkeys lists
+		// every shortcut, and the loaded-resources sections still expand with the tools key.
 		if (this.shouldShowStartupHeader()) {
-			const showDetails = this.shouldShowStartupDetails();
-			// Built on demand so the header follows theme changes. The logo's first line carries the version,
-			// its second line the first line of key hints. Terminals that cannot render the logo get a
-			// "Pi vX" line instead, with the key hints below it.
-			const showLogo = supportsPiLogo();
-			const withLogo = (hints: string) => {
-				if (!showLogo) return `${piWordmark()} ${theme.fg("dim", `v${this.version}`)}\n${hints}`;
-				const [top, bottom] = piLogoLines();
-				return `${top} ${theme.fg("dim", `v${this.version}`)}\n${bottom} ${hints}`;
-			};
-
-			// Build startup instructions using keybinding hint helpers
-			const hint = (keybinding: AppKeybinding, description: string) => keyHint(keybinding, description);
-
-			const expandedInstructions = () =>
-				[
-					hint("app.interrupt", "to interrupt"),
-					hint("app.clear", "to clear"),
-					rawKeyHint(`${keyText("app.clear")} twice`, "to exit"),
-					hint("app.exit", "to exit (empty)"),
-					hint("app.suspend", "to suspend"),
-					keyHint("tui.editor.deleteToLineEnd", "to delete to end"),
-					hint("app.thinking.cycle", "to cycle thinking level"),
-					rawKeyHint(
-						`${keyText("app.model.cycleForward")}/${keyText("app.model.cycleBackward")}`,
-						"to cycle models",
-					),
-					hint("app.model.select", "to select model"),
-					hint("app.tools.expand", "to expand tools"),
-					hint("app.thinking.toggle", "to expand thinking"),
-					hint("app.editor.external", "for external editor"),
-					rawKeyHint("/", "for commands"),
-					rawKeyHint("!", "to run bash"),
-					rawKeyHint("!!", "to run bash (no context)"),
-					hint("app.message.followUp", "to queue follow-up"),
-					hint("app.message.dequeue", "to edit all queued messages"),
-					hint("app.clipboard.pasteImage", "to paste files on macOS, images, or text"),
-					rawKeyHint("drop files", "to attach"),
-				].join("\n");
-			const compactInstructions = () =>
-				[
-					hint("app.interrupt", "interrupt"),
-					rawKeyHint(`${keyText("app.clear")}/${keyText("app.exit")}`, "clear/exit"),
-					rawKeyHint("/", "commands"),
-					rawKeyHint("!", "bash"),
-					hint("app.tools.expand", "more"),
-				].join(theme.fg("muted", " · "));
-			const compactOnboarding = () =>
-				theme.fg(
-					"dim",
-					`Press ${keyText("app.tools.expand")} to show full startup help${showDetails ? " and loaded resources" : ""}.`,
-				);
 			const onboarding = () =>
-				theme.fg("dim", `Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.`);
-			const header = new BuiltInHeader(
-				() => `${withLogo(compactInstructions())}\n${compactOnboarding()}\n\n${onboarding()}`,
-				() => `${withLogo(expandedInstructions())}\n\n${onboarding()}`,
-				this.getStartupExpansionState(),
-				1,
-				0,
-			);
-			if (showLogo) header.onLogoClick = (column, row) => playPiLogo3d(this.renderer, column, row);
+				theme.fg("dim", `Ton can explain its own features and look up its docs. Ask it how to use or extend Ton.`);
+			const headerText = () => `${tonLogoText()} ${theme.fg("dim", `v${this.version}`)}\n\n${onboarding()}`;
+			const header = new BuiltInHeader(headerText, headerText, this.getStartupExpansionState(), 1, 0);
+			header.onLogoClick = (column, row) => playTonLogo3d(this.renderer, column, row);
 			this.builtInHeader = header;
 
 			// Setup UI layout
@@ -1319,7 +1262,7 @@ export class InteractiveMode {
 		}
 
 		if (extendedKeysFormat === "xterm") {
-			return "tmux extended-keys-format is xterm. Pi works best with csi-u. Add `set -g extended-keys-format csi-u` to ~/.tmux.conf and restart tmux.";
+			return "tmux extended-keys-format is xterm. Ton works best with csi-u. Add `set -g extended-keys-format csi-u` to ~/.tmux.conf and restart tmux.";
 		}
 
 		return undefined;
@@ -1868,20 +1811,6 @@ export class InteractiveMode {
 						{ sort: false },
 					);
 				addLoadedSection("Context", contextCompactList, contextList);
-			}
-
-			const skills = skillsResult.skills;
-			if (skills.length > 0) {
-				const groups = this.buildScopeGroups(
-					skills.map((skill) => ({ path: skill.filePath, sourceInfo: skill.sourceInfo })),
-				);
-				const skillList = () =>
-					this.formatScopeGroups(groups, {
-						formatPath: (item) => this.formatDisplayPath(item.path),
-						formatPackagePath: (item) => this.getShortPath(item.path, item.sourceInfo),
-					});
-				const skillCompactList = () => formatCompactList(skills.map((skill) => skill.name));
-				addLoadedSection("Skills", skillCompactList, skillList);
 			}
 
 			const templates = this.session.promptTemplates;
@@ -3268,6 +3197,11 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
+			if (text === "/skills") {
+				this.handleSkillsCommand();
+				this.editor.setText("");
+				return;
+			}
 			if (text === "/changelog") {
 				this.handleChangelogCommand();
 				this.editor.setText("");
@@ -3332,11 +3266,6 @@ export class InteractiveMode {
 			}
 			if (text === "/arminsayshi") {
 				this.handleArminSaysHi();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/dementedelves") {
-				this.handleDementedDelves();
 				this.editor.setText("");
 				return;
 			}
@@ -4581,7 +4510,6 @@ export class InteractiveMode {
 				}
 			}
 		}
-		this.showStatus(`Tool output: ${expanded ? "expanded" : "collapsed"}`);
 	}
 
 	/** Update rendered assistant messages without rebuilding live tool components. */
@@ -4644,7 +4572,7 @@ export class InteractiveMode {
 		const updateInstruction = () =>
 			theme.fg("muted", `New version ${release.version} is available. Run `) +
 			theme.fg("accent", `${APP_NAME} update`);
-		const changelogUrl = "https://pi.dev/changelog";
+		const changelogUrl = "https://github.com/toninfo/ton/releases";
 		const changelogLine = () => {
 			const changelogLink = getCapabilities().hyperlinks
 				? hyperlink(theme.fg("accent", changelogUrl), changelogUrl)
@@ -6779,6 +6707,36 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
+	private handleSkillsCommand(): void {
+		const skills = this.session.resourceLoader.getSkills().skills;
+		const skillByPath = new Map(skills.map((skill) => [skill.filePath, skill]));
+		const groups = this.buildScopeGroups(
+			skills.map((skill) => ({ path: skill.filePath, sourceInfo: skill.sourceInfo })),
+		);
+		const renderSkills = (): string => {
+			const heading = `${theme.bold("Skills")} ${theme.fg("dim", `(${skills.length})`)}`;
+			if (skills.length === 0) {
+				return `${heading}\n\n${theme.fg("dim", "No skills loaded.")}`;
+			}
+			const list = this.formatScopeGroups(groups, {
+				formatPath: (item) => {
+					const skill = skillByPath.get(item.path);
+					const displayPath = this.formatDisplayPath(item.path);
+					return skill ? `${skill.name}  ${displayPath}` : displayPath;
+				},
+				formatPackagePath: (item) => {
+					const skill = skillByPath.get(item.path);
+					const shortPath = this.getShortPath(item.path, item.sourceInfo);
+					return skill ? `${skill.name}  ${shortPath}` : shortPath;
+				},
+			});
+			return `${heading}\n\n${list}`;
+		};
+		this.chatContainer.addChild(new Spacer(1));
+		this.chatContainer.addChild(new ThemedText(renderSkills, 1, 0));
+		this.ui.requestRender();
+	}
+
 	private handleChangelogCommand(): void {
 		const changelogPath = getChangelogPath();
 		const allEntries = parseChangelog(changelogPath);
@@ -6983,12 +6941,6 @@ export class InteractiveMode {
 		if (playArmin3d(this.renderer)) return;
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new ArminComponent(this.ui));
-		this.ui.requestRender();
-	}
-
-	private handleDementedDelves(): void {
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new EarendilAnnouncementComponent());
 		this.ui.requestRender();
 	}
 

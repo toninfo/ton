@@ -12,7 +12,7 @@ import { getSettingsPath } from "./paths.ts";
 import { loadAssistantService } from "./service.lazy.ts";
 import type { AssistantService } from "./service.ts";
 import { relativeZh } from "./time.ts";
-import { ACK_STATES, type AckState, type ItemView } from "./types.ts";
+import { ACK_STATES, type AckState, type ItemView, type TickOutput } from "./types.ts";
 
 export interface AssistantExtensionOptions {
 	/** Defaults to getAgentDir() */
@@ -42,6 +42,13 @@ async function withService<T>(
 	} finally {
 		await service.close();
 	}
+}
+
+function formatTick(output: TickOutput): string {
+	const head = `探测 #${output.run_id}：${output.decision === "report" ? "上报" : "静默"}（${output.reason}）· 待处理 ${output.pending}`;
+	const items = (output.batch?.items ?? []).map((item, index) => `${index + 1}. [${item.urgency}] ${item.title}`);
+	const degraded = output.degraded.length > 0 ? [`降级：${output.degraded.join("、")}`] : [];
+	return [head, ...items, ...degraded].join("\n");
 }
 
 function formatItems(items: readonly ItemView[], now: Date): string {
@@ -184,6 +191,17 @@ export function createAssistantExtension(options: AssistantExtensionOptions = {}
 		if (existsSync(getSettingsPath(agentDir))) {
 			for (const tool of createToolDefinitions(agentDir)) pi.registerTool(tool);
 		}
+
+		pi.registerCommand("tick", {
+			description: "Run one assistant probe round now (same as the desktop tray '现在探测')",
+			handler: async (_args, ctx) => {
+				ctx.ui.notify("已开始探测，完成后会提示结果…", "info");
+				void withService(agentDir, ctx.cwd, (service) => service.tick("tui", new Date())).then(
+					(output) => ctx.ui.notify(formatTick(output), output.exit_code === 0 ? "info" : "warning"),
+					(error: unknown) => ctx.ui.notify(error instanceof Error ? error.message : String(error), "error"),
+				);
+			},
+		});
 
 		pi.registerCommand("inbox", {
 			description: "Proactive assistant inbox: list, done/later/mute/undo <n>",

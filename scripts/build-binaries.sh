@@ -146,8 +146,6 @@ for platform in "${PLATFORMS[@]}"; do
     cp ../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm "$OUTPUT_DIR/$platform/"
     mkdir -p "$OUTPUT_DIR/$platform/theme"
     cp dist/modes/interactive/theme/*.json "$OUTPUT_DIR/$platform/theme/"
-    mkdir -p "$OUTPUT_DIR/$platform/assets"
-    cp dist/modes/interactive/assets/* "$OUTPUT_DIR/$platform/assets/"
     cp -r dist/core/export-html "$OUTPUT_DIR/$platform/"
     # Bun 单文件旁路：ton settings 读 getPackageDir()/settings-web/index.html
     mkdir -p "$OUTPUT_DIR/$platform/settings-web"
@@ -158,6 +156,13 @@ for platform in "${PLATFORMS[@]}"; do
     fi
     if [[ ! -f "$OUTPUT_DIR/$platform/settings-web/index.html" ]]; then
         echo "error: missing settings-web/index.html for $platform (ton settings would fail)" >&2
+        exit 1
+    fi
+    # KB 内置 skill：resources_discover 从 getPackageDir()/extensions/kb/skills/kb 读 SKILL.md
+    mkdir -p "$OUTPUT_DIR/$platform/extensions/kb/skills/kb"
+    cp dist/extensions/kb/skills/kb/SKILL.md "$OUTPUT_DIR/$platform/extensions/kb/skills/kb/"
+    if [[ ! -f "$OUTPUT_DIR/$platform/extensions/kb/skills/kb/SKILL.md" ]]; then
+        echo "error: missing extensions/kb/skills/kb/SKILL.md for $platform (/skill:kb would warn)" >&2
         exit 1
     fi
     cp -r docs "$OUTPUT_DIR/$platform/"

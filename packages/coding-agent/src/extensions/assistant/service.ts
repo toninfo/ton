@@ -1,12 +1,13 @@
 import { type ActionResult, runAction } from "./actions.ts";
 import { createMcpCaller, type McpCaller } from "./mcp.ts";
 import { createModelCompleter } from "./model.ts";
+import { mcpFetcher } from "./probe/index.ts";
 import { appendPref, loadSettings, readPrefs } from "./settings.ts";
 import { type Actor, AssistantStore, type EventRow, type RunRow } from "./store.ts";
-import { pausedUntil, setPause } from "./tick.ts";
+import { pausedUntil, runTick, setPause } from "./tick.ts";
 import { DAY, formatLocalIso, inQuietHours, parseDuration, startOfLocalDay, toOutput, toStored } from "./time.ts";
 import type { Completer } from "./triage.ts";
-import type { AckState, ActionKind, AssistantSettings, ItemRow, ItemState, ItemView } from "./types.ts";
+import type { AckState, ActionKind, AssistantSettings, ItemRow, ItemState, ItemView, TickOutput } from "./types.ts";
 import { toView } from "./view.ts";
 
 export interface ServiceOptions {
@@ -94,6 +95,19 @@ export class AssistantService {
 
 	history(limit: number): ItemView[] {
 		return this.store.listHistory(limit).map(toView);
+	}
+
+	/** One probe/triage round: the same work the desktop shell runs on its timer and "现在探测". */
+	async tick(trigger: string, now: Date): Promise<TickOutput> {
+		return runTick({
+			agentDir: this.agentDir,
+			store: this.store,
+			settings: this.settings,
+			now,
+			trigger,
+			fetch: mcpFetcher(this.mcp(), this.settings, now),
+			completer: () => this.getCompleter(),
+		});
 	}
 
 	async ack(ref: string, options: AckOptions): Promise<{ item: ItemView; changed: boolean; note?: string }> {

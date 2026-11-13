@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- 新增 `/skills`：列出已加载的技能，按 user/project/path 分组显示名称与路径；启动页不再展示 `[Skills]` 列表。
+- 新增 `/tick`：在 TUI 里立即跑一轮主动探测，等同桌面托盘菜单的「现在探测」；探测在后台执行，完成后用通知显示上报/静默、条数与降级来源。
+
+### Changed
+
+- 启动头部的图标改为 "Ton" 文本标，每个字母一色：T 用 TON 标志红 #B7151F、o 珊瑚色 #E48A7A、n 黄色 #EAB65D（粗体），不再使用多色像素 "T"；3D logo 彩蛋仍从原 4×4 像素网格建模。
+- 启动页的 `[Skills]` 区块已移除，需要查看时用 `/skills` 命令。
+- 启动头部只保留 "Ton" 文本标、版本号和一句 "Ton can explain ..."：不再显示按键提示与 "Press ctrl+o ..." 行；Ctrl+O 切换工具输出时也不再打印状态消息。
+- 界面文案从 Pi 切换为 Ton：启动提示、外部编辑器提示、会话分享标题、首次设置与 bug 反馈文案、主题 schema 标题、系统提示词里的产品自称。
+
+### Fixed
+
+- 发布包补上 `extensions/kb/skills/kb/SKILL.md`；缺这个文件时启动会报 `[Skill conflicts] ... skill path does not exist`。
+
+### Removed
+
+- 删除隐藏彩蛋 `/dementedelves`（上游 "pi has joined Earendil" 公告组件及其图片）。
+
 ## [1.1.5] - 2026-10-28
 
 ### Fixed

@@ -164,7 +164,7 @@ describe("InteractiveMode.setToolsExpanded", () => {
 		expect(header.setExpanded).toHaveBeenCalledWith(true);
 		expect(loadedResourcesChild.setExpanded).toHaveBeenCalledWith(true);
 		expect(chatChild.setExpanded).toHaveBeenCalledWith(true);
-		expect(fakeThis.showStatus).toHaveBeenCalledWith("Tool output: expanded");
+		expect(fakeThis.showStatus).not.toHaveBeenCalled();
 	});
 });
 
@@ -712,7 +712,7 @@ describe("InteractiveMode.showLoadedResources", () => {
 	test("shows a compact resource listing by default", () => {
 		const fakeThis = createShowLoadedResourcesThis({
 			quietStartup: false,
-			skills: [{ filePath: "/tmp/skill/SKILL.md", name: "commit" }],
+			extensions: [{ path: "/tmp/extensions/answer.ts" }],
 		});
 
 		(InteractiveMode as any).prototype.showLoadedResources.call(fakeThis, {
@@ -720,8 +720,8 @@ describe("InteractiveMode.showLoadedResources", () => {
 		});
 
 		const output = renderAll(fakeThis.loadedResourcesContainer);
-		expect(output).toContain("[Skills]");
-		expect(output).toContain("commit");
+		expect(output).toContain("[Extensions]");
+		expect(output).toContain("answer.ts");
 		expect(output).not.toContain("resource-list");
 	});
 
@@ -729,7 +729,7 @@ describe("InteractiveMode.showLoadedResources", () => {
 		const fakeThis = createShowLoadedResourcesThis({
 			quietStartup: false,
 			toolOutputExpanded: true,
-			skills: [{ filePath: "/tmp/skill/SKILL.md", name: "commit" }],
+			extensions: [{ path: "/tmp/extensions/answer.ts" }],
 		});
 
 		(InteractiveMode as any).prototype.showLoadedResources.call(fakeThis, {
@@ -737,9 +737,9 @@ describe("InteractiveMode.showLoadedResources", () => {
 		});
 
 		const output = renderAll(fakeThis.loadedResourcesContainer);
-		expect(output).toContain("[Skills]");
+		expect(output).toContain("[Extensions]");
 		expect(output).toContain("resource-list");
-		expect(output).not.toContain("commit");
+		expect(output).not.toContain("answer.ts");
 	});
 
 	test("shows full resource listing on verbose startup even when tool output is collapsed", () => {
@@ -747,6 +747,22 @@ describe("InteractiveMode.showLoadedResources", () => {
 			quietStartup: true,
 			verbose: true,
 			toolOutputExpanded: false,
+			extensions: [{ path: "/tmp/extensions/answer.ts" }],
+		});
+
+		(InteractiveMode as any).prototype.showLoadedResources.call(fakeThis, {
+			force: false,
+		});
+
+		const output = renderAll(fakeThis.loadedResourcesContainer);
+		expect(output).toContain("[Extensions]");
+		expect(output).toContain("resource-list");
+		expect(output).not.toContain("answer.ts");
+	});
+
+	test("does not list skills in the startup resource listing", () => {
+		const fakeThis = createShowLoadedResourcesThis({
+			quietStartup: false,
 			skills: [{ filePath: "/tmp/skill/SKILL.md", name: "commit" }],
 		});
 
@@ -755,9 +771,27 @@ describe("InteractiveMode.showLoadedResources", () => {
 		});
 
 		const output = renderAll(fakeThis.loadedResourcesContainer);
-		expect(output).toContain("[Skills]");
-		expect(output).toContain("resource-list");
+		expect(output).not.toContain("[Skills]");
 		expect(output).not.toContain("commit");
+	});
+
+	test("skills command lists loaded skills with names and paths", () => {
+		const fakeThis = createShowLoadedResourcesThis({
+			quietStartup: false,
+			skills: [
+				{ filePath: "/tmp/skill/SKILL.md", name: "commit" },
+				{ filePath: "/tmp/other/OTHER.md", name: "review" },
+			],
+			useRealScopeGroups: true,
+		});
+		fakeThis.ui = { requestRender: () => {} };
+
+		(InteractiveMode as any).prototype.handleSkillsCommand.call(fakeThis);
+
+		const output = normalizeRenderedOutput(fakeThis.chatContainer);
+		expect(output).toContain("Skills (2)");
+		expect(output).toContain("commit  /tmp/skill/SKILL.md");
+		expect(output).toContain("review  /tmp/other/OTHER.md");
 	});
 
 	test("abbreviates extensions in compact listing", () => {
