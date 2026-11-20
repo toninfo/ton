@@ -1,0 +1,55 @@
+node_modules/
+dist/
+.artifacts/
+*.log
+.DS_Store
+*.tsbuildinfo
+
+# 本地 monorepo 启动脚本（产品安装用 install.sh / install.ps1）
+/ton-test.sh
+/ton-test.ps1
+/ton-test.bat
+/pi-test.sh
+/pi-test.ps1
+/pi-test.bat
+# packages/*/node_modules/
+packages/*/dist/
+packages/*/dist-chrome/
+packages/*/dist-firefox/
+packages/ai/src/providers/data/
+packages/ai/src/providers/.model-generation-*/
+*.cpuprofile
+
+# Environment
+.env
+
+# Editor files
+.vscode/
+.zed/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Package specific
+.npm/
+coverage/
+.nyc_output/
+.pi_config/
+tui-debug.log
+compaction-results/
+.opencode/
+syntax.jsonl
+out.jsonl
+pi-*.html
+out.html
+packages/coding-agent/binaries/
+packages/env/bin/
+packages/env/daemon/target/
+todo.md
+plans/
+.pi/hf-sessions/
+.pi/hf-sessions-backup/
+collect.sh
+packages/agent/docs/extensions/pi-server-artifact/index.md
