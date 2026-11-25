@@ -1,0 +1,183 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/toninfo/ton/docs/assistant/schemas/ton-assistant-items.v1.response.schema.json",
+	"title": "ton_assistant_items v1 response",
+	"description": "Snapshot returned by the ton assistant data source contract tool. See ../CONTRACT.md.",
+	"type": "object",
+	"required": ["schema", "as_of", "scope", "items"],
+	"properties": {
+		"schema": {
+			"const": 1
+		},
+		"as_of": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"scope": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/scope"
+			}
+		},
+		"items": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/item"
+			}
+		}
+	},
+	"$defs": {
+		"timestamp": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"scope": {
+			"type": "object",
+			"required": ["stream", "complete", "fresh"],
+			"properties": {
+				"stream": {
+					"type": "string",
+					"minLength": 1
+				},
+				"complete": {
+					"type": "boolean"
+				},
+				"fresh": {
+					"type": "boolean"
+				},
+				"reason": {
+					"type": ["string", "null"]
+				}
+			}
+		},
+		"reply": {
+			"type": "object",
+			"required": ["last_incoming_at"],
+			"properties": {
+				"last_incoming_at": {
+					"$ref": "#/$defs/timestamp"
+				},
+				"last_me_at": {
+					"type": ["string", "null"],
+					"format": "date-time"
+				},
+				"sender": {
+					"type": "string"
+				},
+				"text": {
+					"type": "string",
+					"maxLength": 500
+				},
+				"mention": {
+					"enum": ["me", "all", null]
+				},
+				"pending": {
+					"type": "array",
+					"maxItems": 20,
+					"items": {
+						"type": "object",
+						"required": ["ts"],
+						"properties": {
+							"ts": {
+								"$ref": "#/$defs/timestamp"
+							},
+							"sender": {
+								"type": "string"
+							},
+							"text": {
+								"type": "string",
+								"maxLength": 500
+							}
+						}
+					}
+				}
+			}
+		},
+		"remind": {
+			"type": "object",
+			"properties": {
+				"before_hours": {
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"every_hours": {
+					"type": "number",
+					"exclusiveMinimum": 0
+				}
+			}
+		},
+		"doc": {
+			"type": "object",
+			"properties": {
+				"from": {
+					"type": "string"
+				},
+				"automated": {
+					"type": "boolean"
+				}
+			}
+		},
+		"item": {
+			"type": "object",
+			"required": ["id", "stream", "title", "observed_at"],
+			"properties": {
+				"id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"stream": {
+					"type": "string",
+					"minLength": 1
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"context": {
+					"type": "string",
+					"maxLength": 500
+				},
+				"observed_at": {
+					"$ref": "#/$defs/timestamp"
+				},
+				"due_at": {
+					"type": ["string", "null"],
+					"format": "date-time"
+				},
+				"expires_at": {
+					"type": ["string", "null"],
+					"format": "date-time"
+				},
+				"priority": {
+					"enum": ["P0", "P1", "P2", "P3", null]
+				},
+				"remind": {
+					"$ref": "#/$defs/remind"
+				},
+				"url": {
+					"type": ["string", "null"]
+				},
+				"refs": {
+					"type": "object",
+					"additionalProperties": {
+						"type": ["string", "number"]
+					}
+				},
+				"repeat_key": {
+					"type": ["string", "null"]
+				},
+				"reply": {
+					"$ref": "#/$defs/reply"
+				},
+				"doc": {
+					"$ref": "#/$defs/doc"
+				},
+				"attrs": {
+					"type": "object"
+				}
+			}
+		}
+	}
+}

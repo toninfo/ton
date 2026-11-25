@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title data-i18n="ta.meta.title">Ton — a real personal assistant</title>
+    <meta
+      name="description"
+      data-i18n-content="ta.meta.description"
+      content="Ton keeps what you entrust to him and brings it back when you ask."
+    />
+    <meta name="theme-color" content="#121212" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="../assets/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="../assets/favicon-48.png" sizes="48x48" />
+    <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png" />
+    <meta property="og:image" content="https://ton.ren/assets/preview.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://ton.ren/assets/preview.png" />
+    <link rel="stylesheet" href="../css/styles.css?v=extras49" />
+  </head>
+  <body data-page="app">
+    <div class="page page-app">
+      <header class="ton-header">
+        <nav class="ton-nav">
+          <div class="ton-nav-left">
+            <a class="ton-logo" href="../" aria-label="Ton">
+              <img
+                class="ton-logo-mark"
+                src="../assets/logo-64.png"
+                width="28"
+                height="28"
+                alt=""
+                decoding="async"
+              />
+            </a>
+          </div>
+          <div class="ton-nav-right">
+            <a
+              class="ton-nav-link ton-desktop-only"
+              href="https://github.com/toninfo/ton/blob/main/packages/coding-agent/docs/kb.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-i18n="nav.docs"
+              >Docs</a
+            >
+            <a
+              class="ton-nav-link ton-desktop-only"
+              href="https://github.com/toninfo/ton"
+              target="_blank"
+              rel="noopener noreferrer"
+              >GitHub</a
+            >
+            <div class="lang-switch" id="langSwitch">
+              <button
+                class="lang-btn"
+                type="button"
+                id="langBtn"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                data-i18n-aria-label="lang.aria"
+                aria-label="Language"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <div class="lang-menu" id="langMenu" role="listbox" hidden>
+                <button type="button" role="option" data-lang="en" class="active" aria-selected="true">
+                  <span>English</span>
+                  <svg class="lang-check" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M3.5 8.5l3 3 6-7"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button type="button" role="option" data-lang="zh" aria-selected="false">
+                  <span>简体中文</span>
+                  <svg class="lang-check" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M3.5 8.5l3 3 6-7"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <button
+              class="ton-mobile-menu-btn ton-mobile-only"
+              type="button"
+              id="menuBtn"
+              data-i18n-aria-label="nav.menu"
+              aria-label="Menu"
+              aria-expanded="false"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 7h16M4 12h16M4 17h16"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+            <div class="ton-mobile-panel" id="mobilePanel" hidden>
+              <a href="./" aria-current="page">Ton</a>
+              <a href="#why" data-i18n="ta.hero.see">Why Ton →</a>
+              <a href="#app" data-i18n="ta.nav.app">TUI</a>
+              <a href="#install" data-i18n="ta.nav.install">Install</a>
+              <a
+                href="https://github.com/toninfo/ton/blob/main/packages/coding-agent/docs/kb.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="nav.docs"
+                >Docs</a
+              >
+              <a
+                href="https://github.com/toninfo/ton/blob/main/packages/coding-agent/docs/kb.zh-CN.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="ta.footer.kb"
+                >Knowledge base</a
+              >
+              <a href="https://github.com/toninfo/ton" target="_blank" rel="noopener noreferrer">GitHub</a>
+            </div>
+          </div>
+        </nav>
+      </header>
+
+      <!-- Hero -->
+      <section class="tw-hero ta-hero">
+        <div class="hero-glow ta-hero-glow" aria-hidden="true"></div>
+        <div class="tw-hero-inner">
+          <h1 class="tw-hero-title">
+            <span class="sr-only">Ton</span>
+            <svg
+              class="ton-wordmark"
+              viewBox="0 0 140 40"
+              aria-hidden="true"
+              focusable="false"
+              fill="currentColor"
+            >
+              <rect x="0" y="0" width="40" height="4" />
+              <rect x="18" y="4" width="4" height="36" />
+              <rect x="50" y="0" width="40" height="4" />
+              <rect x="50" y="36" width="40" height="4" />
+              <rect x="50" y="4" width="4" height="32" />
+              <rect x="86" y="4" width="4" height="32" />
+              <rect x="100" y="0" width="40" height="4" />
+              <rect x="100" y="0" width="4" height="40" />
+              <rect x="136" y="0" width="4" height="40" />
+            </svg>
+          </h1>
+          <p class="tw-hero-lede" data-i18n="ta.hero.subtitle">The work and memory you entrust to him, back when you need them.</p>
+          <div class="tw-hero-actions">
+            <a class="download-btn" href="#install" data-i18n="ta.nav.install">Install</a>
+            <a class="tw-hero-secondary" href="#why" data-i18n="ta.hero.see">Why Ton →</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 竞争力：2×2 卡片铺满版心，避免左挤右空 -->
+      <section class="tw-why" id="why" aria-labelledby="ta-why-title">
+        <h2 id="ta-why-title" class="tw-section-title" data-i18n="ta.why.title">Not a chatbot. An assistant who stays.</h2>
+        <ul class="tw-why-grid">
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">01</span>
+            <h3 data-i18n="ta.why.kb.t">He remembers for you</h3>
+            <p data-i18n="ta.why.kb.d">Notes, chats, docs stay local. Ask in plain language; he finds the part that matters.</p>
+          </li>
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">02</span>
+            <h3 data-i18n="ta.why.conn.t">Your real life, not just a repo</h3>
+            <p data-i18n="ta.why.conn.d">WeChat, email, notes, docs — the places your life happens.</p>
+          </li>
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">03</span>
+            <h3 data-i18n="ta.why.fts.t">Ask, then get it back</h3>
+            <p data-i18n="ta.why.fts.d">No digging through folders. Say what you need; he finds it and continues.</p>
+          </li>
+          <li class="tw-why-card">
+            <span class="tw-why-index" aria-hidden="true">04</span>
+            <h3 data-i18n="ta.why.split.t">Yours stays yours</h3>
+            <p data-i18n="ta.why.split.d">Conversations, settings, memories, and archives stay local; you decide what he holds.</p>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 真实 TUI：工具 + 知识库同环 -->
+      <section class="tw-showcase" id="app">
+
+        <div class="ta-tui-window" data-i18n-aria-label="ta.terminal.aria" aria-label="Ton TUI preview">
+          <div class="ta-tui-titlebar">
+            <span class="control-dot red"></span>
+            <span class="control-dot yellow"></span>
+            <span class="control-dot green"></span>
+            <span class="ta-tui-title">Ton</span>
+          </div>
+          <div class="ta-tui-body">
+            <div class="ta-tui-meta">
+              <span class="ta-tui-brand">Ton</span>
+              <span class="ta-tui-meta-rest"> · ~/acme (main) · anthropic · claude-sonnet</span>
+            </div>
+
+            <div class="ta-turn">
+              <span class="ta-who you">you</span>
+              <span class="ta-msg" data-i18n="ta.ui.you1"
+                >Fix the import in src/index.ts, then find who supplies nebula coffee from my WeChat history.</span
+              >
+            </div>
+
+            <div class="ta-tool-card">
+              <div class="ta-tool-head">edit</div>
+              <code class="ta-tool-path">src/index.ts</code>
+              <div class="ta-tool-out muted" data-i18n="ta.ui.editOut">Import fixed</div>
+            </div>
+
+            <div class="ta-tool-card">
+              <div class="ta-tool-head">search</div>
+              <code class="ta-tool-path">nebula coffee</code>
+              <div class="ta-tool-out muted" data-i18n="ta.ui.kbOut">Found it: the WeChat thread about the nebula coffee supplier</div>
+            </div>
+
+            <div class="ta-turn">
+              <span class="ta-who ta">Ton</span>
+              <span class="ta-msg" data-i18n="ta.ui.ta1"
+                >Import fixed, and I found the supplier thread in WeChat. Open it?</span>
+            </div>
+
+            <div class="ta-prompt">
+              <span class="ta-gt">&gt;</span>
+              <span class="ta-cursor" aria-hidden="true"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 功能栅格：KB 优先 -->
+      <section class="tw-features" id="features">
+        <h2 class="tw-section-title" data-i18n="ta.features.title">What a personal assistant should do</h2>
+        <div class="tw-feature-grid">
+          <article class="tw-feature-card">
+            <h3 data-i18n="ta.f.tools.t">Gets work done</h3>
+            <p data-i18n="ta.f.tools.d">Files, commands, edits — not just chat.</p>
+          </article>
+          <article class="tw-feature-card">
+            <h3 data-i18n="ta.f.models.t">Your choice of mind</h3>
+            <p data-i18n="ta.f.models.d">Bring the model you trust; keys stay with you.</p>
+          </article>
+          <article class="tw-feature-card">
+            <h3 data-i18n="ta.f.modes.t">Ton Desktop: works on its own</h3>
+            <p data-i18n="ta.f.modes.d">Always on, handling what you entrust to it.</p>
+          </article>
+        </div>
+      </section>
+      <!-- 安装区：正式 Releases 一键安装，不是开发用 ton-test.sh -->
+      <section class="tw-download-block" id="install">
+        <h2 class="tw-section-title" data-i18n="ta.install.title">Install</h2>
+        <div class="ton-install tw-install">
+          <div class="install-options">
+            <div class="install-input">
+              <div class="install-select-wrap">
+                <button
+                  class="install-select"
+                  type="button"
+                  id="installSelect"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                >
+                  <span class="select-label" id="installLabel" data-i18n="ta.install.unix">macOS / Linux</span>
+                  <svg viewBox="0 0 12 12" aria-hidden="true">
+                    <path
+                      d="M2.5 4.5L6 8l3.5-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <div class="install-menu" id="installMenu" role="listbox" hidden>
+                  <button type="button" data-cmd="unix" class="active" role="option" data-i18n="ta.install.unix">
+                    macOS / Linux
+                  </button>
+                  <button type="button" data-cmd="win" role="option" data-i18n="ta.install.win">Windows</button>
+                  <button type="button" data-cmd="run" role="option" data-i18n="ta.install.run">Start</button>
+                  <button type="button" data-cmd="source" role="option" data-i18n="ta.install.source">From source</button>
+                </div>
+              </div>
+              <div class="command-display">
+                <code class="command-text" id="commandText"
+                  >curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash</code
+                >
+                <button
+                  class="copy-btn"
+                  type="button"
+                  id="copyBtn"
+                  data-i18n-aria-label="install.copy"
+                  data-i18n-title="install.copy"
+                  aria-label="Copy command"
+                  title="Copy"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path
+                      d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="ton-footer">
+        <div class="footer-container">
+          <div class="footer-main">
+            <div class="footer-brand">
+              <div class="name">Ton</div>
+            </div>
+            <div class="footer-cols">
+              <div class="footer-col">
+                <div class="head" data-i18n="footer.resources">Resources</div>
+                <a href="https://github.com/toninfo/ton#readme" target="_blank" rel="noopener noreferrer"
+                  >README</a
+                >
+                <a
+                  href="https://github.com/toninfo/ton/blob/main/packages/coding-agent/docs/kb.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-i18n="ta.footer.kb"
+                  >Knowledge base</a
+                >
+                <a href="https://github.com/toninfo/ton" target="_blank" rel="noopener noreferrer">GitHub</a>
+              </div>
+            </div>
+          </div>
+          <div class="footer-bottom">
+            <span>© 2026 ton.ren</span>
+            <a
+              href="https://github.com/toninfo/ton/blob/main/LICENSE"
+              target="_blank"
+              rel="noopener noreferrer"
+              >MIT License</a
+            >
+          </div>
+        </div>
+      </footer>
+    </div>
+    <script src="../js/main.js?v=extras49" defer></script>
+  </body>
+</html>

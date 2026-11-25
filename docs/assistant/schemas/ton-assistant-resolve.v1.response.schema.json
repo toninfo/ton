@@ -1,0 +1,25 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/toninfo/ton/docs/assistant/schemas/ton-assistant-resolve.v1.response.schema.json",
+	"title": "ton_assistant_resolve v1 response",
+	"description": "Response for the optional write-back tool. Ton never blocks local closure on ok=false or a transport error.",
+	"type": "object",
+	"required": ["schema", "ok"],
+	"properties": {
+		"schema": {
+			"const": 1
+		},
+		"ok": {
+			"type": "boolean"
+		},
+		"reason": {
+			"enum": ["not_found", "unsupported"]
+		},
+		"error": {
+			"type": "string"
+		},
+		"detail": {
+			"type": "string"
+		}
+	}
+}

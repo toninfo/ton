@@ -1,0 +1,591 @@
+:root {
+	--bg: #14171a;
+	--line: rgba(255, 255, 255, 0.1);
+	--text: #e8eaed;
+	--muted: #9aa0a6;
+	/* Logo red, used for the breathing light at the tail. */
+	--brand: #b7151f;
+	--brand-hi: #d6303a;
+	--accent: #60a5fa;
+	--p0: #ef4444;
+	--p1: #f59e0b;
+	--p2: #3b82f6;
+	--p3: #6b7280;
+	--tail: 30px;
+	color-scheme: dark;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	background: transparent;
+	color: var(--text);
+	font: 15px/1.5 "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+	overflow: hidden;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* The stage is the whole window. The shell keeps the window at the sheet's rectangle from the first
+   frame and the page redraws the outline inside it: a mini body around the tail while breathing,
+   then the same outline widened out to the sheet. Nothing here is scaled or hidden as a whole, so
+   the tail never moves and the two shapes are one continuous object. */
+#stage {
+	position: relative;
+	display: flex;
+	height: 100vh;
+}
+
+/* The bubble silhouette (body + tail) is a single path filled with the bubble colour. Without a
+   compositor the X11 window is cut to the same outline (the `opaque` class), and then every pixel
+   inside the cut is painted: an unpainted pixel inside a shaped window shows the compositor's
+   black. With a compositor the window is alpha and the path is simply the only visible paint.
+   `bubble.js` regenerates `d`. */
+#shape {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+#silhouette {
+	fill: var(--bg);
+}
+#edge {
+	fill: none;
+	stroke: var(--line);
+	stroke-width: 1.4;
+}
+
+/* Translucent sheet where the compositor really blends window alpha; `opaque` is the no-compositor
+   fallback, where a see-through fill would land on an uncut, black window. */
+body:not(.opaque) {
+	--bg: rgba(20, 23, 26, 0.96);
+}
+
+/* The breathing light sits inside the mini bubble's body; the body itself, tail included, is the
+   same SVG outline the grown sheet uses. `--mini-x`/`--mini-y` are the body's centre in CSS px,
+   set by `bubble.js`. */
+#mini {
+	position: absolute;
+	left: var(--mini-x, 50%);
+	top: var(--mini-y, 50%);
+	width: 0;
+	height: 0;
+	display: none;
+	pointer-events: none;
+}
+body.breath #mini,
+body.grow #mini {
+	display: block;
+}
+/* All three layers are absolutely positioned at the same 0x0 anchor and centred by the negative
+   half-size margin. They must stay out of flow: as flex items in a zero-width box the browser
+   shrinks them horizontally (the ring became a 13x26 ellipse, the dot an 8.5x17 slit) and the
+   negative left margin then pulls them off the anchor. */
+.mini-halo,
+.mini-ring,
+.mini-dot {
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+/* The glow lives inside the mini body only: as the body widens into the sheet it hands over. */
+body.grow #mini {
+	opacity: 0;
+	transition: opacity 180ms ease;
+}
+/* Everything is centred on that point with a negative margin, not a translate: the keyframes own
+   `transform` for the pulse. The light is small next to the 80x72 mini body, so its glow reads as
+   light inside the bubble rather than a lamp next to it. */
+.mini-halo {
+	width: 46px;
+	height: 46px;
+	margin: -23px 0 0 -23px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(214, 48, 58, 0.6), rgba(183, 21, 31, 0.18) 52%, rgba(183, 21, 31, 0) 74%);
+	animation: mini-halo 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.mini-ring {
+	width: 26px;
+	height: 26px;
+	margin: -13px 0 0 -13px;
+	border-radius: 50%;
+	border: 1.5px solid rgba(222, 58, 68, 0.7);
+	animation: mini-ring 2.8s cubic-bezier(0.2, 0.55, 0.35, 1) infinite;
+}
+.mini-ring.late {
+	animation-delay: 1.4s;
+}
+.mini-dot {
+	width: 17px;
+	height: 17px;
+	margin: -8.5px 0 0 -8.5px;
+	border-radius: 50%;
+	background:
+		/* The specular sits on the vertical centre line: any sideways bias makes the core read as
+		   sitting off-centre inside its own glow. */
+		radial-gradient(circle at 50% 32%, rgba(255, 236, 236, 0.7), rgba(255, 236, 236, 0) 48%),
+		radial-gradient(circle at 50% 58%, var(--brand-hi), var(--brand) 62%, #7d0b13);
+	box-shadow:
+		0 0 14px rgba(183, 21, 31, 0.65),
+		0 0 30px rgba(183, 21, 31, 0.3);
+	animation: mini-breath 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+/* A wide swing on every layer; the body's own depth pulse (`bubble.js`) runs on the same 2.8 s. */
+@keyframes mini-breath {
+	0%,
+	100% {
+		transform: scale(0.76);
+		opacity: 0.72;
+	}
+	50% {
+		transform: scale(1.24);
+		opacity: 1;
+	}
+}
+@keyframes mini-halo {
+	0%,
+	100% {
+		transform: scale(0.55);
+		opacity: 0.3;
+	}
+	50% {
+		transform: scale(1.28);
+		opacity: 1;
+	}
+}
+@keyframes mini-ring {
+	0% {
+		transform: scale(0.55);
+		opacity: 0;
+	}
+	15% {
+		opacity: 0.85;
+	}
+	70% {
+		opacity: 0.15;
+	}
+	100% {
+		transform: scale(2.2);
+		opacity: 0;
+	}
+}
+
+#bubble {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	/* Not `hidden`: the dot sits out in the tail strip; the list clips itself. */
+	overflow: visible;
+	/* Empty while the mini bubble breathes; the cards arrive as the body widens into the sheet. */
+	opacity: 0;
+	transition: opacity 200ms ease;
+}
+body.grow #bubble {
+	opacity: 1;
+	transition: opacity 220ms ease 200ms;
+}
+body.shown #bubble {
+	opacity: 1;
+}
+
+/* The tail strip is margin, not padding: the shape has to cover it too. */
+body.edge-top #bubble {
+	margin-top: var(--tail);
+}
+body.edge-bottom #bubble {
+	margin-bottom: var(--tail);
+}
+body.edge-left #bubble {
+	margin-left: var(--tail);
+}
+body.edge-right #bubble {
+	margin-right: var(--tail);
+}
+
+#cards {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+#cards::-webkit-scrollbar {
+	width: 6px;
+}
+#cards::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.14);
+	border-radius: 3px;
+}
+#cards::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+/* Cards sit on the sheet itself: no panel behind them, a hairline between neighbours. */
+.card {
+	position: relative;
+	flex-shrink: 0;
+	padding: 15px 8px 14px;
+	border-radius: 10px;
+	background: transparent;
+	overflow: hidden;
+	transition:
+		background 140ms ease,
+		opacity 180ms ease,
+		transform 180ms ease,
+		max-height 180ms ease,
+		padding 180ms ease;
+	max-height: 600px;
+}
+.card + .card {
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.card:hover {
+	background: rgba(255, 255, 255, 0.035);
+}
+
+.card.closing {
+	opacity: 0;
+	transform: translateX(24px);
+	max-height: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-top-color: transparent;
+}
+
+/* Urgency is one small dot before the source badge. */
+.dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--p3);
+	flex-shrink: 0;
+}
+.card.p0 .dot {
+	background: var(--p0);
+}
+.card.p1 .dot {
+	background: var(--p1);
+}
+.card.p2 .dot {
+	background: var(--p2);
+}
+
+.card.failed {
+	box-shadow: inset 0 0 0 1px var(--p0);
+}
+
+.card header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--muted);
+	font-size: 12.5px;
+}
+
+.badge {
+	padding: 2px 9px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.06);
+	color: #a9b1ba;
+	font-size: 12px;
+}
+
+.card header .context {
+	flex: 1;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.card header time {
+	font-size: 12px;
+	color: #8a9199;
+	flex-shrink: 0;
+}
+
+.card h2 {
+	margin: 7px 0 3px;
+	font-size: 17px;
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: -0.01em;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.card .why {
+	margin: 0;
+	font-size: 14px;
+	color: var(--muted);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 10px;
+	margin-right: -6px;
+	justify-content: flex-end;
+}
+
+button {
+	font: inherit;
+	font-size: 14px;
+	color: var(--text);
+	background: rgba(255, 255, 255, 0.06);
+	border: 0;
+	border-radius: 11px;
+	padding: 9px 16px;
+	cursor: pointer;
+	transition:
+		background 120ms ease,
+		opacity 120ms ease;
+}
+button:hover {
+	background: rgba(255, 255, 255, 0.11);
+}
+button.primary {
+	background: var(--accent);
+	color: #0b1220;
+	font-weight: 600;
+}
+button.primary:hover {
+	background: #7ab3ff;
+}
+
+/* Actions are bare icons at the card's lower right: no button chrome, a faint tint on hover. */
+.actions .act {
+	width: 34px;
+	height: 34px;
+	padding: 0;
+	background: transparent;
+	border-radius: 10px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--muted);
+	font-size: 19px;
+	line-height: 1;
+}
+.actions .act svg {
+	width: 20px;
+	height: 20px;
+}
+.actions .act:hover {
+	background: rgba(255, 255, 255, 0.07);
+	color: var(--text);
+}
+.actions .act.primary {
+	background: transparent;
+	color: var(--accent);
+}
+.actions .act.primary:hover {
+	background: rgba(96, 165, 250, 0.12);
+	color: var(--accent);
+}
+button.link {
+	background: none;
+	color: var(--muted);
+	padding: 4px 8px;
+}
+button.link:hover {
+	color: var(--text);
+}
+button:disabled,
+.card.busy button {
+	opacity: 0.45;
+	pointer-events: none;
+}
+
+.menu {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	margin-top: 10px;
+}
+.menu button {
+	text-align: left;
+	font-size: 13px;
+}
+
+.result {
+	margin-top: 10px;
+	padding: 10px;
+	border-radius: 10px;
+	background: rgba(0, 0, 0, 0.22);
+	border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.result pre {
+	margin: 0 0 8px;
+	white-space: pre-wrap;
+	font: inherit;
+	user-select: text;
+	-webkit-user-select: text;
+}
+.result .row {
+	display: flex;
+	gap: 8px;
+}
+
+.error {
+	color: #f87171;
+	margin-top: 8px;
+}
+
+/* No footer row and the same padding on all four sides: a small dot sits in the middle of the
+   tail, on the tail's centre line, and opens the global menu into the sheet. */
+#more {
+	position: absolute;
+	z-index: 2;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border-radius: 50%;
+}
+/* The dot's centre is half-way down the 30px tail, i.e. 15px outside the sheet edge; `--tail-at`
+   is the tail centre along that edge, in CSS px (set by `bubble.js`). */
+body.edge-bottom #more {
+	left: var(--tail-at);
+	bottom: -28px;
+	transform: translateX(-50%);
+}
+body.edge-top #more {
+	left: var(--tail-at);
+	top: -28px;
+	transform: translateX(-50%);
+}
+body.edge-left #more {
+	left: -28px;
+	top: var(--tail-at);
+	transform: translateY(-50%);
+}
+body.edge-right #more {
+	right: -28px;
+	top: var(--tail-at);
+	transform: translateY(-50%);
+}
+/* Invisible until hovered: the tail stays clean, the dot only appears under the pointer. Size,
+   not transform: scaling a 5px box rasterises to a rounded square at this size. */
+#more .more-dot {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: transparent;
+	transition:
+		background 120ms ease,
+		width 120ms ease,
+		height 120ms ease;
+}
+#more:hover {
+	background: transparent;
+}
+#more:hover .more-dot {
+	width: 8px;
+	height: 8px;
+	background: rgba(255, 255, 255, 0.75);
+}
+
+/* The menu opens from the dot, towards the inside of the sheet; `--pop-at` (also CSS px) is the
+   dot's centre, clamped so the menu stays inside the sheet. */
+.pop {
+	position: absolute;
+	z-index: 5;
+	min-width: 196px;
+	max-height: calc(100% - 16px);
+	overflow-y: auto;
+	padding: 5px;
+	border-radius: 13px;
+	background: #1e2329;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	box-shadow:
+		0 12px 32px rgba(0, 0, 0, 0.5),
+		0 2px 8px rgba(0, 0, 0, 0.35);
+}
+body.edge-bottom #more-menu {
+	left: var(--pop-at);
+	bottom: 6px;
+	transform: translateX(-50%);
+}
+body.edge-top #more-menu {
+	left: var(--pop-at);
+	top: 6px;
+	transform: translateX(-50%);
+}
+body.edge-left #more-menu {
+	left: 6px;
+	top: var(--pop-at);
+	transform: translateY(-50%);
+}
+body.edge-right #more-menu {
+	right: 6px;
+	top: var(--pop-at);
+	transform: translateY(-50%);
+}
+body.edge-bottom .pop,
+body.edge-top .pop {
+	max-height: calc(100% - 22px);
+}
+.pop button {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 7px 10px;
+	border-radius: 8px;
+	background: none;
+	font-size: 13px;
+}
+.pop button:hover {
+	background: rgba(255, 255, 255, 0.06);
+}
+.pop hr {
+	border: 0;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+	margin: 4px 6px;
+}
+
+/* Undo feedback floats over the list's lower edge instead of reserving a row. */
+#toast {
+	position: absolute;
+	left: 50%;
+	bottom: 10px;
+	transform: translateX(-50%);
+	z-index: 3;
+	max-width: calc(100% - 104px);
+	padding: 5px 14px;
+	border-radius: 999px;
+	background: rgba(29, 34, 40, 0.97);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+	color: var(--text);
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+#toast button {
+	padding: 2px 6px;
+}
+
+[hidden] {
+	display: none !important;
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Silen's Assistant</title>
+		<link rel="stylesheet" href="panel.css" />
+		<script type="module" src="panel.js"></script>
+	</head>
+	<body>
+		<header class="top">
+			<h1></h1>
+			<span id="summary"></span>
+			<span class="spacer"></span>
+			<button id="tick" title="现在探测一轮">探测</button>
+			<button id="pause-1h" title="暂停 1 小时">1 小时</button>
+			<button id="pause-today" title="暂停今天">今天</button>
+			<button id="resume" hidden>恢复</button>
+		</header>
+		<nav id="tabs">
+			<button data-tab="overview" title="运行状态与统计">概况</button>
+			<button data-tab="inbox">待处理</button>
+			<button data-tab="quiet">静默</button>
+			<button data-tab="history">历史</button>
+			<button data-tab="activity">活动</button>
+			<button data-tab="runs">日志</button>
+			<button data-tab="settings">设置</button>
+		</nav>
+		<main id="content"></main>
+		<div id="toast" hidden></div>
+	</body>
+</html>

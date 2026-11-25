@@ -1,0 +1,23 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/toninfo/ton/docs/assistant/schemas/ton-assistant-resolve.v1.request.schema.json",
+	"title": "ton_assistant_resolve v1 request",
+	"description": "Optional write-back called by ton after the user marks a contract item done or cancelled. See ../CONTRACT.md section 14.",
+	"type": "object",
+	"required": ["stream", "id", "action"],
+	"additionalProperties": false,
+	"properties": {
+		"stream": {
+			"type": "string",
+			"minLength": 1
+		},
+		"id": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 200
+		},
+		"action": {
+			"enum": ["done", "cancel"]
+		}
+	}
+}

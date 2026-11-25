@@ -1,0 +1,22 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/toninfo/ton/docs/assistant/schemas/ton-assistant-items.v1.request.schema.json",
+	"title": "ton_assistant_items v1 request",
+	"description": "Arguments for the ton assistant data source contract tool. See ../CONTRACT.md.",
+	"type": "object",
+	"required": ["since"],
+	"properties": {
+		"since": {
+			"type": "string",
+			"format": "date-time",
+			"description": "Observation lower bound hint for event-like items; must not filter stateful items."
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 1000,
+			"default": 200,
+			"description": "Maximum number of items to return."
+		}
+	}
+}
