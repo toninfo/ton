@@ -70,7 +70,11 @@ mod imp {
 
     /// Must run on the main thread (GTK).
     pub fn is_composited() -> bool {
-        composited_override().unwrap_or_else(|| gdk::Screen::default().map(|screen| screen.is_composited()).unwrap_or(false))
+        composited_override().unwrap_or_else(|| {
+            gdk::Screen::default()
+                .map(|screen| screen.is_composited())
+                .unwrap_or(false)
+        })
     }
 
     /// The CSS-px-to-device-px ratio WebKit is about to use. GDK's scale factor alone is not it:
@@ -92,7 +96,9 @@ mod imp {
 
     pub fn prepare_environment() {
         // WebKitGTK's DMA-BUF renderer shows white or flickering windows on some Intel/Mesa setups.
-        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() && std::env::var_os("TON_DESKTOP_DMABUF").is_none() {
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
+            && std::env::var_os("TON_DESKTOP_DMABUF").is_none()
+        {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
     }
@@ -108,8 +114,12 @@ mod imp {
         if translucent() {
             return;
         }
-        let Some(screen) = WidgetExt::screen(gtk_window) else { return };
-        let Some(x11) = screen.downcast_ref::<gdkx11::X11Screen>() else { return };
+        let Some(screen) = WidgetExt::screen(gtk_window) else {
+            return;
+        };
+        let Some(x11) = screen.downcast_ref::<gdkx11::X11Screen>() else {
+            return;
+        };
         let visual_id = unsafe {
             let xscreen = gdkx11::ffi::gdk_x11_screen_get_xscreen(x11.to_glib_none().0);
             if xscreen.is_null() {
@@ -126,7 +136,9 @@ mod imp {
     pub fn apply_bubble_hints(window: &WebviewWindow) {
         let target = window.clone();
         let _ = window.run_on_main_thread(move || {
-            let Ok(gtk_window) = target.gtk_window() else { return };
+            let Ok(gtk_window) = target.gtk_window() else {
+                return;
+            };
             use_root_visual(&gtk_window);
             gtk_window.set_accept_focus(false);
             gtk_window.set_focus_on_map(false);
@@ -140,10 +152,18 @@ mod imp {
     /// Without a compositor, transparent pixels turn black: cut the outlined body and its tail out
     /// with XShape, matching the path the page draws in `#silhouette`. The body is rounded on all
     /// four corners and receives the tail on its screen-edge side.
-    pub fn apply_shape(window: &WebviewWindow, composited: bool, size: (f64, f64), edge: Edge, outline: Outline) {
+    pub fn apply_shape(
+        window: &WebviewWindow,
+        composited: bool,
+        size: (f64, f64),
+        edge: Edge,
+        outline: Outline,
+    ) {
         let target = window.clone();
         let _ = window.run_on_main_thread(move || {
-            let Ok(gtk_window) = target.gtk_window() else { return };
+            let Ok(gtk_window) = target.gtk_window() else {
+                return;
+            };
             if composited {
                 gtk_window.shape_combine_region(None);
                 return;
@@ -190,7 +210,9 @@ mod imp {
                 Edge::Top | Edge::Bottom => (w, outline.tail_center),
                 Edge::Left | Edge::Right => (h, outline.tail_center),
             };
-            let center = base.clamp((tw / 2) as f64, (window_span - tw / 2) as f64).round() as i32;
+            let center = base
+                .clamp((tw / 2) as f64, (window_span - tw / 2) as f64)
+                .round() as i32;
             let w2 = tw as f64 / 2.0;
             let scale = outline.tail / TAIL;
             let cap = TAIL_CAP * scale;
@@ -206,7 +228,9 @@ mod imp {
                     let y = from_tip.min(outline.tail).max(cap);
                     let y_at = |t: f64| {
                         let u = 1.0 - t;
-                        3.0 * u * u * t * outline.tail + 3.0 * u * t * t * (cap + shoulder) + t * t * t * cap
+                        3.0 * u * u * t * outline.tail
+                            + 3.0 * u * t * t * (cap + shoulder)
+                            + t * t * t * cap
                     };
                     let (mut lo, mut hi) = (0.0, 1.0);
                     for _ in 0..24 {
@@ -220,7 +244,10 @@ mod imp {
                     let t = (lo + hi) / 2.0;
                     let u = 1.0 - t;
                     // x(t) of the left flank, measured inwards from the tail's centre line.
-                    u * u * u * w2 + 3.0 * u * u * t * (w2 - flare) + 3.0 * u * t * t * cap + t * t * t * cap
+                    u * u * u * w2
+                        + 3.0 * u * u * t * (w2 - flare)
+                        + 3.0 * u * t * t * cap
+                        + t * t * t * cap
                 }
             };
             for row in 0..t {
@@ -251,7 +278,9 @@ mod imp {
     pub fn apply_pass_through(window: &WebviewWindow, pass: bool) {
         let target = window.clone();
         let _ = window.run_on_main_thread(move || {
-            let Ok(gtk_window) = target.gtk_window() else { return };
+            let Ok(gtk_window) = target.gtk_window() else {
+                return;
+            };
             let empty = pass.then(gtk::cairo::Region::create);
             gtk_window.input_shape_combine_region(empty.as_ref());
         });
@@ -259,21 +288,33 @@ mod imp {
 
     fn output(program: &str, args: &[&str]) -> Option<String> {
         let out = Command::new(program).args(args).output().ok()?;
-        out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+        out.status
+            .success()
+            .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
     }
 
     /// `_NET_ACTIVE_WINDOW` has `_NET_WM_STATE_FULLSCREEN`. Missing `xprop` means "no".
     fn fullscreen_active() -> bool {
-        let Some(active) = output("xprop", &["-root", "_NET_ACTIVE_WINDOW"]) else { return false };
-        let Some(id) = active.split_whitespace().last().filter(|id| id.starts_with("0x") && *id != "0x0") else {
+        let Some(active) = output("xprop", &["-root", "_NET_ACTIVE_WINDOW"]) else {
             return false;
         };
-        output("xprop", &["-id", id, "_NET_WM_STATE"]).is_some_and(|state| state.contains("_NET_WM_STATE_FULLSCREEN"))
+        let Some(id) = active
+            .split_whitespace()
+            .last()
+            .filter(|id| id.starts_with("0x") && *id != "0x0")
+        else {
+            return false;
+        };
+        output("xprop", &["-id", id, "_NET_WM_STATE"])
+            .is_some_and(|state| state.contains("_NET_WM_STATE_FULLSCREEN"))
     }
 
     fn session_locked() -> bool {
-        let Ok(session) = std::env::var("XDG_SESSION_ID") else { return false };
-        output("loginctl", &["show-session", &session, "-p", "LockedHint"]).is_some_and(|line| line.trim() == "LockedHint=yes")
+        let Ok(session) = std::env::var("XDG_SESSION_ID") else {
+            return false;
+        };
+        output("loginctl", &["show-session", &session, "-p", "LockedHint"])
+            .is_some_and(|line| line.trim() == "LockedHint=yes")
     }
 
     fn idle_ms() -> Option<u64> {
@@ -281,7 +322,11 @@ mod imp {
     }
 
     /// Blocking (a few short subprocesses); call from a blocking task.
-    pub fn suppression(check_fullscreen: bool, check_locked: bool, idle_minutes: u64) -> Suppression {
+    pub fn suppression(
+        check_fullscreen: bool,
+        check_locked: bool,
+        idle_minutes: u64,
+    ) -> Suppression {
         Suppression {
             fullscreen: check_fullscreen && fullscreen_active(),
             locked: check_locked && session_locked(),
@@ -308,11 +353,25 @@ mod imp {
 
     pub fn apply_pass_through(_window: &WebviewWindow, _pass: bool) {}
 
-    pub fn apply_shape(_window: &WebviewWindow, _composited: bool, _size: (f64, f64), _edge: Edge, _outline: Outline) {}
+    pub fn apply_shape(
+        _window: &WebviewWindow,
+        _composited: bool,
+        _size: (f64, f64),
+        _edge: Edge,
+        _outline: Outline,
+    ) {
+    }
 
-    pub fn suppression(_check_fullscreen: bool, _check_locked: bool, _idle_minutes: u64) -> Suppression {
+    pub fn suppression(
+        _check_fullscreen: bool,
+        _check_locked: bool,
+        _idle_minutes: u64,
+    ) -> Suppression {
         Suppression::default()
     }
 }
 
-pub use imp::{apply_bubble_hints, apply_pass_through, apply_shape, is_composited, prepare_environment, suppression, webview_scale};
+pub use imp::{
+    apply_bubble_hints, apply_pass_through, apply_shape, is_composited, prepare_environment,
+    suppression, webview_scale,
+};

@@ -43,14 +43,21 @@ impl DesktopConfig {
     pub fn from_status(status: &Value) -> DesktopConfig {
         let defaults = DesktopConfig::default();
         let desktop = &status["desktop"];
-        let number = |key: &str, fallback: u64| desktop[key].as_u64().filter(|value| *value > 0).unwrap_or(fallback);
+        let number = |key: &str, fallback: u64| {
+            desktop[key]
+                .as_u64()
+                .filter(|value| *value > 0)
+                .unwrap_or(fallback)
+        };
         let flag = |key: &str, fallback: bool| desktop[key].as_bool().unwrap_or(fallback);
         DesktopConfig {
             tick_minutes: number("tickMinutes", defaults.tick_minutes).max(5),
             collapse_minutes: number("collapseMinutes", defaults.collapse_minutes),
             p0_max_minutes: number("p0MaxMinutes", defaults.p0_max_minutes),
             max_cards: number("maxCardsPerWindow", defaults.max_cards as u64).min(3) as usize,
-            idle_minutes: desktop["idleMinutes"].as_u64().unwrap_or(defaults.idle_minutes),
+            idle_minutes: desktop["idleMinutes"]
+                .as_u64()
+                .unwrap_or(defaults.idle_minutes),
             suppress_fullscreen: flag("suppressFullscreen", defaults.suppress_fullscreen),
             suppress_locked: flag("suppressLocked", defaults.suppress_locked),
         }
@@ -111,11 +118,17 @@ impl Shared {
     }
 
     pub fn config(&self) -> DesktopConfig {
-        self.config.lock().map(|config| config.clone()).unwrap_or_default()
+        self.config
+            .lock()
+            .map(|config| config.clone())
+            .unwrap_or_default()
     }
 
     pub fn assistant_state(&self) -> AssistantState {
-        self.assistant.lock().map(|state| state.clone()).unwrap_or_default()
+        self.assistant
+            .lock()
+            .map(|state| state.clone())
+            .unwrap_or_default()
     }
 
     /// Ignore a poisoned or busy lock: the activity strip is cosmetic, the round must go on.

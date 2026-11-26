@@ -15,7 +15,11 @@ pub const SHORT_TIMEOUT: Duration = Duration::from_secs(20);
 const JITTER_SECONDS: u64 = 5 * 60;
 
 pub async fn run(app: AppHandle) {
-    let first = if app.state::<Shared>().mode == Mode::Live { STARTUP_DELAY } else { Duration::from_secs(1) };
+    let first = if app.state::<Shared>().mode == Mode::Live {
+        STARTUP_DELAY
+    } else {
+        Duration::from_secs(1)
+    };
     tokio::time::sleep(first).await;
     loop {
         round(&app).await;
@@ -33,8 +37,13 @@ pub async fn run(app: AppHandle) {
 /// Re-read the desktop settings and counts (no model call).
 pub async fn refresh_status(app: &AppHandle) {
     let shared = app.state::<Shared>();
-    let Some(ton) = shared.ton.clone() else { return };
-    match ton.assistant(&["status".into(), "--json".into()], SHORT_TIMEOUT).await {
+    let Some(ton) = shared.ton.clone() else {
+        return;
+    };
+    match ton
+        .assistant(&["status".into(), "--json".into()], SHORT_TIMEOUT)
+        .await
+    {
         Ok(output) => {
             let Some(status) = output.json.filter(|json| json.get("error").is_none()) else {
                 log(format!("status failed: {}", output.stderr));
@@ -96,7 +105,12 @@ async fn round(app: &AppHandle) {
 
 async fn tick_round(app: &AppHandle) -> RoundOutcome {
     let shared = app.state::<Shared>();
-    let mut args: Vec<String> = vec!["tick".into(), "--json".into(), "--trigger".into(), "desktop".into()];
+    let mut args: Vec<String> = vec![
+        "tick".into(),
+        "--json".into(),
+        "--trigger".into(),
+        "desktop".into(),
+    ];
     if let Mode::Mock(path) = &shared.mode {
         args.extend(["--mock".to_string(), path.clone()]);
     }
@@ -119,22 +133,37 @@ async fn tick_round(app: &AppHandle) -> RoundOutcome {
                 tray.health = Health::Error;
                 tray.message = error.to_string();
             });
-            return RoundOutcome { reason: Some(error.to_string()), ..RoundOutcome::default() };
+            return RoundOutcome {
+                reason: Some(error.to_string()),
+                ..RoundOutcome::default()
+            };
         }
     };
-    let Some(json) = output.json.filter(|json| json.get("error").is_none() && json.get("schema").is_some()) else {
-        let message = first_line(&output.stderr).unwrap_or_else(|| format!("tick 退出码 {}", output.code));
+    let Some(json) = output
+        .json
+        .filter(|json| json.get("error").is_none() && json.get("schema").is_some())
+    else {
+        let message =
+            first_line(&output.stderr).unwrap_or_else(|| format!("tick 退出码 {}", output.code));
         log(format!("tick failed: {message}"));
         tray::update(app, |tray| {
             tray.health = Health::Error;
             tray.message = message.clone();
         });
-        return RoundOutcome { code: Some(output.code), reason: Some(message), ..RoundOutcome::default() };
+        return RoundOutcome {
+            code: Some(output.code),
+            reason: Some(message),
+            ..RoundOutcome::default()
+        };
     };
     let pending = json["pending"].as_u64().unwrap_or(0);
     let degraded: Vec<String> = json["degraded"]
         .as_array()
-        .map(|list| list.iter().filter_map(|value| value.as_str().map(str::to_string)).collect())
+        .map(|list| {
+            list.iter()
+                .filter_map(|value| value.as_str().map(str::to_string))
+                .collect()
+        })
         .unwrap_or_default();
     tray::update(app, |tray| {
         tray.pending = pending;
@@ -167,7 +196,11 @@ async fn tick_round(app: &AppHandle) -> RoundOutcome {
     }
     let config = shared.config();
     let suppression = tokio::task::spawn_blocking(move || {
-        crate::platform::suppression(config.suppress_fullscreen, config.suppress_locked, config.idle_minutes)
+        crate::platform::suppression(
+            config.suppress_fullscreen,
+            config.suppress_locked,
+            config.idle_minutes,
+        )
     })
     .await
     .unwrap_or_default();
@@ -175,7 +208,10 @@ async fn tick_round(app: &AppHandle) -> RoundOutcome {
     let urgent = items.iter().any(|item| item["urgency"] == "P0");
     if let Some(reason) = suppression.reason() {
         if !urgent || suppression.locked {
-            log(format!("bubble held back ({reason}); {} item(s) stay in the inbox", items.len()));
+            log(format!(
+                "bubble held back ({reason}); {} item(s) stay in the inbox",
+                items.len()
+            ));
             return outcome;
         }
     }
@@ -184,19 +220,32 @@ async fn tick_round(app: &AppHandle) -> RoundOutcome {
 }
 
 fn batch_items(tick: &Value) -> Vec<Value> {
-    tick["batch"]["items"].as_array().cloned().unwrap_or_default()
+    tick["batch"]["items"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn first_line(text: &str) -> Option<String> {
-    text.lines().map(str::trim).find(|line| !line.is_empty()).map(|line| line.chars().take(120).collect())
+    text.lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(|line| line.chars().take(120).collect())
 }
 
 /// `pause --for <duration>`, or `resume` when `duration` is None.
 pub async fn pause(app: &AppHandle, duration: Option<&str>) {
     let shared = app.state::<Shared>();
-    let Some(ton) = shared.ton.clone() else { return };
+    let Some(ton) = shared.ton.clone() else {
+        return;
+    };
     let args: Vec<String> = match duration {
-        Some(duration) => vec!["pause".into(), "--for".into(), duration.into(), "--json".into()],
+        Some(duration) => vec![
+            "pause".into(),
+            "--for".into(),
+            duration.into(),
+            "--json".into(),
+        ],
         None => vec!["resume".into(), "--json".into()],
     };
     if let Err(error) = ton.assistant(&args, SHORT_TIMEOUT).await {
@@ -212,8 +261,14 @@ mod tests {
 
     #[test]
     fn reads_batch_items_and_tolerates_missing_fields() {
-        assert_eq!(batch_items(&json!({"batch": {"items": [{"id": "a"}]}})).len(), 1);
+        assert_eq!(
+            batch_items(&json!({"batch": {"items": [{"id": "a"}]}})).len(),
+            1
+        );
         assert!(batch_items(&json!({"batch": null})).is_empty());
-        assert_eq!(first_line("\n  Error: boom\nmore"), Some("Error: boom".into()));
+        assert_eq!(
+            first_line("\n  Error: boom\nmore"),
+            Some("Error: boom".into())
+        );
     }
 }

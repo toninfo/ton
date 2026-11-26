@@ -168,7 +168,11 @@ pub fn start_rect(target: Rect, edge: Edge) -> Rect {
         Edge::Left => (-SLIDE, 0.0),
         Edge::Right => (SLIDE, 0.0),
     };
-    Rect { x: target.x + dx, y: target.y + dy, ..target }
+    Rect {
+        x: target.x + dx,
+        y: target.y + dy,
+        ..target
+    }
 }
 
 /// Random edge (never `last_edge` twice in a row) and offset, keeping clear of the cursor.
@@ -179,7 +183,11 @@ pub fn choose<R: Rng>(
     cursor: Option<(f64, f64)>,
     last_edge: Option<Edge>,
 ) -> Placement {
-    let edges: Vec<Edge> = EDGES.iter().copied().filter(|edge| Some(*edge) != last_edge).collect();
+    let edges: Vec<Edge> = EDGES
+        .iter()
+        .copied()
+        .filter(|edge| Some(*edge) != last_edge)
+        .collect();
     let mut fallback = None;
     for _ in 0..16 {
         let placement = Placement {
@@ -194,7 +202,10 @@ pub fn choose<R: Rng>(
             _ => return placement,
         }
     }
-    fallback.unwrap_or(Placement { edge: edges[0], along: 0.5 })
+    fallback.unwrap_or(Placement {
+        edge: edges[0],
+        along: 0.5,
+    })
 }
 
 /// Ease-out cubic for the slide; a linear window move reads as a jump.
@@ -207,7 +218,10 @@ pub fn slide_path(from: Rect, to: Rect, steps: usize) -> Vec<(f64, f64)> {
     (1..=steps)
         .map(|step| {
             let eased = ease(step as f64 / steps as f64);
-            (from.x + (to.x - from.x) * eased, from.y + (to.y - from.y) * eased)
+            (
+                from.x + (to.x - from.x) * eased,
+                from.y + (to.y - from.y) * eased,
+            )
         })
         .collect()
 }
@@ -218,10 +232,18 @@ mod tests {
     use rand::rngs::mock::StepRng;
     use rand::SeedableRng;
 
-    const WORK: Rect = Rect { x: 0.0, y: 0.0, w: 1920.0, h: 1050.0 };
+    const WORK: Rect = Rect {
+        x: 0.0,
+        y: 0.0,
+        w: 1920.0,
+        h: 1050.0,
+    };
 
     fn inside(rect: Rect, work: Rect) -> bool {
-        rect.x >= work.x && rect.y >= work.y && rect.x + rect.w <= work.x + work.w && rect.y + rect.h <= work.y + work.h
+        rect.x >= work.x
+            && rect.y >= work.y
+            && rect.x + rect.w <= work.x + work.w
+            && rect.y + rect.h <= work.y + work.h
     }
 
     #[test]
@@ -237,8 +259,20 @@ mod tests {
 
     #[test]
     fn negative_monitor_coordinates_are_fine() {
-        let left = Rect { x: -1280.0, y: -200.0, w: 1280.0, h: 1000.0 };
-        let rect = final_rect(left, window_size(Edge::Left, 300.0), Placement { edge: Edge::Left, along: 0.3 });
+        let left = Rect {
+            x: -1280.0,
+            y: -200.0,
+            w: 1280.0,
+            h: 1000.0,
+        };
+        let rect = final_rect(
+            left,
+            window_size(Edge::Left, 300.0),
+            Placement {
+                edge: Edge::Left,
+                along: 0.3,
+            },
+        );
         assert!(inside(rect, left));
         assert_eq!(rect.x, -1280.0);
     }
@@ -246,7 +280,11 @@ mod tests {
     #[test]
     fn tail_tip_touches_the_edge() {
         for edge in EDGES {
-            let rect = final_rect(WORK, window_size(edge, 560.0), Placement { edge, along: 0.5 });
+            let rect = final_rect(
+                WORK,
+                window_size(edge, 560.0),
+                Placement { edge, along: 0.5 },
+            );
             match edge {
                 Edge::Top => assert_eq!(rect.y, WORK.y),
                 Edge::Bottom => assert_eq!(rect.y + rect.h, WORK.y + WORK.h),
@@ -258,7 +296,12 @@ mod tests {
 
     #[test]
     fn height_is_clamped_to_small_screens() {
-        let small = Rect { x: 0.0, y: 0.0, w: 1024.0, h: 400.0 };
+        let small = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 1024.0,
+            h: 400.0,
+        };
         let height = clamp_height(560.0, small);
         assert!(height + TAIL + MARGIN <= 400.0);
         assert_eq!(clamp_height(100.0, WORK), MIN_HEIGHT);
@@ -295,7 +338,13 @@ mod tests {
     fn never_the_same_edge_twice_and_away_from_cursor() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(7);
         for _ in 0..200 {
-            let placement = choose(&mut rng, WORK, 300.0, Some((960.0, 30.0)), Some(Edge::Bottom));
+            let placement = choose(
+                &mut rng,
+                WORK,
+                300.0,
+                Some((960.0, 30.0)),
+                Some(Edge::Bottom),
+            );
             assert_ne!(placement.edge, Edge::Bottom);
             let rect = final_rect(WORK, window_size(placement.edge, 300.0), placement);
             assert!(rect.distance_to((960.0, 30.0)) >= CURSOR_CLEARANCE);
@@ -304,7 +353,12 @@ mod tests {
 
     #[test]
     fn falls_back_when_the_cursor_blocks_everything() {
-        let tiny = Rect { x: 0.0, y: 0.0, w: 520.0, h: 320.0 };
+        let tiny = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 520.0,
+            h: 320.0,
+        };
         let mut rng = StepRng::new(0, 1);
         let placement = choose(&mut rng, tiny, 220.0, Some((260.0, 160.0)), None);
         assert!(placement.along >= 0.0);
@@ -312,7 +366,14 @@ mod tests {
 
     #[test]
     fn slide_starts_outside_and_ends_on_target() {
-        let target = final_rect(WORK, window_size(Edge::Right, 300.0), Placement { edge: Edge::Right, along: 0.5 });
+        let target = final_rect(
+            WORK,
+            window_size(Edge::Right, 300.0),
+            Placement {
+                edge: Edge::Right,
+                along: 0.5,
+            },
+        );
         let start = start_rect(target, Edge::Right);
         assert_eq!(start.x, target.x + SLIDE);
         let path = slide_path(start, target, 12);

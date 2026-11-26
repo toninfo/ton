@@ -27,7 +27,10 @@ struct Options {
 }
 
 fn parse_options(args: &[String]) -> Options {
-    let mut options = Options { hidden: false, mode: Mode::Live };
+    let mut options = Options {
+        hidden: false,
+        mode: Mode::Live,
+    };
     let mut iter = args.iter().skip(1);
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -58,7 +61,10 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             panel::open(app, None);
         }))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
         .manage(Shared::new(ton, options.mode))
         .invoke_handler(tauri::generate_handler![
             ipc::bubble_state,
@@ -79,7 +85,11 @@ fn main() {
             log(format!(
                 "compositor: {} (bubble: {})",
                 if detected { "yes" } else { "no" },
-                if shared.composited() { "translucent" } else { "opaque, cut to shape" }
+                if shared.composited() {
+                    "translucent"
+                } else {
+                    "opaque, cut to shape"
+                }
             ));
             let dpr = platform::webview_scale().unwrap_or(1.0);
             if let Ok(mut bubble) = shared.bubble.lock() {
@@ -112,7 +122,10 @@ fn main() {
     };
     app.run(|_app, event| {
         // Closing the last window must not quit the tray app; only the tray's 退出 does.
-        if let RunEvent::ExitRequested { api, code: None, .. } = event {
+        if let RunEvent::ExitRequested {
+            api, code: None, ..
+        } = event
+        {
             api.prevent_exit();
         }
     });
@@ -125,7 +138,12 @@ mod tests {
     #[test]
     fn parses_flags() {
         let args = |list: &[&str]| list.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
-        let options = parse_options(&args(&["ton-desktop", "--hidden", "--mock", "/tmp/batch.json"]));
+        let options = parse_options(&args(&[
+            "ton-desktop",
+            "--hidden",
+            "--mock",
+            "/tmp/batch.json",
+        ]));
         assert!(options.hidden);
         assert_eq!(options.mode, Mode::Mock("/tmp/batch.json".into()));
         assert_eq!(parse_options(&args(&["ton-desktop"])).mode, Mode::Live);

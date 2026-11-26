@@ -40,12 +40,19 @@ impl std::fmt::Display for TonError {
 }
 
 fn is_script(path: &Path) -> bool {
-    matches!(path.extension().and_then(|ext| ext.to_str()), Some("js" | "mjs" | "cjs" | "ts"))
+    matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some("js" | "mjs" | "cjs" | "ts")
+    )
 }
 
 fn find_in_path(name: &str) -> Option<PathBuf> {
     let names: Vec<String> = if cfg!(windows) {
-        vec![format!("{name}.exe"), format!("{name}.cmd"), name.to_string()]
+        vec![
+            format!("{name}.exe"),
+            format!("{name}.cmd"),
+            name.to_string(),
+        ]
     } else {
         vec![name.to_string()]
     };
@@ -70,25 +77,41 @@ impl Ton {
             return Some(Ton::from_path(PathBuf::from(bin)));
         }
         if let Some(bin) = find_in_path("ton") {
-            return Some(Ton { program: bin, prefix: Vec::new() });
+            return Some(Ton {
+                program: bin,
+                prefix: Vec::new(),
+            });
         }
         let roots = [std::env::current_exe().ok(), std::env::current_dir().ok()];
-        let script = roots.iter().flatten().find_map(|root| find_repo_cli(root))?;
+        let script = roots
+            .iter()
+            .flatten()
+            .find_map(|root| find_repo_cli(root))?;
         Some(Ton::from_path(script))
     }
 
     fn from_path(path: PathBuf) -> Ton {
         if is_script(&path) {
             let node = find_in_path("node").unwrap_or_else(|| PathBuf::from("node"));
-            Ton { program: node, prefix: vec![path.into_os_string()] }
+            Ton {
+                program: node,
+                prefix: vec![path.into_os_string()],
+            }
         } else {
-            Ton { program: path, prefix: Vec::new() }
+            Ton {
+                program: path,
+                prefix: Vec::new(),
+            }
         }
     }
 
     pub fn describe(&self) -> String {
         let mut parts = vec![self.program.display().to_string()];
-        parts.extend(self.prefix.iter().map(|part| part.to_string_lossy().into_owned()));
+        parts.extend(
+            self.prefix
+                .iter()
+                .map(|part| part.to_string_lossy().into_owned()),
+        );
         parts.join(" ")
     }
 
@@ -119,7 +142,11 @@ impl Ton {
             .args(&self.prefix)
             .arg(group)
             .args(args)
-            .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
+            .stdin(if stdin.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
@@ -128,24 +155,35 @@ impl Ton {
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             command.creation_flags(CREATE_NO_WINDOW);
         }
-        let mut child = command.spawn().map_err(|error| TonError::Spawn(error.to_string()))?;
+        let mut child = command
+            .spawn()
+            .map_err(|error| TonError::Spawn(error.to_string()))?;
         if let Some(text) = stdin {
             let mut input = child.stdin.take().expect("piped stdin");
             input
                 .write_all(text.as_bytes())
                 .await
                 .map_err(|error| TonError::Spawn(error.to_string()))?;
-            input.shutdown().await.map_err(|error| TonError::Spawn(error.to_string()))?;
+            input
+                .shutdown()
+                .await
+                .map_err(|error| TonError::Spawn(error.to_string()))?;
         }
         let mut stdout = child.stdout.take().expect("piped stdout");
         let mut stderr = child.stderr.take().expect("piped stderr");
         let run = async {
             let mut out = Vec::new();
             let mut err = Vec::new();
-            let (_, _, status) = tokio::join!(stdout.read_to_end(&mut out), stderr.read_to_end(&mut err), child.wait());
+            let (_, _, status) = tokio::join!(
+                stdout.read_to_end(&mut out),
+                stderr.read_to_end(&mut err),
+                child.wait()
+            );
             (out, err, status)
         };
-        let (out, err, status) = tokio::time::timeout(limit, run).await.map_err(|_| TonError::Timeout(limit))?;
+        let (out, err, status) = tokio::time::timeout(limit, run)
+            .await
+            .map_err(|_| TonError::Timeout(limit))?;
         let status = status.map_err(|error| TonError::Spawn(error.to_string()))?;
         let stdout = String::from_utf8_lossy(&out);
         let json = stdout
@@ -164,13 +202,14 @@ impl Ton {
 /// Subcommands the windows may run. MCP access stays in the terminal.
 /// `note` is deliberately absent: only the coding agent writes back, from its own terminal.
 pub const ALLOWED: &[&str] = &[
-    "inbox", "ack", "act", "dismiss", "delete", "status", "pause", "resume", "runs", "trace", "stats", "prefs",
-    "settings", "activity", "doctor", "contract",
+    "inbox", "ack", "act", "dismiss", "delete", "status", "pause", "resume", "runs", "trace",
+    "stats", "prefs", "settings", "activity", "doctor", "contract",
 ];
 
 /// `schedule` subcommands the panel may run. `execute` stays internal to the scheduler.
 pub const SCHEDULE_ALLOWED: &[&str] = &[
-    "add", "list", "show", "update", "remove", "enable", "disable", "run", "runs", "status", "prune",
+    "add", "list", "show", "update", "remove", "enable", "disable", "run", "runs", "status",
+    "prune",
 ];
 
 #[cfg(test)]

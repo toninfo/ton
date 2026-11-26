@@ -22,7 +22,10 @@ struct Geometry {
 }
 
 fn geometry_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path().home_dir().ok().map(|home| home.join(".ton/agent/panel-window.json"))
+    app.path()
+        .home_dir()
+        .ok()
+        .map(|home| home.join(".ton/agent/panel-window.json"))
 }
 
 fn restore(app: &AppHandle) -> Option<Geometry> {
@@ -34,7 +37,10 @@ fn restore(app: &AppHandle) -> Option<Geometry> {
         let origin = monitor.position();
         let size = monitor.size();
         let (right, bottom) = (origin.x + size.width as i32, origin.y + size.height as i32);
-        geometry.x >= origin.x && geometry.x < right && geometry.y >= origin.y && geometry.y < bottom
+        geometry.x >= origin.x
+            && geometry.x < right
+            && geometry.y >= origin.y
+            && geometry.y < bottom
     });
     visible.then_some(geometry)
 }
@@ -43,8 +49,15 @@ fn save(app: &AppHandle, window: &WebviewWindow) {
     let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) else {
         return;
     };
-    let geometry = Geometry { x: position.x, y: position.y, width: size.width, height: size.height };
-    let Some(path) = geometry_path(app) else { return };
+    let geometry = Geometry {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+    };
+    let Some(path) = geometry_path(app) else {
+        return;
+    };
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }

@@ -54,12 +54,17 @@ pub fn assistant_state(app: AppHandle) -> AssistantState {
 
 /// `ton schedule <args> --json`. Only `SCHEDULE_ALLOWED` subcommands; `execute` stays internal.
 #[tauri::command]
-pub async fn schedule(app: AppHandle, args: Vec<String>, stdin: Option<String>) -> Result<Value, String> {
+pub async fn schedule(
+    app: AppHandle,
+    args: Vec<String>,
+    stdin: Option<String>,
+) -> Result<Value, String> {
     let command = args.first().map(String::as_str).unwrap_or_default();
     if !SCHEDULE_ALLOWED.contains(&command) {
         return Err(format!("不支持的定时任务命令：{command}"));
     }
-    if args.first().map(String::as_str) == Some("execute") || args.iter().any(|arg| arg == "--wait") {
+    if args.first().map(String::as_str) == Some("execute") || args.iter().any(|arg| arg == "--wait")
+    {
         return Err("不支持的定时任务参数".into());
     }
     let shared = app.state::<Shared>();
@@ -71,8 +76,14 @@ pub async fn schedule(app: AppHandle, args: Vec<String>, stdin: Option<String>) 
     if command == "run" && !full.iter().any(|arg| arg == "--detach") {
         full.push("--detach".into());
     }
-    let output = ton.schedule(&full, scheduler::SHORT_TIMEOUT, stdin.as_deref()).await.map_err(|error| error.to_string())?;
-    if matches!(command, "add" | "update" | "remove" | "enable" | "disable" | "run" | "prune") {
+    let output = ton
+        .schedule(&full, scheduler::SHORT_TIMEOUT, stdin.as_deref())
+        .await
+        .map_err(|error| error.to_string())?;
+    if matches!(
+        command,
+        "add" | "update" | "remove" | "enable" | "disable" | "run" | "prune"
+    ) {
         shared.schedule_wake.notify_one();
     }
     match output.json {
@@ -80,7 +91,11 @@ pub async fn schedule(app: AppHandle, args: Vec<String>, stdin: Option<String>) 
             Some(error) => Err(error.to_string()),
             None => Ok(json),
         },
-        None => Err(if output.stderr.is_empty() { format!("ton 退出码 {}", output.code) } else { output.stderr }),
+        None => Err(if output.stderr.is_empty() {
+            format!("ton 退出码 {}", output.code)
+        } else {
+            output.stderr
+        }),
     }
 }
 
@@ -105,7 +120,10 @@ pub async fn ton(app: AppHandle, args: Vec<String>) -> Result<Value, String> {
         "contract" | "doctor" => PROBE_TIMEOUT,
         _ => scheduler::SHORT_TIMEOUT,
     };
-    let output = ton.assistant(&full, limit).await.map_err(|error| error.to_string())?;
+    let output = ton
+        .assistant(&full, limit)
+        .await
+        .map_err(|error| error.to_string())?;
     if matches!(command, "ack" | "act" | "delete" | "pause" | "resume") {
         let app = app.clone();
         tauri::async_runtime::spawn(async move { scheduler::refresh_status(&app).await });
@@ -115,6 +133,10 @@ pub async fn ton(app: AppHandle, args: Vec<String>) -> Result<Value, String> {
             Some(error) => Err(error.to_string()),
             None => Ok(json),
         },
-        None => Err(if output.stderr.is_empty() { format!("ton 退出码 {}", output.code) } else { output.stderr }),
+        None => Err(if output.stderr.is_empty() {
+            format!("ton 退出码 {}", output.code)
+        } else {
+            output.stderr
+        }),
     }
 }

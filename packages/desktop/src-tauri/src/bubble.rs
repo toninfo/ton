@@ -13,7 +13,10 @@ use crate::state::{log, Shared};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
+};
 
 pub const LABEL: &str = "bubble";
 const RADIUS: f64 = 30.0;
@@ -37,7 +40,12 @@ struct Screen {
 impl Screen {
     /// Work area in CSS px, the unit of everything in `position` and of the height the page reports.
     fn work(&self) -> Rect {
-        Rect { x: self.area.x / self.dpr, y: self.area.y / self.dpr, w: self.area.w / self.dpr, h: self.area.h / self.dpr }
+        Rect {
+            x: self.area.x / self.dpr,
+            y: self.area.y / self.dpr,
+            w: self.area.w / self.dpr,
+            h: self.area.h / self.dpr,
+        }
     }
 
     fn physical(&self, x: f64, y: f64) -> PhysicalPosition<i32> {
@@ -94,7 +102,12 @@ impl BubbleState {
                 break;
             }
             let id = item["id"].as_str().unwrap_or_default().to_string();
-            if id.is_empty() || self.items.iter().any(|existing| existing["id"] == id.as_str()) {
+            if id.is_empty()
+                || self
+                    .items
+                    .iter()
+                    .any(|existing| existing["id"] == id.as_str())
+            {
                 continue;
             }
             self.items.push(item);
@@ -104,7 +117,11 @@ impl BubbleState {
     }
 
     fn dpr(&self) -> f64 {
-        if self.dpr > 0.0 { self.dpr } else { 1.0 }
+        if self.dpr > 0.0 {
+            self.dpr
+        } else {
+            1.0
+        }
     }
 
     /// Seed the scale before the first page report; the page overrides it afterwards.
@@ -118,8 +135,13 @@ impl BubbleState {
 /// What the bubble page renders.
 pub fn snapshot(shared: &Shared) -> Value {
     let config = shared.config();
-    let Ok(state) = shared.bubble.lock() else { return json!({ "items": [] }) };
-    let placement = state.placement.unwrap_or(Placement { edge: Edge::Bottom, along: 0.5 });
+    let Ok(state) = shared.bubble.lock() else {
+        return json!({ "items": [] });
+    };
+    let placement = state.placement.unwrap_or(Placement {
+        edge: Edge::Bottom,
+        along: 0.5,
+    });
     json!({
         "items": state.items,
         "edge": placement.edge,
@@ -139,14 +161,28 @@ fn current_screen(app: &AppHandle, dpr: f64) -> Option<(Screen, String, (f64, f6
     let monitor = cursor
         .and_then(|point| app.monitor_from_point(point.x, point.y).ok().flatten())
         .or_else(|| app.primary_monitor().ok().flatten())
-        .or_else(|| app.available_monitors().ok().and_then(|monitors| monitors.into_iter().next()))?;
+        .or_else(|| {
+            app.available_monitors()
+                .ok()
+                .and_then(|monitors| monitors.into_iter().next())
+        })?;
     let area = monitor.work_area();
     let screen = Screen {
-        area: Rect { x: area.position.x as f64, y: area.position.y as f64, w: area.size.width as f64, h: area.size.height as f64 },
+        area: Rect {
+            x: area.position.x as f64,
+            y: area.position.y as f64,
+            w: area.size.width as f64,
+            h: area.size.height as f64,
+        },
         dpr,
     };
-    let name = monitor.name().cloned().unwrap_or_else(|| format!("{}x{}", area.position.x, area.position.y));
-    let cursor = cursor.map(|point| (point.x as f64 / dpr, point.y as f64 / dpr)).unwrap_or((-10_000.0, -10_000.0));
+    let name = monitor
+        .name()
+        .cloned()
+        .unwrap_or_else(|| format!("{}x{}", area.position.x, area.position.y));
+    let cursor = cursor
+        .map(|point| (point.x as f64 / dpr, point.y as f64 / dpr))
+        .unwrap_or((-10_000.0, -10_000.0));
     Some((screen, name, cursor))
 }
 
@@ -176,7 +212,11 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     #[cfg(target_os = "macos")]
     let builder = builder.transparent(true);
     #[cfg(not(target_os = "macos"))]
-    let builder = if app.state::<crate::state::Shared>().composited() { builder.transparent(true) } else { builder };
+    let builder = if app.state::<crate::state::Shared>().composited() {
+        builder.transparent(true)
+    } else {
+        builder
+    };
     let created = builder.build()?;
     platform::apply_bubble_hints(&created);
     Ok(created)
@@ -193,12 +233,21 @@ async fn animate(window: &WebviewWindow, screen: Screen, from: Rect, to: Rect, d
 
 /// Cut or paint nothing extra: apply the outline of `phase` to the window. The mini bubble and the
 /// sheet share the tail strip and the tail's place; only the body differs.
-fn apply_phase_shape(window: &WebviewWindow, shared: &Shared, screen: Screen, size: (f64, f64), placement: Placement, phase: Phase) {
+fn apply_phase_shape(
+    window: &WebviewWindow,
+    shared: &Shared,
+    screen: Screen,
+    size: (f64, f64),
+    placement: Placement,
+    phase: Phase,
+) {
     let tail_center = position::tail_center(placement.edge, size, placement);
     let (body, center, radius) = match phase {
-        Phase::Breath => {
-            ((position::MINI_SPAN, position::MINI_DEPTH), tail_center, position::MINI_RADIUS)
-        }
+        Phase::Breath => (
+            (position::MINI_SPAN, position::MINI_DEPTH),
+            tail_center,
+            position::MINI_RADIUS,
+        ),
         Phase::Grown => {
             let (span, depth) = match placement.edge {
                 Edge::Top | Edge::Bottom => (size.0, size.1 - position::TAIL),
@@ -237,7 +286,9 @@ pub async fn present(app: &AppHandle, items: Vec<Value>) {
     let shared = app.state::<Shared>();
     let max = shared.config().max_cards;
     let (screen, placement, height, target, tail, name, generation) = {
-        let Ok(mut state) = shared.bubble.lock() else { return };
+        let Ok(mut state) = shared.bubble.lock() else {
+            return;
+        };
         if state.visible {
             if state.merge(items, max) > 0 {
                 let _ = app.emit_to(LABEL, "bubble-update", ());
@@ -256,8 +307,21 @@ pub async fn present(app: &AppHandle, items: Vec<Value>) {
         // Size the window from the previous bubble's height when there is one: a brand-new page
         // reports its real height a few frames after it loads, but an already loaded page keeps the
         // old layout until then, so starting from the last height avoids a visible snap.
-        let height = position::clamp_height(if state.body_height > 0.0 { state.body_height } else { DEFAULT_HEIGHT }, screen.work());
-        let placement = position::choose(&mut rand::thread_rng(), screen.work(), height, Some(cursor), state.last_edges.get(&name).copied());
+        let height = position::clamp_height(
+            if state.body_height > 0.0 {
+                state.body_height
+            } else {
+                DEFAULT_HEIGHT
+            },
+            screen.work(),
+        );
+        let placement = position::choose(
+            &mut rand::thread_rng(),
+            screen.work(),
+            height,
+            Some(cursor),
+            state.last_edges.get(&name).copied(),
+        );
         state.last_edges.insert(name.clone(), placement.edge);
         state.placement = Some(placement);
         state.screen = Some(screen);
@@ -266,11 +330,22 @@ pub async fn present(app: &AppHandle, items: Vec<Value>) {
         state.phase = Phase::Breath;
         state.generation += 1;
         let size = position::window_size(placement.edge, height);
-        let tail = position::tail_screen(position::final_rect(screen.work(), size, placement), placement);
+        let tail = position::tail_screen(
+            position::final_rect(screen.work(), size, placement),
+            placement,
+        );
         let target = position::place(screen.work(), size, placement, tail);
         state.tail_screen = Some(tail);
         state.target = Some(target);
-        (screen, placement, height, target, tail, name, state.generation)
+        (
+            screen,
+            placement,
+            height,
+            target,
+            tail,
+            name,
+            state.generation,
+        )
     };
     let window = match window(app) {
         Ok(window) => window,
@@ -304,7 +379,9 @@ pub async fn present(app: &AppHandle, items: Vec<Value>) {
     let _ = window.show();
     tokio::time::sleep(BREATH).await;
     {
-        let Ok(mut state) = shared.bubble.lock() else { return };
+        let Ok(mut state) = shared.bubble.lock() else {
+            return;
+        };
         // Hidden (or replaced) while the mini bubble was on screen: nothing to grow.
         if !state.visible || state.generation != generation {
             return;
@@ -323,11 +400,19 @@ pub async fn present(app: &AppHandle, items: Vec<Value>) {
 /// desktop), so dividing it by `innerWidth` measures nothing and would shrink the window by the
 /// WebKit/GDK ratio.
 pub fn resize(app: &AppHandle, body_height: f64, dpr: Option<f64>) {
-    let Some(window) = app.get_webview_window(LABEL) else { return };
+    let Some(window) = app.get_webview_window(LABEL) else {
+        return;
+    };
     let shared = app.state::<Shared>();
     let (screen, placement, height, phase, tail) = {
-        let Ok(mut state) = shared.bubble.lock() else { return };
-        let (Some(mut screen), Some(placement), true) = (state.screen, state.placement, state.visible) else { return };
+        let Ok(mut state) = shared.bubble.lock() else {
+            return;
+        };
+        let (Some(mut screen), Some(placement), true) =
+            (state.screen, state.placement, state.visible)
+        else {
+            return;
+        };
         let before = screen.dpr;
         if let Some(scale) = dpr {
             state.set_dpr(scale);
@@ -345,7 +430,9 @@ pub fn resize(app: &AppHandle, body_height: f64, dpr: Option<f64>) {
         }
         state.body_height = height;
         // Present() always freezes this; without it there is nothing to anchor to.
-        let Some(tail) = state.tail_screen else { return };
+        let Some(tail) = state.tail_screen else {
+            return;
+        };
         (screen, placement, height, state.phase, tail)
     };
     let size = position::window_size(placement.edge, height);
@@ -390,36 +477,61 @@ pub fn resize(app: &AppHandle, body_height: f64, dpr: Option<f64>) {
 fn settle(app: &AppHandle) {
     let shared = app.state::<Shared>();
     let (screen, placement, target, height, phase) = {
-        let Ok(state) = shared.bubble.lock() else { return };
-        if !state.visible || state.slide_until.is_some_and(|until| Instant::now() < until) {
+        let Ok(state) = shared.bubble.lock() else {
+            return;
+        };
+        if !state.visible
+            || state
+                .slide_until
+                .is_some_and(|until| Instant::now() < until)
+        {
             return;
         }
-        let (Some(screen), Some(placement), Some(target)) = (state.screen, state.placement, state.target) else {
+        let (Some(screen), Some(placement), Some(target)) =
+            (state.screen, state.placement, state.target)
+        else {
             return;
         };
         (screen, placement, target, state.body_height, state.phase)
     };
-    let Some(window) = app.get_webview_window(LABEL) else { return };
-    let (Ok(position), Ok(actual)) = (window.outer_position(), window.outer_size()) else { return };
+    let Some(window) = app.get_webview_window(LABEL) else {
+        return;
+    };
+    let (Ok(position), Ok(actual)) = (window.outer_position(), window.outer_size()) else {
+        return;
+    };
 
     // The screen the rect was computed against may not exist any more (mode change, unplug,
     // resume). Neither its size nor its position means anything then; place the bubble again on
     // the monitor under the cursor, keeping the edge it was given.
-    let known = app.available_monitors().unwrap_or_default().iter().any(|monitor| {
-        let work = monitor.work_area();
-        (work.position.x as f64 - screen.area.x).abs() < 2.0
-            && (work.position.y as f64 - screen.area.y).abs() < 2.0
-            && (work.size.width as f64 - screen.area.w).abs() < 2.0
-            && (work.size.height as f64 - screen.area.h).abs() < 2.0
-    });
+    let known = app
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .any(|monitor| {
+            let work = monitor.work_area();
+            (work.position.x as f64 - screen.area.x).abs() < 2.0
+                && (work.position.y as f64 - screen.area.y).abs() < 2.0
+                && (work.size.width as f64 - screen.area.w).abs() < 2.0
+                && (work.size.height as f64 - screen.area.h).abs() < 2.0
+        });
     if !known {
-        let dpr = shared.bubble.lock().map(|state| state.dpr()).unwrap_or(screen.dpr);
-        let Some((next, name, _)) = current_screen(app, dpr) else { return };
+        let dpr = shared
+            .bubble
+            .lock()
+            .map(|state| state.dpr())
+            .unwrap_or(screen.dpr);
+        let Some((next, name, _)) = current_screen(app, dpr) else {
+            return;
+        };
         let height = position::clamp_height(height, next.work());
         let size = position::window_size(placement.edge, height);
         // The old anchor is a coordinate on a screen that no longer exists; pick a fresh one there
         // and keep using it for later height changes.
-        let tail = position::tail_screen(position::final_rect(next.work(), size, placement), placement);
+        let tail = position::tail_screen(
+            position::final_rect(next.work(), size, placement),
+            placement,
+        );
         let target = position::place(next.work(), size, placement, tail);
         log(format!(
             "bubble re-place: monitor at ({:.0},{:.0}) {}x{} is gone, bubble to {name} at ({:.0},{:.0})",
@@ -453,7 +565,14 @@ fn settle(app: &AppHandle) {
     if outside {
         log(format!(
             "bubble snap: {}x{} at ({},{}) -> {}x{} at ({},{})",
-            actual.width, actual.height, position.x, position.y, size.width, size.height, wanted.x, wanted.y
+            actual.width,
+            actual.height,
+            position.x,
+            position.y,
+            size.width,
+            size.height,
+            wanted.x,
+            wanted.y
         ));
     }
     let _ = window.set_size(size);
@@ -464,7 +583,9 @@ fn settle(app: &AppHandle) {
 pub async fn card_closed(app: &AppHandle, id: &str) {
     let empty = {
         let shared = app.state::<Shared>();
-        let Ok(mut state) = shared.bubble.lock() else { return };
+        let Ok(mut state) = shared.bubble.lock() else {
+            return;
+        };
         state.items.retain(|item| item["id"] != id);
         state.items.is_empty()
     };
@@ -476,11 +597,17 @@ pub async fn card_closed(app: &AppHandle, id: &str) {
 pub async fn hide(app: &AppHandle) {
     let shared = app.state::<Shared>();
     let (screen, placement, target, generation, breathing) = {
-        let Ok(mut state) = shared.bubble.lock() else { return };
+        let Ok(mut state) = shared.bubble.lock() else {
+            return;
+        };
         if !state.visible {
             return;
         }
-        let (Some(screen), Some(placement), Some(target)) = (state.screen, state.placement, state.target) else { return };
+        let (Some(screen), Some(placement), Some(target)) =
+            (state.screen, state.placement, state.target)
+        else {
+            return;
+        };
         state.visible = false;
         state.items.clear();
         state.target = None;
@@ -491,13 +618,27 @@ pub async fn hide(app: &AppHandle) {
         state.phase = Phase::Grown;
         (screen, placement, target, state.generation, breathing)
     };
-    let Some(window) = app.get_webview_window(LABEL) else { return };
+    let Some(window) = app.get_webview_window(LABEL) else {
+        return;
+    };
     // The mini bubble is already at the edge; it has no sheet to slide out of.
     if !breathing {
-        animate(&window, screen, target, position::start_rect(target, placement.edge), SLIDE_OUT).await;
+        animate(
+            &window,
+            screen,
+            target,
+            position::start_rect(target, placement.edge),
+            SLIDE_OUT,
+        )
+        .await;
     }
     // A new batch may have arrived during the slide-out and re-shown the same window.
-    if shared.bubble.lock().map(|state| state.generation != generation).unwrap_or(true) {
+    if shared
+        .bubble
+        .lock()
+        .map(|state| state.generation != generation)
+        .unwrap_or(true)
+    {
         return;
     }
     let _ = window.hide();
@@ -505,7 +646,11 @@ pub async fn hide(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(DESTROY_AFTER).await;
         let shared = app.state::<Shared>();
-        let stale = shared.bubble.lock().map(|state| state.generation == generation && !state.visible).unwrap_or(false);
+        let stale = shared
+            .bubble
+            .lock()
+            .map(|state| state.generation == generation && !state.visible)
+            .unwrap_or(false);
         if stale {
             if let Some(window) = app.get_webview_window(LABEL) {
                 let _ = window.destroy();
@@ -521,16 +666,37 @@ mod tests {
     #[test]
     fn merge_skips_duplicates_and_caps_cards() {
         let mut state = BubbleState::default();
-        let items = vec![json!({"id": "a"}), json!({"id": "b"}), json!({"id": "a"}), json!({"id": "c"}), json!({"id": "d"})];
+        let items = vec![
+            json!({"id": "a"}),
+            json!({"id": "b"}),
+            json!({"id": "a"}),
+            json!({"id": "c"}),
+            json!({"id": "d"}),
+        ];
         assert_eq!(state.merge(items, 3), 3);
         assert_eq!(state.merge(vec![json!({"id": "e"})], 3), 0);
-        assert_eq!(state.items.iter().map(|item| item["id"].as_str().unwrap()).collect::<Vec<_>>(), ["a", "b", "c"]);
+        assert_eq!(
+            state
+                .items
+                .iter()
+                .map(|item| item["id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["a", "b", "c"]
+        );
         assert_eq!(state.merge(vec![json!({"title": "no id"})], 5), 0);
     }
 
     #[test]
     fn screen_converts_between_css_and_physical_pixels() {
-        let screen = Screen { area: Rect { x: 0.0, y: 0.0, w: 2560.0, h: 1440.0 }, dpr: 1.3020833 };
+        let screen = Screen {
+            area: Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 2560.0,
+                h: 1440.0,
+            },
+            dpr: 1.3020833,
+        };
         let work = screen.work();
         assert!((work.w - 1966.08).abs() < 0.01);
         let pixels = screen.pixels((668.0, 788.0));
