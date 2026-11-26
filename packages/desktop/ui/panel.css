@@ -1132,3 +1132,48 @@ details.origin .origin-path {
 [hidden] {
 	display: none !important;
 }
+
+/* Schedule */
+.schedule-form .settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 14px;
+  margin: 10px 0;
+}
+
+.schedule-form textarea {
+  min-height: 96px;
+}
+
+.schedule-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-row input[type="time"] {
+  flex: 0 0 auto;
+}
+
+.schedule-card .schedule-meta {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.schedule-card .item-actions {
+  margin-top: 10px;
+}
+
+.schedule-output {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  max-height: 240px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.5 var(--font-mono, ui-monospace, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

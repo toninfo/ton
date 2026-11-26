@@ -66,6 +66,7 @@ import { loadAssistantCommand } from "./extensions/assistant/cli.lazy.ts";
 import { builtInExtensions } from "./extensions/index.ts";
 import { loadKbCommand } from "./extensions/kb/cli.lazy.ts";
 import { loadMcpCommand } from "./extensions/mcp/cli.lazy.ts";
+import { loadScheduleCommand } from "./extensions/schedule/cli.lazy.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
 import { initTheme, setThemeJsonValidator, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
@@ -629,6 +630,12 @@ export async function main(args: string[], options?: MainOptions) {
 	if (args[0] === "assistant") {
 		const { runAssistantCommand } = await loadAssistantCommand();
 		process.exitCode = await runAssistantCommand(args.slice(1), { cwd, agentDir });
+		return;
+	}
+
+	if (args[0] === "schedule") {
+		const { runScheduleCommand } = await loadScheduleCommand();
+		process.exitCode = await runScheduleCommand(args.slice(1), { cwd, agentDir });
 		return;
 	}
 

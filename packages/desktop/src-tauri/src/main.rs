@@ -11,6 +11,7 @@ mod ipc;
 mod panel;
 mod platform;
 mod position;
+mod schedule;
 mod scheduler;
 mod state;
 mod ton;
@@ -68,6 +69,7 @@ fn main() {
             ipc::tick_now,
             ipc::assistant_state,
             ipc::ton,
+            ipc::schedule,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -94,6 +96,7 @@ fn main() {
                 Err(error) => log(format!("tray unavailable: {error}")),
             }
             tauri::async_runtime::spawn(scheduler::run(handle.clone()));
+            tauri::async_runtime::spawn(schedule::run(handle.clone()));
             if !hidden {
                 panel::open(&handle, None);
             }

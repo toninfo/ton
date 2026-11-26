@@ -7,6 +7,7 @@ export const listen = (event, handler) => tauri.event.listen(event, handler);
 
 /** `ton assistant <args> --json` through the desktop shell (whitelisted subcommands only). */
 export const ton = (...args) => invoke("ton", { args });
+export const schedule = (args, stdin) => invoke("schedule", { args, stdin });
 
 export const STATE_LABEL = {
 	new: "待判断",

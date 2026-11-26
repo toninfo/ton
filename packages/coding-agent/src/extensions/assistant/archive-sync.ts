@@ -8,8 +8,8 @@
  */
 
 import { spawn } from "node:child_process";
+import { tonCommand } from "../../utils/ton-command.ts";
 import { enabledCollectorSlots, loadCollectorsConfig } from "../kb/archive/collectors-config.ts";
-import { tonCommand } from "./actions.ts";
 import { MINUTE, toStored } from "./time.ts";
 import type { AssistantSettings } from "./types.ts";
 

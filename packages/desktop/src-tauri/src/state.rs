@@ -79,8 +79,10 @@ pub struct Shared {
     pub tray: Mutex<Option<Tray>>,
     pub tray_status: Mutex<TrayStatus>,
     pub assistant: Mutex<AssistantState>,
-    /// "现在探测" wakes the scheduler early.
+    /// "现在探测" wakes the assistant scheduler early.
     pub wake: Notify,
+    /// Schedule edits wake the due-job loop early.
+    pub schedule_wake: Notify,
 }
 
 impl Shared {
@@ -96,6 +98,7 @@ impl Shared {
             tray_status: Mutex::new(TrayStatus::default()),
             assistant: Mutex::new(assistant),
             wake: Notify::new(),
+            schedule_wake: Notify::new(),
         }
     }
 

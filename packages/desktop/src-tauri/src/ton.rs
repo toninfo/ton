@@ -6,7 +6,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
 #[derive(Clone, Debug)]
@@ -94,12 +94,32 @@ impl Ton {
 
     /// `ton assistant <args...>`; JSON is parsed from the last non-empty stdout line.
     pub async fn assistant(&self, args: &[String], limit: Duration) -> Result<TonOutput, TonError> {
+        self.run_in("assistant", args, limit, None).await
+    }
+
+    /// `ton schedule <args...>`; optional stdin carries a long prompt for add/update.
+    pub async fn schedule(
+        &self,
+        args: &[String],
+        limit: Duration,
+        stdin: Option<&str>,
+    ) -> Result<TonOutput, TonError> {
+        self.run_in("schedule", args, limit, stdin).await
+    }
+
+    async fn run_in(
+        &self,
+        group: &str,
+        args: &[String],
+        limit: Duration,
+        stdin: Option<&str>,
+    ) -> Result<TonOutput, TonError> {
         let mut command = Command::new(&self.program);
         command
             .args(&self.prefix)
-            .arg("assistant")
+            .arg(group)
             .args(args)
-            .stdin(Stdio::null())
+            .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
@@ -109,6 +129,14 @@ impl Ton {
             command.creation_flags(CREATE_NO_WINDOW);
         }
         let mut child = command.spawn().map_err(|error| TonError::Spawn(error.to_string()))?;
+        if let Some(text) = stdin {
+            let mut input = child.stdin.take().expect("piped stdin");
+            input
+                .write_all(text.as_bytes())
+                .await
+                .map_err(|error| TonError::Spawn(error.to_string()))?;
+            input.shutdown().await.map_err(|error| TonError::Spawn(error.to_string()))?;
+        }
         let mut stdout = child.stdout.take().expect("piped stdout");
         let mut stderr = child.stderr.take().expect("piped stderr");
         let run = async {
@@ -140,9 +168,20 @@ pub const ALLOWED: &[&str] = &[
     "settings", "activity", "doctor", "contract",
 ];
 
+/// `schedule` subcommands the panel may run. `execute` stays internal to the scheduler.
+pub const SCHEDULE_ALLOWED: &[&str] = &[
+    "add", "list", "show", "update", "remove", "enable", "disable", "run", "runs", "status", "prune",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn schedule_allowlist_excludes_execute() {
+        assert!(SCHEDULE_ALLOWED.contains(&"list"));
+        assert!(!SCHEDULE_ALLOWED.contains(&"execute"));
+    }
 
     #[test]
     fn scripts_run_through_node() {

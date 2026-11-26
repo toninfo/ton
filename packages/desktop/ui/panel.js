@@ -1,11 +1,11 @@
 // Panel page: inbox, snoozed/muted, history, activity feed, decision log, status, stats and prefs.
 
-import { copyText, el, errorText, invoke, listen, relativeTime, STATE_LABEL, shortTime, ton } from "./common.js";
+import { copyText, el, errorText, invoke, listen, relativeTime, schedule, STATE_LABEL, shortTime, ton } from "./common.js";
 
 const content = document.getElementById("content");
 const toastEl = document.getElementById("toast");
 const tickButton = document.getElementById("tick");
-const tabs = ["overview", "inbox", "quiet", "history", "activity", "runs", "settings"];
+const tabs = ["overview", "inbox", "quiet", "history", "activity", "schedule", "runs", "settings"];
 let current = "inbox";
 let toastTimer;
 /** Discards a render that finishes after the user moved to another tab. */
@@ -18,6 +18,8 @@ let selectMode = false;
 const selected = new Set();
 /** Activity pages loaded beyond the first: the 25 s poll must not rebuild the feed once > 1. */
 let activityPages = 1;
+/** Schedule form has unsaved text; background refresh must leave it alone. */
+let scheduleDirty = false;
 /** Runs tab: reveal runs that produced no events. Reset when leaving the tab. */
 let runsShowEmpty = false;
 const PAGE = 50;
@@ -1089,6 +1091,253 @@ function field(label, hint, input) {
 	return el(`label.field${stretch}`, {}, el("span.field-label", { text: label }), input, hint ? el("span.field-hint", { text: hint }) : null);
 }
 
+function scheduleModeOf(cron) {
+	const daily = /^(\d+) (\d+) \* \* \*$/.exec(cron);
+	if (daily) return { mode: "daily", time: `${daily[2].padStart(2, "0")}:${daily[1].padStart(2, "0")}` };
+	const weekly = /^(\d+) (\d+) \* \* ([\d,]+)$/.exec(cron);
+	if (weekly) {
+		const names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+		const days = weekly[3].split(",").map((value) => names[Number(value)] ?? value).join(",");
+		return { mode: "weekly", days, time: `${weekly[2].padStart(2, "0")}:${weekly[1].padStart(2, "0")}` };
+	}
+	return { mode: "cron", cron };
+}
+
+async function renderSchedule() {
+	const [data, info] = await Promise.all([schedule(["list"]), schedule(["status"]).catch(() => null)]);
+	const jobs = data.jobs ?? [];
+	let editing = null;
+
+	const name = el("input", { type: "text", placeholder: "例如：每日早报" });
+	const mode = el("select", {},
+		el("option", { value: "daily", text: "每天" }),
+		el("option", { value: "weekly", text: "每周" }),
+		el("option", { value: "every", text: "每隔" }),
+		el("option", { value: "cron", text: "自定义 cron" }),
+	);
+	const time = el("input", { type: "time", value: "09:00" });
+	const days = el("input", { type: "text", placeholder: "mon-fri", value: "mon-fri" });
+	const every = el("input", { type: "text", placeholder: "30m / 2h", value: "30m" });
+	const cron = el("input", { type: "text", placeholder: "0 9 * * 1-5" });
+	const prompt = el("textarea", { rows: "4", placeholder: "到点让 ton 做什么…" });
+	const cwd = el("input", { type: "text", placeholder: "~ 或绝对路径", value: "~" });
+	const model = el("input", { type: "text", placeholder: "留空用默认模型" });
+	const thinking = el("select", {},
+		el("option", { value: "", text: "默认" }),
+		...["off", "minimal", "low", "medium", "high", "xhigh", "max"].map((value) =>
+			el("option", { value, text: value }),
+		),
+	);
+	const tools = el("input", { type: "text", placeholder: "read,grep,find,ls" });
+	const noTools = el("input", { type: "checkbox" });
+	const approve = el("input", { type: "checkbox" });
+	const session = el("input", { type: "text", placeholder: "固定会话 id（可选）" });
+	const timeout = el("input", { type: "number", min: "1", max: "1440", value: "30" });
+	const catchUp = el("input", { type: "number", min: "0", max: "10080", value: "60" });
+	const status = el("span.card-hint", { text: "" });
+	const submit = el("button.primary", { type: "submit", text: "保存" });
+
+	const dailyField = field("时间", null, time);
+	const weeklyField = field("星期与时间", "例如 mon-fri 09:00", el("div.schedule-row", {}, days, time));
+	const everyField = field("间隔", "分钟需整除 60，小时需整除 24", every);
+	const cronField = field("cron", "分 时 日 月 周；本地时区", cron);
+	const syncMode = () => {
+		for (const node of [dailyField, weeklyField, everyField, cronField]) node.hidden = true;
+		const selected = mode.value;
+		if (selected === "daily") dailyField.hidden = false;
+		if (selected === "weekly") weeklyField.hidden = false;
+		if (selected === "every") everyField.hidden = false;
+		if (selected === "cron") cronField.hidden = false;
+	};
+	mode.addEventListener("change", syncMode);
+	syncMode();
+	for (const input of [name, mode, time, days, every, cron, prompt, cwd, model, thinking, tools, noTools, approve, session, timeout, catchUp]) {
+		input.addEventListener("input", () => {
+			scheduleDirty = true;
+		});
+	}
+
+	const form = el(
+		"form.card.schedule-form",
+		{},
+		cardHead("clock", "新建 / 编辑定时任务"),
+		el("div.settings-grid", {}, field("名称", null, name), field("频率", null, mode), dailyField, weeklyField, everyField, cronField),
+		field("prompt", "到点执行 ton，等价于 ton -p；可读写文件、调用工具", prompt),
+		field("工作目录", "任务的 cwd；~ 会展开", cwd),
+		el(
+			"details.card-more",
+			{},
+			el("summary", { text: "高级" }),
+			el(
+				"div.settings-grid",
+				{},
+				field("模型", null, model),
+				field("thinking", null, thinking),
+				field("tools", null, tools),
+				field("不用工具", null, noTools),
+				field("信任项目文件", "无人值守运行，模型可调用工具；只在可信目录开启", approve),
+				field("固定会话 id", "留空则每次 --no-session", session),
+				field("超时（分钟）", null, timeout),
+				field("补发窗口（分钟）", "错过后仍执行一次的时限", catchUp),
+			),
+		),
+		el("div.card-foot", {}, status, submit),
+	);
+	form.addEventListener("submit", async (event) => {
+		event.preventDefault();
+		const who = editing ?? name.value.trim();
+		if (!who) {
+			status.textContent = "名称不能为空";
+			return;
+		}
+		if (!prompt.value.trim()) {
+			status.textContent = "prompt 不能为空";
+			return;
+		}
+		const args = [editing ? "update" : "add", who];
+		if (editing && name.value.trim() && name.value.trim() !== editing) args.push("--name", name.value.trim());
+		if (mode.value === "daily") args.push("--daily", time.value);
+		else if (mode.value === "weekly") args.push("--weekly", `${days.value.trim()} ${time.value}`);
+		else if (mode.value === "every") args.push("--every", every.value.trim());
+		else args.push("--cron", cron.value.trim());
+		args.push(
+			"--prompt-file",
+			"-",
+			"--cwd",
+			cwd.value.trim() || "~",
+			"--model",
+			model.value.trim(),
+			"--thinking",
+			thinking.value,
+			"--tools",
+			tools.value.trim(),
+			"--session-id",
+			session.value.trim(),
+			"--timeout-minutes",
+			timeout.value || "30",
+			"--catch-up-minutes",
+			catchUp.value || "60",
+			approve.checked ? "--approve" : "--no-approve",
+		);
+		if (noTools.checked) args.push("--no-tools");
+		submit.disabled = true;
+		status.textContent = "保存中…";
+		try {
+			await schedule(args, prompt.value);
+			scheduleDirty = false;
+			editing = null;
+			toast("定时任务已保存");
+			await show("schedule");
+		} catch (error) {
+			status.textContent = `失败：${errorText(error)}`;
+			submit.disabled = false;
+		}
+	});
+
+	const edit = (job) => {
+		editing = job.id;
+		scheduleDirty = true;
+		name.value = job.name;
+		prompt.value = job.prompt ?? "";
+		cwd.value = job.cwd ?? "~";
+		model.value = job.model ?? "";
+		thinking.value = job.thinking ?? "";
+		tools.value = job.tools ?? "";
+		noTools.checked = Boolean(job.no_tools);
+		approve.checked = Boolean(job.approve);
+		session.value = job.session_id ?? "";
+		timeout.value = String(Math.round((job.timeout_seconds ?? 1800) / 60));
+		catchUp.value = String(job.catch_up_minutes ?? 60);
+		const parsed = scheduleModeOf(job.cron ?? "* * * * *");
+		mode.value = parsed.mode;
+		time.value = parsed.time ?? "09:00";
+		days.value = parsed.days ?? "mon-fri";
+		every.value = parsed.cron ?? "30m";
+		cron.value = parsed.cron ?? job.cron ?? "";
+		syncMode();
+		form.scrollIntoView({ behavior: "smooth", block: "start" });
+	};
+
+	const cards = jobs.map((job) => {
+		const runState = job.last_status ? `${job.last_status} · ${shortTime(job.last_run_at)}` : "从未运行";
+		const output = el("pre.schedule-output", { hidden: true });
+		const detail = el("button.small", {
+			type: "button",
+			text: "运行记录",
+			onclick: async (event) => {
+				event.currentTarget.disabled = true;
+				try {
+					const result = await schedule(["show", job.id, "--runs", "5"]);
+					const runs = result.runs ?? [];
+					output.textContent =
+						runs.map((run) => `#${run.id} ${run.status} ${shortTime(run.started_at ?? run.claimed_at)}\n${run.output_tail ?? run.error ?? ""}`).join("\n\n") ||
+						"没有运行记录";
+					output.hidden = !output.hidden;
+				} catch (error) {
+					toast(`读取失败：${errorText(error)}`);
+				} finally {
+					event.currentTarget.disabled = false;
+				}
+			},
+		});
+		const run = el("button.small.primary", {
+			type: "button",
+			text: "立即运行",
+			onclick: async (event) => {
+				event.currentTarget.disabled = true;
+				try {
+					await schedule(["run", job.id]);
+					toast("已启动");
+					setTimeout(() => void show("schedule"), 800);
+				} catch (error) {
+					toast(`启动失败：${errorText(error)}`);
+					event.currentTarget.disabled = false;
+				}
+			},
+		});
+		const toggle = el("button.small", {
+			type: "button",
+			text: job.enabled ? "停用" : "启用",
+			onclick: async (event) => {
+				event.currentTarget.disabled = true;
+				try {
+					await schedule([job.enabled ? "disable" : "enable", job.id]);
+					await show("schedule");
+				} catch (error) {
+					toast(`失败：${errorText(error)}`);
+					event.currentTarget.disabled = false;
+				}
+			},
+		});
+		const remove = confirmButton("删除", "确认删除？", async () => {
+			try {
+				await schedule(["remove", job.id]);
+				await show("schedule");
+			} catch (error) {
+				toast(`删除失败：${errorText(error)}`);
+			}
+		});
+		return el(
+			"section.card.schedule-card",
+			{},
+			cardHead("clock", job.name),
+			el("div.schedule-meta", { text: `${job.summary ?? job.cron} · ${job.enabled ? "启用" : "停用"}` }),
+			el("div.schedule-meta", { text: `下次 ${shortTime(job.next_run_at)} · 上次 ${runState}` }),
+			el("div.item-actions", {}, run, detail, el("button.small", { type: "button", text: "编辑", onclick: () => edit(job) }), toggle, remove),
+			output,
+		);
+	});
+
+	const statusLine = info
+		? `共 ${info.jobs} 个任务，启用 ${info.enabled}，运行中 ${info.running}`
+		: "定时任务";
+	return [
+		el("div.act-section", {}, el("span", { text: statusLine })),
+		...(cards.length > 0 ? cards : [emptyState("clock", "还没有定时任务", "在下面新建一个，到点让 ton 跑一段 prompt。")]),
+		form,
+	];
+}
+
 async function renderSettings() {
 	const [prefs, loaded, doctor] = await Promise.all([ton("prefs"), ton("settings"), ton("doctor").catch(() => null)]);
 	const settings = loaded.settings ?? {};
@@ -1231,6 +1480,7 @@ const RENDER = {
 	quiet: renderQuiet,
 	history: renderHistory,
 	activity: renderActivity,
+	schedule: renderSchedule,
 	runs: renderRuns,
 	overview: renderOverview,
 	settings: renderSettings,
@@ -1282,6 +1532,12 @@ async function show(tab) {
 			else void show("activity");
 		}, 25000);
 	}
+	if (current === "schedule") {
+		pollTimer = setInterval(() => {
+			if (current !== "schedule" || scheduleDirty) return;
+			void show("schedule");
+		}, 15000);
+	}
 	try {
 		const nodes = await RENDER[current]();
 		if (seq !== renderSeq) return;
@@ -1298,6 +1554,7 @@ const TAB_ICON = {
 	quiet: "moon",
 	history: "list",
 	activity: "sparkles",
+	schedule: "clock",
 	runs: "pulse",
 	overview: "chart",
 	settings: "sliders",

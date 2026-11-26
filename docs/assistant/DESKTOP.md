@@ -64,6 +64,8 @@ main (tokio)
  ├─ scheduler loop: every tickMinutes (default 15) + 0–5min jitter
  │    └─ Command::new(ton).args(["assistant","tick","--json"])
  │         timeout 120s → parse stdout → emit event to webview
+ ├─ schedule loop: every ≤60s or schedule_wake
+ │    └─ Command::new(ton).args(["schedule","run-due","--json"])
  └─ window manager: 按需创建 bubble/panel webview
 ```
 
@@ -75,7 +77,8 @@ main (tokio)
 - **超时**：`tokio::time::timeout`；超时视为失败，不弹窗，托盘变红。
 - **退出码**：`0` 正常；`2` 降级（展示 + 托盘黄）；`3` 暂停中/静默时段（不弹窗）；其他（1、超时、解析失败）= 红。
 - **二进制发现顺序**：`$TON_BIN` → `PATH` 里的 `ton` → `node <repo>/packages/coding-agent/dist/cli.js`（开发模式）。
-- **崩溃恢复**：scheduler 永不 panic 退出；单轮异常记日志，下一轮继续。进程本身交给桌面环境的自启（`~/.config/autostart/ton-desktop.desktop`）。
+- **崩溃恢复**：两个 scheduler 循环都永不 panic 退出；单轮异常记日志，下一轮继续。进程本身交给桌面环境的自启（`~/.config/autostart/ton-desktop.desktop`）。
+- **定时任务**：`schedule` 循环只调用 CLI 的 `run-due`，不碰数据库；面板编辑会 `notify_one` 提前唤醒，否则最多睡 60 秒。桌面退出时定时任务暂停。
 - **运行态**：每轮 tick 开始时把 `running=true`、`started_at_ms` 写进 `Shared` 并 emit Tauri 事件 `assistant-state`；结束时写 `running=false`、`last_finished_at_ms`、`last_exit_code/decision/reason` 再 emit。这是内存状态，不进 state.db；持久历史看 `runs` 与 `activity`。面板打开时用 `assistant_state` 命令补快照。
 
 ## 5. 窗口规格
@@ -191,7 +194,7 @@ gtk_window.set_type_hint(gdk::WindowTypeHint::Notification);
 - P0：用 `p0MaxMinutes`（默认 30 分钟）单独计时，到点缩回，防止永久挡屏。
 - 关闭按钮不存在；只能用按钮、`Esc`（等同「知道了」）或点托盘收起。
 
-### 列表页（待处理 / 静默 / 历史 / 活动 / 日志）
+### 列表页（待处理 / 静默 / 历史 / 活动 / 定时 / 日志）
 
 - 每页 50 条。历史、日志用 `--offset` 翻页；活动用 `--before <event_id>` 游标翻页——25 秒轮询会把新事件插到顶部，offset 会挤重或跳条。
 - 工具栏：`选择` 进入多选（卡片前置复选框），`全选已加载` / `取消全选`，待处理与静默页的 `已处理所选`（历史页为 `撤销所选`），`删除所选 (N)`，`退出选择`。每张卡也有单独的 `删除`。
@@ -200,7 +203,8 @@ gtk_window.set_type_hint(gdk::WindowTypeHint::Notification);
 - 批量处理调用 `ton assistant ack --state done <ids...>`（历史页 `ack --undo <ids...>`），同样按 200 个一批；toast 汇总 `已处理 N 项` / `已撤销 N 项`，跳过原因有未知、已删除、重复、没有变化、没有可撤销的批复。
 - 语义：事项删除留墓碑（不再出现，也不会被下一轮探测重建）；活动删除是隐藏（note、心跳、对账、去重语义不变，轨迹里仍能看到）；日志是硬删行。
 - 选择模式或已加载多页活动时，轮询和 `assistant-state` 只原地刷新顶部状态条，不整页重建，避免清掉已加载页和勾选。
-- 面板自己刷新：每轮 tick 开始/结束（`assistant-state`）与窗口重新获得焦点时，`待处理`/`静默`/`概况`/`活动` 整页重取；`设置` 不重绘（保留未保存的文本），`历史`/`日志` 保留翻页状态。「现在探测」只负责触发，不再用固定 8 秒定时器盲刷。
+- 面板自己刷新：每轮 tick 开始/结束（`assistant-state`）与窗口重新获得焦点时，`待处理`/`静默`/`概况`/`活动` 整页重取；`设置` 不重绘（保留未保存的文本），`历史`/`日志` 保留翻页状态，`定时` 在表单未编辑时每 15 秒刷新。「现在探测」只负责触发，不再用固定 8 秒定时器盲刷。
+- 「定时」页管理 `ton schedule` 任务：列表、新建/编辑、启用/停用、立即运行、删除和最近运行输出。Rust 只每约一分钟调用 `ton schedule run-due --json`，任务定义、claim 和执行都在 CLI；任务只在桌面运行时执行。
 - `Esc` 先让输入框失焦，再按一次关闭面板。关闭时把窗口位置与大小写入 `~/.ton/agent/panel-window.json`；下次打开若左上角仍落在某个显示器内就还原，否则居中。
 - 日志默认只看有内容的运行：`silent`、无 error 且没有事件的空探测不进列表，底部一行「另有 N 次空探测（最近 HH:mm）· 显示」可展开全量，离开标签页复位。
 - 头部计数只显示非零项（`待处理 N` / `静默 M`，后者合并稍后与已静默）；都为零时显示「没有待办」，后面照旧跟暂停至 / dry-run。

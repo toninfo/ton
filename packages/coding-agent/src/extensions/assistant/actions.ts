@@ -8,6 +8,7 @@
 import { spawn } from "node:child_process";
 import { basename } from "node:path";
 import { openBrowser } from "../../utils/open-browser.ts";
+import { tonCommand } from "../../utils/ton-command.ts";
 import type { AssistantStore } from "./store.ts";
 import type { Completer } from "./triage.ts";
 import type { ActionKind, AssistantSettings, ItemRow } from "./types.ts";
@@ -91,12 +92,6 @@ function draftPrompt(item: ItemRow, payload: Record<string, unknown>, hint: stri
 }
 
 /** ton itself: the compiled binary, or node + the cli script. `TON_BIN` overrides. */
-export function tonCommand(env: NodeJS.ProcessEnv = process.env): string[] {
-	if (env.TON_BIN) return [env.TON_BIN];
-	const script = process.argv[1];
-	return script && /\.(c|m)?[jt]s$/.test(script) ? [process.execPath, script] : [process.execPath];
-}
-
 function shellQuote(value: string): string {
 	return `'${value.replace(/'/g, "'\\''")}'`;
 }

@@ -39,6 +39,7 @@ Run `/login` inside ton to connect a subscription or API key, then give it a tas
 - [Extensions](docs/extensions.md)
 - [Skills](docs/skills.md)
 - [Knowledge base](docs/kb.md)
+- Scheduled prompts: `ton schedule add|list|show|update|remove|run` (see [design](../../docs/schedule/DESIGN.md))
 
 ## Development
 
