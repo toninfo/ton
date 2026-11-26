@@ -68,7 +68,7 @@ Config and indexes live in `~/.ton/agent/`; project extensions in `.ton/`.
 | `packages/desktop/` | Ton Desktop (Tauri) |
 | `packages/ai/` etc. | Agent kernel and toolchain |
 
-Product site: [ton.ren](https://ton.ren/) (source in the private `toninfo/ton-web` repo).
+Product site: [ton.ren](https://ton.ren/)
 
 More: [knowledge base](packages/coding-agent/docs/kb.md) · [product line](docs/PRODUCT_LINE.md) · [roadmap](docs/ROADMAP.md)
 

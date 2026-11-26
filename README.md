@@ -68,7 +68,7 @@ ton kb search "关键词"
 | `packages/desktop/` | Ton Desktop（Tauri 桌面端） |
 | `packages/ai/` 等 | agent 内核与工具链 |
 
-产品站：[ton.ren](https://ton.ren/)（源码在私有仓库 `toninfo/ton-web`）。
+产品站：[ton.ren](https://ton.ren/)
 
 更多：[知识库](packages/coding-agent/docs/kb.md) · [产品线](docs/PRODUCT_LINE.md) · [路线图](docs/ROADMAP.md)
 

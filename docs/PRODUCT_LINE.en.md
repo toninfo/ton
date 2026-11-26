@@ -10,6 +10,6 @@ Archived: `ton-session` (former long-run engineering orchestrator, private).
 
 ## Product site
 
-Ton product site (ton.ren): https://ton.ren/ ; source lives in the private [`toninfo/ton-web`](https://github.com/toninfo/ton-web) repo.
+Ton product site (ton.ren): https://ton.ren/
 
 Personal knowledge base docs: [`packages/coding-agent/docs/kb.md`](../packages/coding-agent/docs/kb.md) (`ton kb`, WeChat/email connectors, FTS + LanceDB hybrid).

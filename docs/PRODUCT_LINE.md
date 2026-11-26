@@ -10,6 +10,6 @@
 
 ## 产品站
 
-Ton 产品站（ton.ren）：https://ton.ren/ ，源码在私有仓库 [`toninfo/ton-web`](https://github.com/toninfo/ton-web)。
+Ton 产品站（ton.ren）：https://ton.ren/
 
 个人知识库文档：[`packages/coding-agent/docs/kb.md`](../packages/coding-agent/docs/kb.md)（`ton kb`、微信/邮箱连接器、FTS + LanceDB hybrid）。

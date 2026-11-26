@@ -51,4 +51,4 @@ Windows 见 `packages/coding-agent/docs/windows.md`。
 
 配置：`~/.ton/agent/`，项目：`.ton/`。
 
-产品站：https://ton.ren/（门户）与 https://ton.ren/app/（产品页），源码在私有仓库 `toninfo/ton-web`。
+产品站：https://ton.ren/（门户）与 https://ton.ren/app/（产品页）。
