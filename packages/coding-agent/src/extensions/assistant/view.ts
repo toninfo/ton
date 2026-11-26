@@ -1,4 +1,4 @@
-import { toOutput } from "./time.ts";
+import { toOutput } from "../time.ts";
 import type { ItemRow, ItemView, Suggested } from "./types.ts";
 import { isRecord, str } from "./util.ts";
 

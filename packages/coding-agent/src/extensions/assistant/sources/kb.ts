@@ -6,7 +6,7 @@
 import { basename } from "node:path";
 import { kbRecentDocs } from "../../kb/recent.ts";
 import type { KbRoot } from "../../kb/types.ts";
-import { HOUR } from "../time.ts";
+import { HOUR } from "../../time.ts";
 import type { Candidate, ScopeEntry, SourceSnapshot } from "../types.ts";
 import { clip } from "../util.ts";
 

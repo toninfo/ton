@@ -1,8 +1,8 @@
 import { accessSync, constants, statSync } from "node:fs";
 import { isAbsolute } from "node:path";
+import { toStored, ulid } from "../time.ts";
 import { cronFromPreset, minimumIntervalSeconds, nextCronOccurrence, parseCron } from "./cron.ts";
 import type { ScheduleStore } from "./store.ts";
-import { expandHome, toStored, ulid } from "./time.ts";
 import type { DueResult, Job, JobInput, JobUpdate, Run } from "./types.ts";
 
 const THINKING = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -11,6 +11,13 @@ const MAX_PROMPT = 1024 * 1024;
 export const HOURLY_CALL_CAP = 20;
 const MIN_PROMPT_GAP_SECONDS = 3600;
 const MIN_GATED_GAP_SECONDS = 60;
+
+/** Absolute local path with a leading `~` expanded; relative paths stay relative for validation. */
+function expandHome(path: string, home = process.env.HOME ?? ""): string {
+	if (path === "~") return home;
+	if (path.startsWith("~/")) return `${home}${path.slice(1)}`;
+	return path;
+}
 
 export class ScheduleError extends Error {}
 

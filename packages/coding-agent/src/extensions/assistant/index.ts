@@ -8,10 +8,10 @@ import { existsSync } from "node:fs";
 import { Type } from "typebox";
 import { APP_NAME, getAgentDir } from "../../config.ts";
 import type { ExtensionFactory, ToolDefinition } from "../../core/extensions/types.ts";
+import { relativeZh } from "../time.ts";
 import { getSettingsPath } from "./paths.ts";
 import { loadAssistantService } from "./service.lazy.ts";
 import type { AssistantService } from "./service.ts";
-import { relativeZh } from "./time.ts";
 import { ACK_STATES, type AckState, type ItemView, type TickOutput } from "./types.ts";
 
 export interface AssistantExtensionOptions {

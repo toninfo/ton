@@ -6,11 +6,12 @@
 import { readFileSync, statSync } from "node:fs";
 import chalk from "chalk";
 import { APP_NAME, CONFIG_DIR_NAME } from "../../config.ts";
+import { CliArgs, makeOutput, type OptionKind } from "../cli.ts";
+import { formatLocalIso, toStored } from "../time.ts";
 import { cronSummary, nextCronOccurrence } from "./cron.ts";
 import { executeRun, spawnDetachedExecute } from "./runner.ts";
 import { createJob, createManualRun, presetCron, runDue, ScheduleError, status, updateJob } from "./service.ts";
 import { ScheduleStore } from "./store.ts";
-import { formatLocalIso, toStored } from "./time.ts";
 import type { Job, JobInput, JobUpdate, Run } from "./types.ts";
 
 const HELP = `${chalk.bold("Usage:")}
@@ -50,63 +51,6 @@ interface Options {
 	spawnExecute?: (runId: number) => void;
 }
 
-class Args {
-	readonly positionals: string[] = [];
-	readonly values = new Map<string, string>();
-	readonly multi = new Map<string, string[]>();
-	readonly flags = new Set<string>();
-	private readonly booleanFlags = new Set([
-		"json",
-		"detach",
-		"dry-run",
-		"approve",
-		"no-approve",
-		"no-tools",
-		"disabled",
-		"force",
-		"help",
-	]);
-
-	constructor(args: readonly string[]) {
-		for (let i = 0; i < args.length; i += 1) {
-			const arg = args[i] ?? "";
-			if (!arg.startsWith("--")) {
-				this.positionals.push(arg);
-				continue;
-			}
-			const eq = arg.indexOf("=");
-			const key = (eq >= 0 ? arg.slice(2, eq) : arg.slice(2)).trim();
-			if (!key) throw new ScheduleError(`invalid option: ${arg}`);
-			if (this.booleanFlags.has(key)) {
-				if (eq >= 0) throw new ScheduleError(`--${key} does not take a value`);
-				this.flags.add(key);
-				continue;
-			}
-			const value = eq >= 0 ? arg.slice(eq + 1) : args[++i];
-			if (value === undefined) throw new ScheduleError(`--${key} requires a value`);
-			if (key === "script-arg") {
-				const list = this.multi.get(key) ?? [];
-				list.push(value);
-				this.multi.set(key, list);
-			} else {
-				this.values.set(key, value);
-			}
-		}
-	}
-
-	has(key: string): boolean {
-		return this.flags.has(key) || this.values.has(key);
-	}
-
-	value(key: string): string | undefined {
-		return this.values.get(key);
-	}
-
-	valuesOf(key: string): string[] {
-		return this.multi.get(key) ?? [];
-	}
-}
-
 function readStdin(): Promise<string> {
 	if (process.stdin.isTTY) return Promise.resolve("");
 	return new Promise((resolve, reject) => {
@@ -133,7 +77,7 @@ function readPromptFile(path: string): string {
 	}
 }
 
-async function promptFrom(args: Args): Promise<string | undefined> {
+async function promptFrom(args: CliArgs): Promise<string | undefined> {
 	const file = args.value("prompt-file");
 	const inline = args.value("prompt");
 	if (file !== undefined && inline !== undefined) throw new ScheduleError("use --prompt or --prompt-file, not both");
@@ -142,7 +86,7 @@ async function promptFrom(args: Args): Promise<string | undefined> {
 	return inline;
 }
 
-function scheduleFrom(args: Args): string | undefined {
+function scheduleFrom(args: CliArgs): string | undefined {
 	const cron = args.value("cron");
 	const daily = args.value("daily");
 	const weekly = args.value("weekly");
@@ -154,7 +98,7 @@ function scheduleFrom(args: Args): string | undefined {
 	return presetCron({ daily, weekly, every });
 }
 
-function jobInput(args: Args, baseCwd: string, prompt: string, cron: string): JobInput {
+function jobInput(args: CliArgs, baseCwd: string, prompt: string, cron: string): JobInput {
 	const script = args.value("script");
 	const explicitKind = args.value("kind");
 	if (explicitKind !== undefined && explicitKind !== "prompt" && explicitKind !== "gated") {
@@ -169,8 +113,8 @@ function jobInput(args: Args, baseCwd: string, prompt: string, cron: string): Jo
 		model: args.value("model"),
 		thinking: args.value("thinking"),
 		tools: args.value("tools"),
-		noTools: args.flags.has("no-tools"),
-		approve: args.flags.has("approve"),
+		noTools: args.flag("no-tools"),
+		approve: args.flag("approve"),
 		script: script ?? null,
 		scriptArgs: args.valuesOf("script-arg"),
 		scriptTimeoutSeconds: args.value("script-timeout-seconds")
@@ -179,11 +123,11 @@ function jobInput(args: Args, baseCwd: string, prompt: string, cron: string): Jo
 		sessionId: args.value("session-id"),
 		timeoutSeconds: args.value("timeout-minutes") ? Number(args.value("timeout-minutes")) * 60 : undefined,
 		catchUpMinutes: args.value("catch-up-minutes") ? Number(args.value("catch-up-minutes")) : undefined,
-		enabled: !args.flags.has("disabled"),
+		enabled: !args.flag("disabled"),
 	};
 }
 
-function patchFrom(args: Args, baseCwd: string, prompt?: string, cron?: string): JobUpdate {
+function patchFrom(args: CliArgs, baseCwd: string, prompt?: string, cron?: string): JobUpdate {
 	const patch: JobUpdate = {};
 	if (args.value("name") !== undefined) patch.name = args.value("name");
 	if (cron !== undefined) patch.cron = cron;
@@ -192,9 +136,9 @@ function patchFrom(args: Args, baseCwd: string, prompt?: string, cron?: string):
 	if (args.value("model") !== undefined) patch.model = args.value("model") ?? "";
 	if (args.value("thinking") !== undefined) patch.thinking = args.value("thinking") ?? "";
 	if (args.value("tools") !== undefined) patch.tools = args.value("tools") ?? "";
-	if (args.flags.has("no-tools")) patch.noTools = true;
-	if (args.flags.has("approve")) patch.approve = true;
-	if (args.flags.has("no-approve")) patch.approve = false;
+	if (args.flag("no-tools")) patch.noTools = true;
+	if (args.flag("approve")) patch.approve = true;
+	if (args.flag("no-approve")) patch.approve = false;
 	if (args.value("kind") !== undefined) {
 		if (args.value("kind") !== "prompt" && args.value("kind") !== "gated") {
 			throw new ScheduleError("--kind must be prompt or gated");
@@ -273,6 +217,48 @@ function humanJob(job: Job): string {
 	return `${job.enabled ? "●" : "○"} ${job.name} (${job.id}) [${kind}]\n  ${cronSummary(job.cron)}  next ${next}\n  last ${last}  cwd ${job.cwd}`;
 }
 
+const JOB_OPTIONS: Record<string, OptionKind> = {
+	cron: "value",
+	daily: "value",
+	weekly: "value",
+	every: "value",
+	prompt: "value",
+	"prompt-file": "value",
+	cwd: "value",
+	model: "value",
+	thinking: "value",
+	tools: "value",
+	"no-tools": "flag",
+	approve: "flag",
+	"no-approve": "flag",
+	kind: "value",
+	"session-id": "value",
+	"timeout-minutes": "value",
+	"catch-up-minutes": "value",
+	disabled: "flag",
+	script: "value",
+	"script-arg": "multi",
+	"script-timeout-seconds": "value",
+	json: "flag",
+};
+
+/** Every command lists its options, so a typo fails instead of silently becoming a value. */
+const SPECS: Record<string, Record<string, OptionKind>> = {
+	add: JOB_OPTIONS,
+	update: { ...JOB_OPTIONS, name: "value" },
+	list: { json: "flag" },
+	show: { json: "flag", runs: "value" },
+	enable: { json: "flag" },
+	disable: { json: "flag" },
+	remove: { json: "flag", force: "flag" },
+	run: { json: "flag", detach: "flag" },
+	runs: { json: "flag", limit: "value" },
+	"run-due": { json: "flag", now: "value", limit: "value", "dry-run": "flag" },
+	status: { json: "flag" },
+	prune: { json: "flag" },
+	execute: { json: "flag" },
+};
+
 export async function runScheduleCommand(args: readonly string[], options: Options): Promise<number> {
 	const log = options.log ?? ((line: string) => console.log(line));
 	const error = options.error ?? ((line: string) => console.error(line));
@@ -284,8 +270,9 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			return 0;
 		}
 		const command = args[0];
-		const parsed = new Args(args.slice(1));
-		json = parsed.flags.has("json");
+		const parsed = new CliArgs(args.slice(1), SPECS[command] ?? {});
+		json = parsed.flag("json");
+		const out = makeOutput(log, json);
 		const now = options.now ?? new Date();
 		store = ScheduleStore.open(options.agentDir);
 
@@ -297,16 +284,15 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			if (prompt === undefined && !script) throw new ScheduleError("--prompt or --prompt-file is required");
 			if (!parsed.positionals[0]) throw new ScheduleError("name is required");
 			const job = createJob(store, jobInput(parsed, options.cwd, prompt ?? "", cron), now);
-			if (json) log(JSON.stringify({ job: jobJson(job) }));
-			else log(humanJob(job));
+			out({ job: jobJson(job) }, () => humanJob(job));
 			return 0;
 		}
 
 		if (command === "list") {
 			const jobs = store.listJobs();
-			if (json) log(JSON.stringify({ jobs: jobs.map(jobJson) }));
-			else if (jobs.length === 0) log("还没有定时任务");
-			else log(jobs.map(humanJob).join("\n\n"));
+			out({ jobs: jobs.map(jobJson) }, () =>
+				jobs.length === 0 ? "还没有定时任务" : jobs.map(humanJob).join("\n\n"),
+			);
 			return 0;
 		}
 
@@ -316,15 +302,14 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const job = store.getJob(ref);
 			if (!job) throw new ScheduleError(`no such schedule: ${ref}`);
 			const runs = store.listRuns(job.id, Number(parsed.value("runs") ?? 5));
-			if (json) log(JSON.stringify({ job: jobJson(job), runs: runs.map(runJson) }));
-			else {
-				log(humanJob(job));
-				if (runs.length > 0) {
-					log(
-						`\n最近运行：\n${runs.map((run) => `  #${run.id} ${run.status} ${run.startedAt ?? run.claimedAt}`).join("\n")}`,
-					);
-				}
-			}
+			out({ job: jobJson(job), runs: runs.map(runJson) }, () =>
+				[
+					humanJob(job),
+					runs.length > 0
+						? `\n最近运行：\n${runs.map((run) => `  #${run.id} ${run.status} ${run.startedAt ?? run.claimedAt}`).join("\n")}`
+						: "",
+				].join(""),
+			);
 			return 0;
 		}
 
@@ -334,8 +319,7 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const prompt = await promptFrom(parsed);
 			const cron = scheduleFrom(parsed);
 			const job = updateJob(store, ref, patchFrom(parsed, options.cwd, prompt, cron), now);
-			if (json) log(JSON.stringify({ job: jobJson(job) }));
-			else log(humanJob(job));
+			out({ job: jobJson(job) }, () => humanJob(job));
 			return 0;
 		}
 
@@ -343,8 +327,7 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const ref = parsed.positionals[0];
 			if (!ref) throw new ScheduleError(`${command} requires id or name`);
 			const job = updateJob(store, ref, { enabled: command === "enable" }, now);
-			if (json) log(JSON.stringify({ job: jobJson(job) }));
-			else log(`${job.name} 已${job.enabled ? "启用" : "停用"}`);
+			out({ job: jobJson(job) }, () => `${job.name} 已${job.enabled ? "启用" : "停用"}`);
 			return 0;
 		}
 
@@ -353,12 +336,11 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			if (!ref) throw new ScheduleError("remove requires id or name");
 			const job = store.getJob(ref);
 			if (!job) throw new ScheduleError(`no such schedule: ${ref}`);
-			if (store.activeRun(job.id) && !parsed.flags.has("force")) {
+			if (store.activeRun(job.id) && !parsed.flag("force")) {
 				throw new ScheduleError(`schedule is running: ${job.name} (use --force to remove)`);
 			}
 			store.deleteJob(job.id);
-			if (json) log(JSON.stringify({ removed: job.id, name: job.name }));
-			else log(`已删除 ${job.name}`);
+			out({ removed: job.id, name: job.name }, () => `已删除 ${job.name}`);
 			return 0;
 		}
 
@@ -368,15 +350,13 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const manual = createManualRun(store, ref, now);
 			store.close();
 			store = undefined;
-			if (parsed.flags.has("detach")) {
+			if (parsed.flag("detach")) {
 				(options.spawnExecute ?? ((runId: number) => spawnDetachedExecute(options.agentDir, runId)))(manual.run.id);
-				if (json) log(JSON.stringify({ run: runJson(manual.run) }));
-				else log(`已启动 ${manual.job.name}（run #${manual.run.id}）`);
+				out({ run: runJson(manual.run) }, () => `已启动 ${manual.job.name}（run #${manual.run.id}）`);
 				return 0;
 			}
 			const run = await executeRun(options.agentDir, manual.run.id);
-			if (json) log(JSON.stringify({ run: runJson(run) }));
-			else log(`#${run.id} ${run.status}${run.outputTail ? `\n${run.outputTail}` : ""}`);
+			out({ run: runJson(run) }, () => `#${run.id} ${run.status}${run.outputTail ? `\n${run.outputTail}` : ""}`);
 			return run.status === "ok" || run.status === "gated" ? 0 : 1;
 		}
 
@@ -386,12 +366,12 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const job = store.getJob(ref);
 			if (!job) throw new ScheduleError(`no such schedule: ${ref}`);
 			const runs = store.listRuns(job.id, Number(parsed.value("limit") ?? 20));
-			if (json) log(JSON.stringify({ runs: runs.map(runJson) }));
-			else
-				log(
+			out(
+				{ runs: runs.map(runJson) },
+				() =>
 					runs.map((run) => `#${run.id} ${run.status} ${run.startedAt ?? run.claimedAt}`).join("\n") ||
-						"没有运行记录",
-				);
+					"没有运行记录",
+			);
 			return 0;
 		}
 
@@ -402,32 +382,32 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const result = runDue(store, {
 				now: when,
 				limit: Number(parsed.value("limit") ?? 5),
-				dryRun: parsed.flags.has("dry-run"),
+				dryRun: parsed.flag("dry-run"),
 				spawnExecute: options.spawnExecute ?? ((runId: number) => spawnDetachedExecute(options.agentDir, runId)),
 			});
-			if (json) log(JSON.stringify(result));
-			else {
-				log(`启动 ${result.started.length}，跳过 ${result.skipped.length}${result.more ? "，还有更多" : ""}`);
-				for (const item of result.started) log(`  #${item.runId} ${item.name}`);
-				for (const item of result.skipped) log(`  ${item.name}: ${item.reason}`);
-			}
+			out(result, () =>
+				[
+					`启动 ${result.started.length}，跳过 ${result.skipped.length}${result.more ? "，还有更多" : ""}`,
+					...result.started.map((item) => `  #${item.runId} ${item.name}`),
+					...result.skipped.map((item) => `  ${item.name}: ${item.reason}`),
+				].join("\n"),
+			);
 			return 0;
 		}
 
 		if (command === "status") {
 			const info = status(store, now);
-			if (json) log(JSON.stringify(info));
-			else
-				log(
+			out(
+				info,
+				() =>
 					`任务 ${info.jobs}，启用 ${info.enabled}，运行中 ${info.running}，本小时调用 ${info.callsLastHour}/${info.callCap}`,
-				);
+			);
 			return 0;
 		}
 
 		if (command === "prune") {
 			const removed = store.prune(now);
-			if (json) log(JSON.stringify({ removed }));
-			else log(`清理 ${removed} 条运行记录`);
+			out({ removed }, () => `清理 ${removed} 条运行记录`);
 			return 0;
 		}
 

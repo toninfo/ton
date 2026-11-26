@@ -1,7 +1,8 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { transaction } from "../sqlite.ts";
+import { DAY, startOfLocalDay, toStored, ulid } from "../time.ts";
 import { copyAssistantDb, openAssistantDb } from "./db.ts";
 import { getStateDbPath } from "./paths.ts";
-import { DAY, startOfLocalDay, toStored, ulid } from "./time.ts";
 import {
 	type Candidate,
 	CLOSED_STATES as CLOSED,
@@ -89,15 +90,7 @@ export class AssistantStore {
 	}
 
 	transaction<T>(run: () => T): T {
-		this.db.exec("BEGIN IMMEDIATE");
-		try {
-			const result = run();
-			this.db.exec("COMMIT");
-			return result;
-		} catch (error) {
-			this.db.exec("ROLLBACK");
-			throw error;
-		}
+		return transaction(this.db, run, "IMMEDIATE");
 	}
 
 	// cursors -----------------------------------------------------------------

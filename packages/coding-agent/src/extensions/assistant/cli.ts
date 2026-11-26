@@ -7,9 +7,12 @@
 
 import { spawnSync } from "node:child_process";
 import { closeSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import chalk from "chalk";
 import { APP_NAME, CONFIG_DIR_NAME, getPackageDir, VERSION } from "../../config.ts";
+import { CliArgs, makeOutput } from "../cli.ts";
+import { formatLocalIso, parseTime, relativeZh, toStored, ulid } from "../time.ts";
 import { loadMockFixture } from "./mock.ts";
 import { getPrefsPath, getSettingsPath, getStateDbPath } from "./paths.ts";
 import { AssistantError, AssistantService } from "./service.ts";
@@ -19,7 +22,6 @@ import { KB_SERVER, probeKb } from "./sources/kb.ts";
 import type { Actor } from "./store.ts";
 import { AssistantStore } from "./store.ts";
 import { EXIT_FATAL, runTick } from "./tick.ts";
-import { formatLocalIso, parseTime, relativeZh, toStored, ulid } from "./time.ts";
 import {
 	ACK_STATES,
 	type AckState,
@@ -87,41 +89,16 @@ export interface AssistantCommandOptions {
 
 type Spec = Record<string, "flag" | "value">;
 
-interface Parsed {
-	positional: string[];
-	values: Map<string, string | true>;
+function parse(args: string[], spec: Spec): CliArgs {
+	return new CliArgs(args, spec, `\n${HELP_HINT}`);
 }
 
-function parse(args: string[], spec: Spec): Parsed {
-	const positional: string[] = [];
-	const values = new Map<string, string | true>();
-	for (let index = 0; index < args.length; index++) {
-		const arg = args[index];
-		if (!arg.startsWith("--")) {
-			positional.push(arg);
-			continue;
-		}
-		const eq = arg.indexOf("=");
-		const name = arg.slice(2, eq === -1 ? undefined : eq);
-		const kind = spec[name];
-		if (!kind) throw new AssistantError(`unknown option ${arg}\n${HELP_HINT}`);
-		if (kind === "flag") {
-			values.set(name, true);
-			continue;
-		}
-		const value = eq === -1 ? args[++index] : arg.slice(eq + 1);
-		if (value === undefined) throw new AssistantError(`${arg} needs a value`);
-		values.set(name, value);
-	}
-	return { positional, values };
-}
-
-function text(parsed: Parsed, name: string): string | undefined {
+function text(parsed: CliArgs, name: string): string | undefined {
 	const value = parsed.values.get(name);
 	return typeof value === "string" ? value : undefined;
 }
 
-function parseNow(parsed: Parsed): Date {
+function parseNow(parsed: CliArgs): Date {
 	const raw = text(parsed, "now");
 	if (raw === undefined) return new Date();
 	const date = parseTime(raw);
@@ -129,7 +106,7 @@ function parseNow(parsed: Parsed): Date {
 	return date;
 }
 
-function parsePositiveInt(parsed: Parsed, name: string, fallback: number): number {
+function parsePositiveInt(parsed: CliArgs, name: string, fallback: number): number {
 	const raw = text(parsed, name);
 	if (raw === undefined) return fallback;
 	const value = Number(raw);
@@ -137,7 +114,7 @@ function parsePositiveInt(parsed: Parsed, name: string, fallback: number): numbe
 	return value;
 }
 
-function parseOffset(parsed: Parsed): number {
+function parseOffset(parsed: CliArgs): number {
 	const raw = text(parsed, "offset");
 	if (raw === undefined) return 0;
 	const value = Number(raw);
@@ -412,9 +389,12 @@ async function doctorReport(service: AssistantService): Promise<Record<string, u
 		checkSources(service.agentDir, service.mcp(), settings, now, settings.maxProbeMs),
 		Promise.resolve(kbSourceCheck(service.agentDir, now)),
 	]);
+	const allChecks = [...checks.map((check) => ({ ...check, skipped: false })), kb];
+	const contractOk = failed.length === 0 && allChecks.every((entry) => entry.ok || entry.skipped);
 	return {
 		schema: 1,
 		version: VERSION,
+		machine: hostname(),
 		commit: gitCommit() ?? null,
 		source: import.meta.url.includes("/src/") ? "source" : "compiled",
 		binary: process.argv[1] ?? null,
@@ -435,10 +415,8 @@ async function doctorReport(service: AssistantService): Promise<Record<string, u
 			coding_agent: settings.codingAgent,
 			paused_until: pausedUntil ?? null,
 		},
-		sources: {
-			checks: [...checks.map((check) => ({ ...check, skipped: false })), kb],
-			failed,
-		},
+		contract: { schema: 1, ok: contractOk },
+		sources: { checks: allChecks, failed },
 	};
 }
 
@@ -567,7 +545,7 @@ async function dispatch(
 	log: (line: string) => void,
 	json: boolean,
 ): Promise<number> {
-	const out = (value: unknown, human: () => string) => log(json ? JSON.stringify(value) : human());
+	const out = makeOutput(log, json);
 
 	switch (command) {
 		case "tick": {
@@ -650,7 +628,7 @@ async function dispatch(
 				actor: "value",
 				now: "value",
 			});
-			const refs = [...new Set(parsed.positional)];
+			const refs = [...new Set(parsed.positionals)];
 			const now = parseNow(parsed);
 			const actorText = text(parsed, "actor") ?? "user";
 			if (!["user", "desktop", "tui"].includes(actorText))
@@ -692,7 +670,7 @@ async function dispatch(
 		}
 		case "act": {
 			const parsed = parse(rest, { json: "flag", action: "value", hint: "value" });
-			const [ref] = parsed.positional;
+			const [ref] = parsed.positionals;
 			if (!ref) throw new AssistantError(`Usage: ${APP_NAME} assistant act <id> [--action ...]`);
 			const action = text(parsed, "action");
 			if (action !== undefined && !["reply_draft", "open_zentao", "open"].includes(action)) {
@@ -704,7 +682,7 @@ async function dispatch(
 		}
 		case "dismiss": {
 			const parsed = parse(rest, { json: "flag" });
-			const [ref] = parsed.positional;
+			const [ref] = parsed.positionals;
 			if (!ref) throw new AssistantError(`Usage: ${APP_NAME} assistant dismiss <id>`);
 			const result = await service.ack(ref, { state: "done", reason: "not_mine", now: new Date(), actor: "user" });
 			out({ schema: 1, ok: true, ...result }, () =>
@@ -714,7 +692,7 @@ async function dispatch(
 		}
 		case "delete": {
 			const parsed = parse(rest, { json: "flag", actor: "value" });
-			const [kind, ...rawIds] = parsed.positional;
+			const [kind, ...rawIds] = parsed.positionals;
 			if (!kind || rawIds.length === 0) {
 				throw new AssistantError(
 					`Usage: ${APP_NAME} assistant delete <item|activity|run> <id...> [--actor user|desktop|tui]`,
@@ -822,7 +800,7 @@ async function dispatch(
 		}
 		case "note": {
 			const parsed = parse(rest, { json: "flag", status: "value", message: "value", wrapper: "flag" });
-			const [ref] = parsed.positional;
+			const [ref] = parsed.positionals;
 			if (!ref) {
 				throw new AssistantError(
 					`Usage: ${APP_NAME} assistant note <id> --status ${AGENT_NOTE_STATUSES.join("|")} --message <text>`,
@@ -848,7 +826,7 @@ async function dispatch(
 		}
 		case "beat": {
 			const parsed = parse(rest, { json: "flag" });
-			const [ref] = parsed.positional;
+			const [ref] = parsed.positionals;
 			if (!ref) throw new AssistantError(`Usage: ${APP_NAME} assistant beat <id>`);
 			const result = service.beat(ref, new Date());
 			out(result, () => `已记录心跳：${result.item.title}`);
@@ -887,7 +865,7 @@ async function dispatch(
 		}
 		case "pause": {
 			const parsed = parse(rest, { json: "flag", for: "value" });
-			const duration = text(parsed, "for") ?? parsed.positional[0];
+			const duration = text(parsed, "for") ?? parsed.positionals[0];
 			if (!duration) throw new AssistantError(`Usage: ${APP_NAME} assistant pause --for <duration>`);
 			const until = service.pause(duration, new Date());
 			out({ schema: 1, ok: true, paused_until: formatLocalIso(until) }, () => `已暂停至 ${formatLocalIso(until)}`);
@@ -919,7 +897,7 @@ async function dispatch(
 		}
 		case "trace": {
 			const parsed = parse(rest, { json: "flag" });
-			const [ref] = parsed.positional;
+			const [ref] = parsed.positionals;
 			if (!ref) throw new AssistantError(`Usage: ${APP_NAME} assistant trace <id>`);
 			const trace = service.trace(ref);
 			out(trace, () => {
@@ -940,7 +918,7 @@ async function dispatch(
 		case "contract": {
 			const parsed = parse(rest, { json: "flag", schema: "flag" });
 			if (parsed.values.has("schema")) {
-				const kind = parsed.positional[0] ?? "items";
+				const kind = parsed.positionals[0] ?? "items";
 				const files = SCHEMA_FILES[kind];
 				if (!files) throw new AssistantError("--schema 只支持 items 或 resolve");
 				const schemas: Record<string, unknown> = {};
@@ -952,24 +930,21 @@ async function dispatch(
 				);
 				return 0;
 			}
-			const [action = "check", only] = parsed.positional;
+			const [action = "check", only] = parsed.positionals;
 			if (action !== "check") throw new AssistantError(`unknown contract action "${action}"`);
-			const checked = await checkSources(
-				service.agentDir,
-				service.mcp(),
-				service.settings,
-				new Date(),
-				service.settings.maxProbeMs,
-				only,
-			);
-			const kb = kbSourceCheck(service.agentDir, new Date());
-			const servers = only && only !== kb.server ? checked.checks : [...checked.checks, kb];
-			if (only && servers.length === 0 && checked.failed.length === 0) {
+			// One probe path: doctor already checks every source (and the KB); contract check is a
+			// projection of that report with an optional server filter.
+			const report = await doctorReport(service);
+			const sources = report.sources as {
+				checks: DoctorSource[];
+				failed: { server: string; error: string }[];
+			};
+			const servers = only ? sources.checks.filter((entry) => entry.server === only) : sources.checks;
+			if (only && servers.length === 0 && sources.failed.length === 0) {
 				throw new AssistantError(`mcp.json 里的 "${only}" 不是数据源：既没有 ton_assistant_items，也不是禅道 MCP`);
 			}
-			const ok =
-				checked.failed.length === 0 && servers.every((entry) => entry.ok || ("skipped" in entry && entry.skipped));
-			out({ schema: 1, ok, servers, failed: checked.failed }, () => formatContractCheck(servers, checked.failed));
+			const ok = sources.failed.length === 0 && servers.every((entry) => entry.ok || entry.skipped);
+			out({ schema: 1, ok, servers, failed: sources.failed }, () => formatContractCheck(servers, sources.failed));
 			return ok ? 0 : 2;
 		}
 		case "doctor": {
@@ -990,7 +965,7 @@ async function dispatch(
 		}
 		case "settings": {
 			const parsed = parse(rest, { json: "flag" });
-			const [action = "show", ...pairs] = parsed.positional;
+			const [action = "show", ...pairs] = parsed.positionals;
 			if (action === "show") {
 				out(
 					{
@@ -1016,7 +991,7 @@ async function dispatch(
 		}
 		case "prefs": {
 			const parsed = parse(rest, { json: "flag" });
-			const [action = "show", ...words] = parsed.positional;
+			const [action = "show", ...words] = parsed.positionals;
 			const value = words.join(" ");
 			if (action === "show") {
 				const prefs = service.prefs();

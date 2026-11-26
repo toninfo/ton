@@ -4,9 +4,9 @@
  * Authoritative definition: docs/assistant/CONTRACT.md.
  */
 
+import { HOUR, parseTime } from "../../time.ts";
 import type { McpCaller } from "../mcp.ts";
 import { McpToolError } from "../mcp.ts";
-import { HOUR, parseTime } from "../time.ts";
 import type { Candidate, ResolveWriter, ScopeEntry, SourceSnapshot, Urgency } from "../types.ts";
 import { URGENCIES } from "../types.ts";
 import { clip, isRecord, num, str } from "../util.ts";

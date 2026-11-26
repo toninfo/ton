@@ -1,8 +1,9 @@
 import { existsSync, unlinkSync } from "node:fs";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { transaction } from "../sqlite.ts";
+import { toStored } from "../time.ts";
 import { openScheduleDb } from "./db.ts";
 import { getScheduleDbPath } from "./paths.ts";
-import { toStored } from "./time.ts";
 import type { Job, Run, RunStatus } from "./types.ts";
 
 interface JobRow {
@@ -121,15 +122,7 @@ export class ScheduleStore {
 	}
 
 	transaction<T>(run: () => T): T {
-		this.db.exec("BEGIN IMMEDIATE");
-		try {
-			const result = run();
-			this.db.exec("COMMIT");
-			return result;
-		} catch (error) {
-			this.db.exec("ROLLBACK");
-			throw error;
-		}
+		return transaction(this.db, run, "IMMEDIATE");
 	}
 
 	listJobs(): Job[] {

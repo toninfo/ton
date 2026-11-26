@@ -3,11 +3,11 @@
  * docs/assistant/DESIGN.md §5 (states), §7 (policy), §8 (output), §12 (degradation).
  */
 
+import { DAY, formatLocalIso, HOUR, hhmmMinutes, inQuietHours, MINUTE, parseTime, toStored, ulid } from "../time.ts";
 import { COLLECTOR_SYNC_KEY, collectorSyncCursor, maybeSyncCollectors } from "./archive-sync.ts";
 import { readPrefs } from "./settings.ts";
 import { mergeCandidates, SYSTEM_SERVER, SYSTEM_STREAM, sortCandidates } from "./sources/index.ts";
 import type { AssistantStore } from "./store.ts";
-import { DAY, formatLocalIso, HOUR, hhmmMinutes, inQuietHours, MINUTE, toStored, ulid } from "./time.ts";
 import { type Completer, runTriage, type TriageCandidate, type TriageDecision } from "./triage.ts";
 import type {
 	AssistantSettings,
@@ -92,6 +92,29 @@ function remindedRecently(item: ItemRow, settings: AssistantSettings, now: Date)
 			: 0;
 	const hours = every > 0 ? every : settings.cooldownHours;
 	return item.notified_at > toStored(new Date(now.getTime() - hours * HOUR));
+}
+
+/**
+ * `remind.before_hours` keeps an item with a `due_at` out of triage until that many hours before
+ * the deadline. P0 bypasses the gate so an urgent item is never delayed to its due window.
+ */
+function dueWindowOpen(item: ItemRow, now: Date): boolean {
+	const payload = parsePayload(item);
+	const due = parseTime(payload.due_at);
+	if (!due) return true;
+	const remind = typeof payload.remind === "object" && payload.remind !== null ? payload.remind : {};
+	const before =
+		typeof (remind as Record<string, unknown>).before_hours === "number"
+			? (remind as { before_hours: number }).before_hours
+			: 0;
+	if (before <= 0) return true;
+	return item.urgency === "P0" || now.getTime() >= due.getTime() - before * HOUR;
+}
+
+/** `repeat_key` clusters items from the same source into one notification. */
+function repeatKeyOf(item: ItemRow): string | undefined {
+	const key = parsePayload(item).repeat_key;
+	return typeof key === "string" && key !== "" ? `${item.server}\u0000${key}` : undefined;
 }
 
 function systemCandidate(itemKey: string, title: string, why: string, now: Date): Candidate {
@@ -467,7 +490,8 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 		const waiting = store
 			.listByStates(["new"])
 			.filter((item) => !(dryRun && item.dry_decision))
-			.filter((item) => !quiet || item.urgency === "P0");
+			.filter((item) => !quiet || item.urgency === "P0")
+			.filter((item) => dueWindowOpen(item, now));
 		const sorted = sortCandidates(
 			waiting.map((item) => ({ item, urgencyHint: item.urgency, observedAt: item.first_seen_at })),
 		).map((entry) => entry.item);
@@ -611,6 +635,9 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 		}
 		const shown: ItemRow[] = [];
 		const inboxOnly: ItemRow[] = [];
+		/** repeat_key groups share one notification; the first (most urgent) item is the face. */
+		const groups = new Map<string, { repr: ItemRow; count: number }>();
+		const merged: { item: ItemRow; into: string }[] = [];
 		for (const item of due) {
 			const p0 = item.urgency === "P0";
 			if (!p0) {
@@ -627,6 +654,16 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 					continue;
 				}
 				budget--;
+			}
+			const key = repeatKeyOf(item);
+			if (key) {
+				const group = groups.get(key);
+				if (group) {
+					group.count++;
+					merged.push({ item, into: group.repr.id });
+					continue;
+				}
+				groups.set(key, { repr: item, count: 1 });
 			}
 			if (shown.length < settings.maxCardsPerWindow) shown.push(item);
 			else inboxOnly.push(item);
@@ -651,6 +688,25 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 			for (const item of inboxOnly) {
 				store.updateItem(item.id, { notified_at: toStored(now), reported_at: item.reported_at ?? toStored(now) });
 				store.event({ now, actor: "system", action: "inbox_only", itemId: item.id, runId });
+			}
+			for (const entry of merged) {
+				store.updateItem(entry.item.id, {
+					notified_at: toStored(now),
+					reported_at: entry.item.reported_at ?? toStored(now),
+				});
+				store.event({
+					now,
+					actor: "system",
+					action: "merged",
+					itemId: entry.item.id,
+					runId,
+					detail: { into: entry.into },
+				});
+			}
+			for (const group of groups.values()) {
+				if (group.count > 1) {
+					store.updateItem(group.repr.id, { why: `${group.repr.why}（同类共 ${group.count} 条）` });
+				}
 			}
 		});
 		batchItems = shown.map((item) => store.getItem(item.id)!);

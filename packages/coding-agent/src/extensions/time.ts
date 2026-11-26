@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import type { QuietHours } from "./types.ts";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -111,7 +110,7 @@ export function isValidHhmm(hhmm: string): boolean {
 }
 
 /** Whether `now` (local time) falls in the quiet window; the window may cross midnight. */
-export function inQuietHours(now: Date, quiet: QuietHours): boolean {
+export function inQuietHours(now: Date, quiet: { start: string; end: string }): boolean {
 	const start = hhmmMinutes(quiet.start);
 	const end = hhmmMinutes(quiet.end);
 	if (start === undefined || end === undefined || start === end) return false;

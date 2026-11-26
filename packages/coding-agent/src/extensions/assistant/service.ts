@@ -1,3 +1,14 @@
+import { hostname } from "node:os";
+import {
+	DAY,
+	formatLocalIso,
+	HOUR,
+	inQuietHours,
+	parseDuration,
+	startOfLocalDay,
+	toOutput,
+	toStored,
+} from "../time.ts";
 import { type ActionResult, AGENT_HEARTBEAT_STALE_MS, runAction, runningAgent } from "./actions.ts";
 import { createMcpCaller, type McpCaller } from "./mcp.ts";
 import { createModelCompleter } from "./model.ts";
@@ -9,7 +20,6 @@ import { KB_SERVER } from "./sources/kb.ts";
 import { zentaoBaseFromUrl } from "./sources/zentao.ts";
 import { type Actor, AssistantStore, type EventRow, type RunRow } from "./store.ts";
 import { pausedUntil, runTick, setPause } from "./tick.ts";
-import { DAY, formatLocalIso, HOUR, inQuietHours, parseDuration, startOfLocalDay, toOutput, toStored } from "./time.ts";
 import type { Completer } from "./triage.ts";
 import {
 	type AckState,
@@ -618,6 +628,8 @@ export class AssistantService {
 		return {
 			schema: 1,
 			now: formatLocalIso(now),
+			/** State is per-machine; two desktops each tick and notify on their own. */
+			machine: hostname(),
 			enabled: this.settings.enabled,
 			dry_run: this.settings.dryRun,
 			auto_handle: this.settings.autoHandle,

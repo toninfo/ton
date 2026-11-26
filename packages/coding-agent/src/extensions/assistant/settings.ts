@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { isValidHhmm } from "../time.ts";
 import { ensureAssistantDir, getPrefsPath, getSettingsPath } from "./paths.ts";
-import { isValidHhmm } from "./time.ts";
 import type { AssistantSettings } from "./types.ts";
 
 /** prefs.md goes into the triage system prompt; longer text is cut. */

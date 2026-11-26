@@ -6,7 +6,7 @@
  * a source name, so any server implementing the contract triages the same way.
  */
 
-import { formatLocalIso, relativeZh } from "./time.ts";
+import { formatLocalIso, relativeZh } from "../time.ts";
 import { SUGGESTED, type Suggested, URGENCIES, type Urgency } from "./types.ts";
 import { clip, isRecord, str } from "./util.ts";
 

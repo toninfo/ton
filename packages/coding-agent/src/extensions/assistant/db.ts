@@ -1,9 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-
-const SCHEMA_VERSION = 3;
+import type { DatabaseSync } from "node:sqlite";
+import { openTonDb } from "../sqlite.ts";
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS items (
@@ -104,35 +103,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_items_server_stream_key ON items(server, s
 
 /** Open state.db with WAL and a 5s busy timeout, creating or migrating the schema. */
 export function openAssistantDb(path: string): DatabaseSync {
-	mkdirSync(dirname(path), { recursive: true });
-	const db = new DatabaseSync(path);
-	db.exec("PRAGMA busy_timeout = 5000;");
-	db.exec("PRAGMA journal_mode = WAL;");
-	db.exec("PRAGMA synchronous = NORMAL;");
-	const row = db.prepare("PRAGMA user_version").get() as { user_version: number } | undefined;
-	let version = row?.user_version ?? 0;
-	if (version > SCHEMA_VERSION) {
-		db.close();
-		throw new Error(`${path}: schema version ${version} is newer than this ton (${SCHEMA_VERSION})`);
-	}
-	// One transaction per version, so a failure half-way leaves the DB at a version it can retry.
-	const migrate = (sql: string, to: number): void => {
-		db.exec("BEGIN");
-		try {
-			db.exec(sql);
-			db.exec(`PRAGMA user_version = ${to}`);
-			db.exec("COMMIT");
-			version = to;
-		} catch (error) {
-			db.exec("ROLLBACK");
-			db.close();
-			throw error;
-		}
-	};
-	if (version < 1) migrate(SCHEMA_V1, 1);
-	if (version < 2) migrate(SCHEMA_V2, 2);
-	if (version < 3) migrate(SCHEMA_V3, 3);
-	return db;
+	return openTonDb(path, [
+		{ version: 1, up: SCHEMA_V1 },
+		{ version: 2, up: SCHEMA_V2 },
+		{ version: 3, up: SCHEMA_V3 },
+	]);
 }
 
 /**

@@ -36,9 +36,9 @@ import {
 } from "../src/extensions/assistant/sources/zentao.ts";
 import { AssistantStore } from "../src/extensions/assistant/store.ts";
 import { EXIT_DEGRADED, EXIT_OK, EXIT_SKIPPED, runTick, setPause } from "../src/extensions/assistant/tick.ts";
-import { inQuietHours, parseDuration } from "../src/extensions/assistant/time.ts";
 import { type Completer, validateDecision } from "../src/extensions/assistant/triage.ts";
 import type { Candidate, ItemRow, SourceSnapshot, TickOutput } from "../src/extensions/assistant/types.ts";
+import { inQuietHours, parseDuration } from "../src/extensions/time.ts";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const fixture = (name: string): string => join(HERE, "fixtures", "assistant", name);
@@ -1141,6 +1141,35 @@ describe("cli", () => {
 		const undone = JSON.parse(undo.lines.join("\n")) as { undone: { state: string }[]; skipped: unknown[] };
 		expect(undone.undone.map((item) => item.state)).toEqual(["reported", "reported", "reported"]);
 		expect(undone.skipped).toHaveLength(0);
+	});
+
+	it("holds an item until remind.before_hours before its due time", async () => {
+		const harness = tickHarness();
+		const due = new Date(NOW.getTime() + 48 * 3_600_000);
+		const candidate = cand("due", {
+			payload: { why: "交报销", due_at: due.toISOString(), remind: { before_hours: 24 } },
+		});
+		const early = await harness.tick({ snapshots: [snap("demo", [candidate])] });
+		expect(early.decision).toBe("silent");
+		expect(early.model_calls).toBe(0);
+		expect(itemAt(harness.store, "demo", "chat", "due").state).toBe("new");
+
+		const close = new Date(due.getTime() - 12 * 3_600_000);
+		const later = await harness.tick({ snapshots: [snap("demo", [candidate])], now: close });
+		expect(later.decision).toBe("report");
+		expect(itemAt(harness.store, "demo", "chat", "due").state).toBe("reported");
+	});
+
+	it("merges items sharing a repeat_key into one notification", async () => {
+		const harness = tickHarness();
+		const first = cand("a", { payload: { why: "第一封", repeat_key: "mail:thread" } });
+		const second = cand("b", { payload: { why: "第二封", repeat_key: "mail:thread" } });
+		const output = await harness.tick({ snapshots: [snap("demo", [first, second])] });
+		expect(output.decision).toBe("report");
+		expect(output.batch?.items).toHaveLength(1);
+		expect(output.batch?.items[0]?.why).toContain("同类共 2 条");
+		expect(itemAt(harness.store, "demo", "chat", "a").state).toBe("reported");
+		expect(itemAt(harness.store, "demo", "chat", "b").state).toBe("reported");
 	});
 
 	it("checks a contract source", async () => {

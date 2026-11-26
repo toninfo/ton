@@ -1,6 +1,5 @@
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
+import { openTonDb } from "../sqlite.ts";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS jobs (
@@ -61,14 +60,13 @@ CREATE TABLE IF NOT EXISTS meta (
 `;
 
 export function openScheduleDb(path: string): DatabaseSync {
-	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-	const db = new DatabaseSync(path);
-	db.exec("PRAGMA journal_mode=WAL");
-	db.exec("PRAGMA synchronous=NORMAL");
-	db.exec("PRAGMA busy_timeout=5000");
+	return openTonDb(path, [{ version: 1, up: upgrade }], { mode: 0o700 });
+}
+
+/** v1: tables plus the columns added after the first build (`ensureColumns` is idempotent). */
+function upgrade(db: DatabaseSync): void {
 	db.exec(SCHEMA);
 	ensureColumns(db);
-	return db;
 }
 
 /** Add columns to a state.db created by the first schedule build. */
