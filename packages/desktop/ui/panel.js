@@ -1018,6 +1018,12 @@ async function renderOverview() {
 					]
 			: null,
 		(status.settings_errors ?? []).length > 0 ? el("pre", { text: status.settings_errors.join("\n") }) : null,
+		el(
+			"div.card-foot",
+			{},
+			el("button.link", { type: "button", text: "历史", onclick: () => void show("history") }),
+			el("button.link", { type: "button", text: "日志", onclick: () => void show("runs") }),
+		),
 	);
 	const acks = Object.entries(stats.acks ?? {})
 		.map(([state, count]) => `${STATE_LABEL[state] ?? state} ${count}`)
@@ -1086,18 +1092,7 @@ async function renderOverview() {
 				warnings.length > 0 ? el("pre", { text: warnings.join("\n") }) : null,
 			)
 		: null;
-	const recordsCard = el(
-		"section.card",
-		{},
-		cardHead("list", "记录"),
-		el(
-			"div.card-foot",
-			{},
-			el("button.small", { type: "button", text: "历史", onclick: () => void show("history") }),
-			el("button.small", { type: "button", text: "日志", onclick: () => void show("runs") }),
-		),
-	);
-	return [el("div.cards", {}, statusCard, statsCard, recordsCard, doctorCard)];
+	return [el("div.cards", {}, statusCard, statsCard, doctorCard)];
 }
 
 function field(label, hint, input) {
