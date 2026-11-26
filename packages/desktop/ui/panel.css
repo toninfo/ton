@@ -1216,3 +1216,9 @@ button.icon-button {
   padding: 6px;
   min-width: 30px;
 }
+
+.subnav {
+  display: flex;
+  align-items: center;
+  margin: 0 0 8px;
+}

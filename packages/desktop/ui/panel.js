@@ -6,6 +6,8 @@ const content = document.getElementById("content");
 const toastEl = document.getElementById("toast");
 const tickButton = document.getElementById("tick");
 const tabs = ["overview", "inbox", "quiet", "history", "activity", "schedule", "runs", "settings"];
+/** Reachable from the overview records card, not from the top tab bar. */
+const HIDDEN_TABS = new Set(["history", "runs"]);
 let current = "inbox";
 let toastTimer;
 /** Discards a render that finishes after the user moved to another tab. */
@@ -1084,7 +1086,18 @@ async function renderOverview() {
 				warnings.length > 0 ? el("pre", { text: warnings.join("\n") }) : null,
 			)
 		: null;
-	return [el("div.cards", {}, statusCard, statsCard, doctorCard)];
+	const recordsCard = el(
+		"section.card",
+		{},
+		cardHead("list", "记录"),
+		el(
+			"div.card-foot",
+			{},
+			el("button.small", { type: "button", text: "历史", onclick: () => void show("history") }),
+			el("button.small", { type: "button", text: "日志", onclick: () => void show("runs") }),
+		),
+	);
+	return [el("div.cards", {}, statusCard, statsCard, recordsCard, doctorCard)];
 }
 
 function field(label, hint, input) {
@@ -1558,6 +1571,11 @@ async function show(tab) {
 	try {
 		const nodes = await RENDER[current]();
 		if (seq !== renderSeq) return;
+		if (HIDDEN_TABS.has(current)) {
+			nodes.unshift(
+				el("div.subnav", {}, el("button.link", { type: "button", text: "← 概况", onclick: () => void show("overview") })),
+			);
+		}
 		content.replaceChildren(...nodes);
 	} catch (error) {
 		if (seq !== renderSeq) return;
