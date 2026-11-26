@@ -1,0 +1,41 @@
+name: Extension or Skill Report
+description: Report a problematic ton extension or skill
+labels: ["extension-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for problems in a third-party extension or skill. For ton itself, use the bug report template instead.
+
+        New issues from new contributors are auto-closed by default. Maintainers review auto-closed issues daily. Issues that do not meet the quality bar in [CONTRIBUTING.md](https://github.com/toninfo/ton/blob/main/CONTRIBUTING.md) will not be reopened or receive a reply.
+
+        Keep this short. If it doesn't fit on one screen, it's too long. Write in your own voice.
+
+  - type: input
+    id: package-name
+    attributes:
+      label: Extension or skill
+      description: Name, repository URL, or local path.
+      placeholder: "example-skill or https://github.com/you/example-skill"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: report-type
+    attributes:
+      label: What are you reporting?
+      options:
+        - Malicious or unsafe behavior
+        - Broken behavior
+        - Impersonation
+        - Trademark / TOS violations
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Describe the concern and include links, logs, or screenshots if helpful.
+    validations:
+      required: true

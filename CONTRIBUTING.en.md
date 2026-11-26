@@ -10,7 +10,7 @@ This repository is an **independent customization** of a Pi source snapshot — 
 2. **Keep the core extensible** — prefer extensions / skills / packages over core bloat.
 3. **Understand your change** — AI-assisted code is fine; you must be able to explain behavior and boundaries before merging.
 4. **Keep the license notice** — retain the MIT copyright text in `LICENSE` when modifying or redistributing.
-5. **Respect the product line** — long engineering orchestration belongs in [ton](https://github.com/toninfo/ton); ton stays the TUI assistant.
+5. **Respect the product line** — ton is a terminal / CLI / desktop personal assistant (notes, work, autonomy); coding is a means to that end, not the whole product.
 
 ## Development
 

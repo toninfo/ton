@@ -1,58 +1,41 @@
 # ton 计划
 
-> 原则：**换皮 + 克制演进**。不改 agent 内核架构；主动助理另起常驻桌面壳（Tauri），不跟 ton 抢定位。  
-> 产品线背景见 [PRODUCT_LINE.md](./PRODUCT_LINE.md)。  
-> ton 已可用；ton 负责助理入口与交办 brief。
+> 原则：本地优先的个人助理，终端 / CLI / 桌面共用同一套能力；能自动的不让用户配置。
+> 产品线背景见 [PRODUCT_LINE.md](./PRODUCT_LINE.md)。
 
-## 目标
+## 定位
 
-**ton：本地万能助理**——TUI 常驻终端，能读改跑、能用技能，默认帮你把眼前事办完；另有一个常驻桌面壳负责定时探测与主动提醒。
+**ton：本地优先的个人 AI 助理。**
+
+- 终端与 CLI 处理眼前的文件和命令；
+- Ton Desktop 常驻，按节奏探测微信、禅道、邮件、任务，判断后提醒或自动处理；
+- 笔记、微信、邮箱、Obsidian 等个人语料在同一 agent loop 里可检索，不靠 MCP，不先上传云端。
 
 ## 已完成
 
-- [x] 品牌换皮：`ton` / `.ton` / 默认助理人格
-- [x] 产品线与计划文档
-- [x] Phase A 体验打磨：欢迎语、启动标题、主题微调、quickstart/windows/README
-- [x] Phase B 轻量：`/skill:memory`、`/skill:handoff`、`/handoff` prompt
+- [x] 品牌与安装：`ton` / `.ton` / 默认助理人格，`install.sh` / `install.ps1`
+- [x] TUI / CLI：读改跑、会话、skills、prompt、主题
+- [x] 个人知识库：FTS + 可选 LanceDB；微信 / 邮箱 / Obsidian 连接器
+- [x] 主动助理：15 分钟 tick、逐条批复、自动处理和回写、活动流
+- [x] Ton Desktop：Tauri 托盘 / 面板 / 气泡，与 CLI 共用助理能力
+- [x] 数据源：禅道、契约服务器自动发现；编码代理派发、心跳与结果回写
+- [x] 产品站 https://ton.ren/ 与文档
 
-## Phase A — 体验打磨（本轮）
+## 当前重点
 
-1. 启动 logo / 标题统一为 ton
-2. README / quickstart / windows 去 Pi 官网依赖
-3. 默认主题 accent 微调；首次设置默认不分享数据
-4. Windows 路径与启动说明对齐
+| 方向 | 内容 |
+|------|------|
+| 判断质量 | 降低主动助理误报，补足时序、截止和「谁在等」的上下文 |
+| 桌面体验 | 气泡、设置页、活动页、多屏与缩放 |
+| 模型兼容 | 模型目录漂移、provider 能力差异、默认模型 |
+| 安装升级 | 跨平台安装、升级与自启 |
 
-## Phase B — 助理能力包（进行中）
+## 不做（当前）
 
-| Pack | 内容 | 状态 |
-|------|------|------|
-| 默认 | 读改跑 + 问答 | 有 |
-| `memory` | `~/.ton/agent/memory/*.md` | skill 已加 |
-| `handoff` | 产出 TonHandOff brief → ton | skill + prompt 已加 |
-
-下一步可增强：把 handoff brief 一键写入剪贴板；memory 在 session 开始时自动 `read` 摘要（仍不进 core）。
-
-## Phase C — 家族互通
-
-ton 已就绪。当前交办是 **brief 级**（文档契约 + skill）。以后可加：
-
-```text
-TonHandOff { intent, brief, cwd?, permission, notes? }
-```
-
-更深集成（拉起 ton TUI）另开任务，不塞进本轮。
-
-## Phase D — 主动助理（设计中）
-
-每约 30 分钟探测微信/禅道/承诺，由模型判断是否值得打扰，通过常驻桌面端的大口气泡推送，支持逐条批复与静默。设计与任务拆分见 [assistant/](./assistant/README.md)。
-
-## 明确不做（当前）
-
-- Electron 桌面壳（主动助理改用 Tauri）
+- 回连上游 `pi.dev`
+- Electron 桌面壳（使用 Tauri）
 - 重写 TUI / 换 UI 框架
 - 合并 ton 引擎
-- 大规模 npm 内部包名去 Pi 化
-- 主动回连上游 `pi.dev`
 
 ## 本地使用
 
@@ -69,4 +52,4 @@ Windows 见 `packages/coding-agent/docs/windows.md`。
 
 配置：`~/.ton/agent/`，项目：`.ton/`。
 
-产品站：统一在 [toninfo/ton](https://github.com/toninfo/ton) 的 `extras/web/`（含 ton 页），线上 https://ton.ren/app/。
+产品站：本仓 `extras/web/`，线上 https://ton.ren/（门户）与 https://ton.ren/app/（产品页）。
