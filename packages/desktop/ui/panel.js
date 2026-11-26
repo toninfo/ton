@@ -1051,6 +1051,11 @@ async function renderOverview() {
 		el(
 			"div.ov-links",
 			{},
+			el("button.link", {
+				type: "button",
+				text: `静默 ${(status.counts?.later ?? 0) + (status.counts?.muted ?? 0)}`,
+				onclick: () => void show("quiet"),
+			}),
 			el("button.link", { type: "button", text: "历史", onclick: () => void show("history") }),
 			el("button.link", { type: "button", text: "日志", onclick: () => void show("runs") }),
 		),
@@ -1498,7 +1503,7 @@ async function renderSettings() {
 const TABS = {
 	overview: { label: "概况", title: "运行状态与统计", icon: "chart", render: renderOverview, live: true },
 	inbox: { label: "收件箱", icon: "inbox", render: renderInbox, live: true },
-	quiet: { label: "静默", icon: "moon", render: renderQuiet, live: true },
+	quiet: { label: "静默", icon: "moon", render: renderQuiet, live: true, hidden: true },
 	history: { label: "历史", icon: "list", render: renderHistory, hidden: true },
 	activity: { label: "活动", icon: "sparkles", render: renderActivity, live: true },
 	schedule: { label: "定时", title: "定时运行 ton 提示词", icon: "clock", render: renderSchedule },
