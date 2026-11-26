@@ -42,7 +42,8 @@ const HELP = `${chalk.bold("Usage:")}
   ${APP_NAME} assistant ack [<id...>] --undo     (without id: the most recent ack)
   ${APP_NAME} assistant act <id> [--action reply_draft|open_zentao|open] [--hint <text>]
   ${APP_NAME} assistant note <id> --status progress|done|blocked|failed --message <text> [--json]
-  ${APP_NAME} assistant notify --title <text> --body <text> [--context <text>] [--urgency P0|P1|P2|P3] [--json]
+  ${APP_NAME} assistant notify --title <text> --body <text> [--context <text>] [--urgency P0|P1|P2|P3]
+      [--key <id>] [--ref <text>] [--source <text>] [--untrusted] [--json]
   ${APP_NAME} assistant beat <id>               (终端包装脚本每 5 分钟一次：编码代理还活着)
   ${APP_NAME} assistant dismiss <id>            (不是我的事：通知来源取消这条并归档卡片)
   ${APP_NAME} assistant delete <item|activity|run> <id...>   (批量删除；一次最多 200 个)
@@ -754,30 +755,62 @@ async function dispatch(
 				body: "value",
 				context: "value",
 				urgency: "value",
+				key: "value",
+				ref: "value",
+				source: "value",
+				untrusted: "flag",
 			});
 			const title = text(parsed, "title")?.trim();
 			const body = text(parsed, "body")?.trim();
 			if (!title || !body) throw new AssistantError("--title and --body are required");
-			const urgency = (text(parsed, "urgency") ?? "P2") as Urgency;
+			let urgency = (text(parsed, "urgency") ?? "P2") as Urgency;
 			if (!URGENCIES.includes(urgency)) throw new AssistantError(`--urgency must be one of ${URGENCIES.join(", ")}`);
+			// Third-party text cannot escalate itself to the P0 bypass path.
+			if (parsed.values.has("untrusted") && (urgency === "P0" || urgency === "P1")) urgency = "P2";
 			const now = new Date();
-			const key = `notify:${ulid(now)}`;
+			const suppliedKey = text(parsed, "key")?.trim();
+			const itemKey = suppliedKey ? `user:${clip(suppliedKey, 80)}` : `notify:${ulid(now)}`;
+			const existing = service.store.findByKey("ton", "notify", itemKey);
+			if (existing) {
+				if (existing.state === "new" || existing.state === "reported" || existing.state === "working") {
+					const held = service.settings.enabled === false ? "assistant disabled" : undefined;
+					out(
+						{ id: existing.id, title: existing.title, why: existing.why, state: existing.state, held },
+						() => `已在收件箱：${existing.title}`,
+					);
+					return 0;
+				}
+				throw new AssistantError(`notify key already used: ${suppliedKey}`);
+			}
 			const candidate: Candidate = {
-				id: key,
+				id: itemKey,
 				server: "ton",
 				stream: "notify",
-				itemKey: key,
+				itemKey,
 				title: clip(title, 60),
 				context: clip(text(parsed, "context") ?? "通知", 80),
 				urgencyHint: urgency,
 				observedAt: toStored(now),
 				suggested: "none",
-				payload: { why: clip(body, 300), type: "notify", body: clip(body, 2000) },
+				payload: {
+					why: clip(body, 300),
+					type: "notify",
+					body: clip(body, 2000),
+					source: text(parsed, "source") ?? "notify",
+					ref: text(parsed, "ref") ?? null,
+					untrusted: parsed.values.has("untrusted"),
+				},
 			};
 			const item = service.store.insertItem(candidate, now);
 			service.store.updateItem(item.id, { why: clip(body, 300), reported_at: toStored(now) });
 			service.store.setState(item.id, { to: "reported", now, actor: "system", reason: "notify" });
-			const result = { id: item.id, title: item.title, why: clip(body, 300), state: "reported" };
+			const held =
+				service.settings.enabled === false
+					? "assistant disabled"
+					: service.settings.dryRun
+						? "dry-run: inbox only"
+						: undefined;
+			const result = { id: item.id, title: item.title, why: clip(body, 300), state: "reported", held };
 			out(result, () => `已加入收件箱：${item.title}`);
 			return 0;
 		}

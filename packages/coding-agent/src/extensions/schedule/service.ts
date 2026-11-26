@@ -209,6 +209,13 @@ export interface RunDueOptions {
 export function runDue(store: ScheduleStore, options: RunDueOptions): DueResult {
 	const now = options.now;
 	const limit = options.limit ?? 5;
+	if (!options.dryRun) {
+		const last = store.getMeta("last_prune");
+		if (!last || now.getTime() - new Date(last).getTime() >= 24 * 60 * 60_000) {
+			store.prune(now);
+			store.setMeta("last_prune", toStored(now));
+		}
+	}
 	const started: DueResult["started"] = [];
 	const skipped: DueResult["skipped"] = [];
 	let more = false;
@@ -216,7 +223,6 @@ export function runDue(store: ScheduleStore, options: RunDueOptions): DueResult 
 
 	store.transaction(() => {
 		const jobs = store.listJobs().filter((job) => job.enabled && new Date(job.nextRunAt).getTime() <= now.getTime());
-		const capped = !options.dryRun && store.globalPromptCalls(now) >= HOURLY_CALL_CAP;
 		for (const job of jobs) {
 			const active = store.activeRun(job.id);
 			if (active) {
@@ -232,14 +238,6 @@ export function runDue(store: ScheduleStore, options: RunDueOptions): DueResult 
 			job.nextRunAt = toStored(next);
 			job.updatedAt = toStored(now);
 			const lateMinutes = (now.getTime() - scheduled.getTime()) / 60_000;
-			if (capped) {
-				if (!options.dryRun) {
-					store.createRun(job.id, toStored(scheduled), toStored(now), "capped", "hourly prompt cap (20) reached");
-					store.saveJob(job);
-				}
-				skipped.push({ jobId: job.id, name: job.name, reason: "hourly cap" });
-				continue;
-			}
 			if (lateMinutes > job.catchUpMinutes) {
 				if (!options.dryRun) {
 					store.createRun(

@@ -162,7 +162,7 @@ async fn tick_round(app: &AppHandle) -> RoundOutcome {
         return outcome;
     }
     let items = batch_items(&json);
-    if items.is_empty() {
+    if json["dry_run"].as_bool().unwrap_or(false) || items.is_empty() {
         return outcome;
     }
     let config = shared.config();

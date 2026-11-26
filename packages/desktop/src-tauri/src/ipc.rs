@@ -59,7 +59,7 @@ pub async fn schedule(app: AppHandle, args: Vec<String>, stdin: Option<String>) 
     if !SCHEDULE_ALLOWED.contains(&command) {
         return Err(format!("不支持的定时任务命令：{command}"));
     }
-    if args.iter().any(|arg| arg == "execute") || args.iter().any(|arg| arg == "--wait") {
+    if args.first().map(String::as_str) == Some("execute") || args.iter().any(|arg| arg == "--wait") {
         return Err("不支持的定时任务参数".into());
     }
     let shared = app.state::<Shared>();

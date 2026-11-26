@@ -54,7 +54,8 @@ ton
 
 ```bash
 ton kb add ~/Notes
-ton kb connect wechat          # or email / obsidian
+ton kb archive set /path/to/archive
+ton kb archive sync wechat     # or email / obsidian / tencent-docs / all
 ton kb search "keyword"
 ```
 

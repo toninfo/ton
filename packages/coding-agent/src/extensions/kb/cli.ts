@@ -111,7 +111,7 @@ export async function runKbCommand(args: string[], options: KbCommandOptions): P
 					log(`embedding: ${status.embedding.provider}/${status.embedding.model}${base}${key}`);
 				}
 				if (status.roots.length === 0) {
-					log(`(no roots — ${APP_NAME} kb add <path> | ${APP_NAME} kb connect wechat|email|obsidian)`);
+					log(`(no roots — ${APP_NAME} kb add <path> | ${APP_NAME} kb archive sync)`);
 				} else {
 					for (const root of status.roots) {
 						const flag = root.reachable ? "" : "  [MISSING — re-confirm path]";

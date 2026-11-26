@@ -68,12 +68,12 @@ interface GateResult {
 }
 
 /** Run the executable gate with JSON on stdin and one JSON object on stdout. */
-async function runGate(agentDir: string, job: Job): Promise<GateResult> {
+async function runGate(agentDir: string, job: Job, run: Run): Promise<GateResult> {
 	if (!job.script) throw new Error("gated schedule has no script");
 	const input = JSON.stringify({
 		schema: 1,
 		job: { id: job.id, name: job.name },
-		trigger: { scheduled_for: toStored(new Date()), now: toStored(new Date()) },
+		trigger: { scheduled_for: run.scheduledFor, now: toStored(new Date()) },
 		last: { status: job.lastStatus, finished_at: job.lastRunAt },
 	});
 	const child = spawnProcess(job.script, job.scriptArgs, {
@@ -147,7 +147,7 @@ export async function executeRun(agentDir: string, runId: number): Promise<Run> 
 			let prompt = job.prompt;
 			let gate: string | null = null;
 			if (job.kind === "gated") {
-				const decision = await runGate(agentDir, job);
+				const decision = await runGate(agentDir, job, run);
 				gate = decision.reason || (decision.send ? "send" : "skip");
 				if (!decision.send) {
 					store.updateRun(runId, {

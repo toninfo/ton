@@ -28,8 +28,13 @@ pub async fn run(app: AppHandle) {
 			tokio::time::sleep(ERROR_DELAY).await;
 			continue;
 		};
-		match ton.schedule(&["run-due".into()], SHORT_TIMEOUT, None).await {
+		match ton.schedule(&["run-due".into(), "--json".into()], SHORT_TIMEOUT, None).await {
 			Ok(output) => {
+				if output.code != 0 {
+					log(format!("schedule run-due: exit {} {}", output.code, output.stderr));
+					tokio::time::sleep(ERROR_DELAY).await;
+					continue;
+				}
 				if let Some(error) = output.json.as_ref().and_then(|json| json.get("error")).and_then(|v| v.as_str()) {
 					log(format!("schedule run-due: {error}"));
 				}

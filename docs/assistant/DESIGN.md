@@ -366,7 +366,7 @@ ton assistant doctor [--json]
 
 ### note
 
-`ton assistant notify --title <text> --body <text>`：往收件箱插入一条 `ton/notify` 系统条目，下一次 `tick` 按普通 `reported` 条目参与气泡策略。供定时 prompt、脚本或其他本地流程使用；内容由调用方决定，ton 不写死通知文案。
+`ton assistant notify --title <text> --body <text> [--key <id>] [--source <text>] [--ref <text>] [--untrusted]`：往收件箱插入一条 `ton/notify` 系统条目，下一次 `tick` 按普通 `reported` 条目参与气泡策略；`--key` 幂等，`--untrusted` 会把 P0/P1 降为 P2。供定时 prompt、脚本或其他本地流程使用；内容由调用方决定，ton 不写死通知文案。
 
 `ton assistant note <id> --status progress|done|blocked|failed --message <text>`：编码代理结束工作时回写一条结果，写 `agent_note` 事件（`actor: "agent"`），复制该事项最新 `auto_handle` 的 `run_id`。
 

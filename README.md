@@ -54,7 +54,8 @@ ton
 
 ```bash
 ton kb add ~/Notes
-ton kb connect wechat          # 或 email / obsidian
+ton kb archive set /path/to/archive
+ton kb archive sync wechat     # 或 email / obsidian / tencent-docs / all
 ton kb search "关键词"
 ```
 

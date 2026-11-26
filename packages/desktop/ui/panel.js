@@ -1172,7 +1172,7 @@ async function renderSchedule() {
 
 	const form = el(
 		"form.card.schedule-form",
-		{},
+		{ hidden: true },
 		cardHead("clock", "新建 / 编辑定时任务"),
 		el("div.settings-grid", {}, nameField, kindField, modeField, dailyField, weeklyField, everyField, cronField),
 		promptField,
@@ -1226,6 +1226,7 @@ async function renderSchedule() {
 	const edit = (job) => {
 		editing = job.id;
 		scheduleDirty = true;
+		form.hidden = false;
 		name.value = job.name;
 		prompt.value = job.prompt ?? "";
 		cwd.value = job.cwd ?? "~";
@@ -1317,9 +1318,15 @@ async function renderSchedule() {
 	const statusLine = info
 		? `共 ${info.jobs} 个任务，启用 ${info.enabled}，运行中 ${info.running} · 本小时模型调用 ${info.callsLastHour ?? 0}/${info.callCap ?? 20}`
 		: "定时任务";
+	const openForm = () => {
+		form.hidden = false;
+		scheduleDirty = true;
+		form.scrollIntoView({ behavior: "smooth", block: "start" });
+	};
+	const newButton = el("button.primary", { type: "button", text: "新建任务", onclick: openForm });
 	return [
-		el("div.act-section", {}, el("span", { text: statusLine })),
-		...(cards.length > 0 ? cards : [emptyState("clock", "还没有定时任务", "在下面新建一个，到点让 ton 跑一段 prompt。")]),
+		el("div.act-section.schedule-toolbar", {}, el("span", { text: statusLine }), newButton),
+		...(cards.length > 0 ? cards : [emptyState("clock", "还没有定时任务", "点「新建任务」，或让 agent 用 ton schedule 创建。")]),
 		form,
 	];
 }

@@ -1,3 +1,4 @@
+import { existsSync, unlinkSync } from "node:fs";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { openScheduleDb } from "./db.ts";
 import { getScheduleDbPath } from "./paths.ts";
@@ -327,6 +328,17 @@ export class ScheduleStore {
 		});
 	}
 
+	getMeta(key: string): string | undefined {
+		const row = this.db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | undefined;
+		return row?.value;
+	}
+
+	setMeta(key: string, value: string): void {
+		this.db
+			.prepare("INSERT INTO meta(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+			.run(key, value);
+	}
+
 	/** queued/running older than the job timeout + 5 minutes are dead wrappers. */
 	recoverStale(now: Date): number {
 		let changed = 0;
@@ -348,15 +360,37 @@ export class ScheduleStore {
 	/** Keep 30 days or the latest 100 runs per job. */
 	prune(now: Date): number {
 		const cutoff = toStored(new Date(now.getTime() - 30 * 24 * 60 * 60_000));
+		const paths = (
+			this.db
+				.prepare("SELECT log_path FROM runs WHERE claimed_at < ? AND log_path IS NOT NULL")
+				.all(cutoff) as unknown as {
+				log_path: string;
+			}[]
+		).map((row) => row.log_path);
 		let removed = this.db.prepare("DELETE FROM runs WHERE claimed_at < ?").run(cutoff).changes as number;
 		const jobs = this.db.prepare("SELECT id FROM jobs").all() as { id: string }[];
 		for (const { id } of jobs) {
+			const extra = (
+				this.db
+					.prepare(
+						"SELECT log_path FROM runs WHERE job_id = ? AND id NOT IN (SELECT id FROM runs WHERE job_id = ? ORDER BY id DESC LIMIT 100) AND log_path IS NOT NULL",
+					)
+					.all(id, id) as unknown as { log_path: string }[]
+			).map((row) => row.log_path);
+			paths.push(...extra);
 			const result = this.db
 				.prepare(
 					"DELETE FROM runs WHERE job_id = ? AND id NOT IN (SELECT id FROM runs WHERE job_id = ? ORDER BY id DESC LIMIT 100)",
 				)
 				.run(id, id);
 			removed += Number(result.changes);
+		}
+		for (const path of paths) {
+			try {
+				if (existsSync(path)) unlinkSync(path);
+			} catch {
+				// A log shared with a surviving run or already gone: leave it.
+			}
 		}
 		return removed;
 	}

@@ -51,6 +51,11 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 CREATE INDEX IF NOT EXISTS idx_runs_job ON runs(job_id, id);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status, id);
+
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `;
 
 export function openScheduleDb(path: string): DatabaseSync {

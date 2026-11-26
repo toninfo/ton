@@ -67,8 +67,9 @@ stdout 只输出一个 JSON 对象：
   `ton schedule execute <run-id>`；重复调用不会重复执行。
 - 迟到在 `catchUpMinutes` 内补跑一次，超过则记 `skipped` 并推进下次。
 - 同一任务已有 `queued/running` 时跳过本轮；全局最多同时启动 3 个任务。
-- 自动 prompt 调用全局上限：滚动 60 分钟最多 20 次；达到后本轮记 `capped` 跳过。手动
-  `schedule run` 完全绕过频率和预算限制，且不计入 20 次。
+- 自动 prompt 调用全局上限：滚动 60 分钟最多 20 次。cap 只拦截模型调用，gate 脚本仍会运行；
+  `send:true` 时若额度已满，该次运行记 `capped`。手动 `schedule run` 完全绕过频率和预算限制，
+  且不计入 20 次。
 - 直发任务默认 `--no-session`；gated 任务默认固定会话 `schedule-<job-id>`。两者默认
   `--no-approve`，同一任务不会并发写同一会话。
 - 子进程用 `-p` 文本模式运行，超时用进程组 kill；退出码 0 为 `ok`，非 0 为 `failed`。
@@ -80,7 +81,8 @@ stdout 只输出一个 JSON 对象：
 需要把执行结果推到气泡时，在 prompt 里让模型调用通用命令：
 
 ```bash
-ton assistant notify --title "Ton 反馈" --body "<一句话摘要>" --context "ton.ren 新反馈 N 条"
+ton assistant notify --title "Ton 反馈" --body "<一句话摘要>" --context "ton.ren 新反馈 N 条" \
+  --key "feedback-<id>" --source ton-feedback --ref "<id>" --untrusted
 ```
 
 `assistant notify` 只写一条 `ton/notify` 收件箱条目，下一次 `tick` 按现有气泡策略展示；schedule
@@ -90,7 +92,8 @@ runner 不包含任何通知专用逻辑。
 
 - `~/.ton/agent/schedule/state.db`：任务定义与运行记录（WAL）。
 - `~/.ton/agent/schedule/runs/<job-id>/<run-id>.{out,err}.log`：完整输出，目录 0700、文件 0600。
-- 数据库保留最后 16 KB 输出；日志每路最多 5 MB；运行记录保留 30 天或每任务最近 100 次。
+- 数据库保留最后 16 KB 输出；日志每路最多 5 MB；运行记录保留 30 天或每任务最近 100 次，
+  `run-due` 每天自动清理一次（含日志文件）。
 
 ## 与主动助理的边界
 

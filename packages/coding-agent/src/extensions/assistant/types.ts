@@ -25,6 +25,8 @@ export type ItemState =
 	/** Tombstone: the user deleted the card; the row stays so `(server, stream, item_key)` dedupe cannot recreate it. */
 	| "deleted";
 export const OPEN_STATES: readonly ItemState[] = ["new", "reported", "working", "later", "muted"];
+export const ACTIVE_STATES: readonly ItemState[] = ["new", "reported", "working", "later"];
+export const CLOSED_STATES: readonly ItemState[] = ["done", "dropped", "expired"];
 export const ACK_STATES = ["later", "muted", "done", "working"] as const;
 export type AckState = (typeof ACK_STATES)[number];
 

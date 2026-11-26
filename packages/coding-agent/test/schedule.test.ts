@@ -138,6 +138,26 @@ describe("schedule store and service", () => {
 		store.close();
 	});
 
+	it("still starts a gated job when the hourly prompt cap is full", () => {
+		const { store, dir } = storeFor();
+		const script = join(dir, "gate.sh");
+		writeFileSync(script, "#!/bin/sh\nprintf '%s\\n' '{\"send\":false}'\n", { mode: 0o755 });
+		const job = createJob(
+			store,
+			{ name: "gate", kind: "gated", cron: "* * * * *", prompt: "", cwd: dir, script },
+			NOW,
+		);
+		for (let i = 0; i < 20; i += 1) {
+			const id = store.createRun(job.id, NOW.toISOString(), NOW.toISOString(), "ok");
+			store.reservePromptCall(id, NOW);
+		}
+		job.nextRunAt = new Date(NOW.getTime() - 60_000).toISOString();
+		store.saveJob(job);
+		const result = runDue(store, { now: NOW, spawnExecute: () => undefined });
+		expect(result.started).toHaveLength(1);
+		store.close();
+	});
+
 	it("validates cwd and prompt", () => {
 		const { store, dir } = storeFor();
 		expect(() =>

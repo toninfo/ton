@@ -13,13 +13,13 @@ import type {
 	AssistantSettings,
 	Candidate,
 	ItemRow,
-	ItemState,
 	ProbeSummary,
 	ResolveWriter,
 	SourceSnapshot,
 	TickOutput,
 	Urgency,
 } from "./types.ts";
+import { ACTIVE_STATES as ACTIVE, CLOSED_STATES as CLOSED, OPEN_STATES as OPEN } from "./types.ts";
 import { clip } from "./util.ts";
 import { parsePayload, toView } from "./view.ts";
 
@@ -54,10 +54,6 @@ export interface TickOptions {
 	completer: () => Promise<Completer>;
 	mockTriage?: MockTriage;
 }
-
-const OPEN: readonly ItemState[] = ["new", "reported", "working", "later", "muted"];
-const ACTIVE: readonly ItemState[] = ["new", "reported", "working", "later"];
-const CLOSED: readonly ItemState[] = ["done", "dropped", "expired"];
 
 interface FailStreak {
 	count: number;

@@ -2,7 +2,14 @@ import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { copyAssistantDb, openAssistantDb } from "./db.ts";
 import { getStateDbPath } from "./paths.ts";
 import { DAY, startOfLocalDay, toStored, ulid } from "./time.ts";
-import type { Candidate, ItemRow, ItemState, Suggested, Urgency } from "./types.ts";
+import {
+	type Candidate,
+	CLOSED_STATES as CLOSED,
+	type ItemRow,
+	type ItemState,
+	type Suggested,
+	type Urgency,
+} from "./types.ts";
 
 export type Actor = "system" | "model" | "user" | "desktop" | "tui" | "agent";
 
@@ -54,8 +61,6 @@ export interface StateChange {
 	/** Event name; defaults to `state`. */
 	action?: string;
 }
-
-const CLOSED: readonly ItemState[] = ["done", "expired", "dropped"];
 
 function placeholders(values: readonly unknown[]): string {
 	return values.map(() => "?").join(", ");

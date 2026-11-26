@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -97,6 +97,27 @@ describe("gated schedule runner", () => {
 		expect(run.status).toBe("ok");
 		expect(run.sent).toBe(true);
 		expect(run.outputTail).toContain("from gate");
+	});
+
+	it("passes the planned time, not the wall clock, to the gate", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "ton-schedule-gatetime-"));
+		dirs.push(dir);
+		const gate = join(dir, "gate.sh");
+		writeFileSync(gate, `#!/bin/sh\ncat > ${join(dir, "input.json")}\nprintf '%s\\n' '{"send":false}'\n`, {
+			mode: 0o755,
+		});
+		chmodSync(gate, 0o755);
+		const store = ScheduleStore.open(dir);
+		const job = createJob(
+			store,
+			{ name: "gate", kind: "gated", cron: "* * * * *", prompt: "", cwd: dir, script: gate },
+			new Date(),
+		);
+		const manual = createManualRun(store, job.name, new Date());
+		store.close();
+		await executeRun(dir, manual.run.id);
+		const input = JSON.parse(readFileSync(join(dir, "input.json"), "utf8")) as { trigger: { scheduled_for: string } };
+		expect(input.trigger.scheduled_for).toBe(manual.run.scheduledFor);
 	});
 
 	it("treats an invalid gate output as an error", async () => {
