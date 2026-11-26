@@ -74,6 +74,18 @@ stdout 只输出一个 JSON 对象：
 - 子进程用 `-p` 文本模式运行，超时用进程组 kill；退出码 0 为 `ok`，非 0 为 `failed`。
 - 任务只在 Ton Desktop 运行时执行。桌面每约一分钟调用一次 `run-due`；桌面退出即暂停。
 
+## 本机脚本
+
+前置脚本统一放在 `~/.ton/agent/schedule/scripts/`，按任务命名；脚本参数通过 `--script-arg` 传入。
+需要把执行结果推到气泡时，在 prompt 里让模型调用通用命令：
+
+```bash
+ton assistant notify --title "Ton 反馈" --body "<一句话摘要>" --context "ton.ren 新反馈 N 条"
+```
+
+`assistant notify` 只写一条 `ton/notify` 收件箱条目，下一次 `tick` 按现有气泡策略展示；schedule
+runner 不包含任何通知专用逻辑。
+
 ## 文件与日志
 
 - `~/.ton/agent/schedule/state.db`：任务定义与运行记录（WAL）。

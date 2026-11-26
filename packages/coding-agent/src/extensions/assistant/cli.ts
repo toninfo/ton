@@ -19,17 +19,20 @@ import { KB_SERVER, probeKb } from "./sources/kb.ts";
 import type { Actor } from "./store.ts";
 import { AssistantStore } from "./store.ts";
 import { EXIT_FATAL, runTick } from "./tick.ts";
-import { formatLocalIso, parseTime, relativeZh } from "./time.ts";
+import { formatLocalIso, parseTime, relativeZh, toStored, ulid } from "./time.ts";
 import {
 	ACK_STATES,
 	type AckState,
 	type ActionKind,
 	AGENT_NOTE_STATUSES,
 	type AgentNoteStatus,
+	type Candidate,
 	type ItemView,
 	type TickOutput,
+	URGENCIES,
+	type Urgency,
 } from "./types.ts";
-import { isRecord } from "./util.ts";
+import { clip, isRecord } from "./util.ts";
 
 const HELP = `${chalk.bold("Usage:")}
   ${APP_NAME} assistant tick [--json] [--dry-run] [--mock <file>] [--now <iso>] [--force] [--trigger <name>]
@@ -39,6 +42,7 @@ const HELP = `${chalk.bold("Usage:")}
   ${APP_NAME} assistant ack [<id...>] --undo     (without id: the most recent ack)
   ${APP_NAME} assistant act <id> [--action reply_draft|open_zentao|open] [--hint <text>]
   ${APP_NAME} assistant note <id> --status progress|done|blocked|failed --message <text> [--json]
+  ${APP_NAME} assistant notify --title <text> --body <text> [--context <text>] [--urgency P0|P1|P2|P3] [--json]
   ${APP_NAME} assistant beat <id>               (终端包装脚本每 5 分钟一次：编码代理还活着)
   ${APP_NAME} assistant dismiss <id>            (不是我的事：通知来源取消这条并归档卡片)
   ${APP_NAME} assistant delete <item|activity|run> <id...>   (批量删除；一次最多 200 个)
@@ -741,6 +745,40 @@ async function dispatch(
 				{ schema: 1, ok: true, ...result },
 				() => `已删除 ${result.deleted.length} 项${skippedSuffix(result.skipped)}`,
 			);
+			return 0;
+		}
+		case "notify": {
+			const parsed = parse(rest, {
+				json: "flag",
+				title: "value",
+				body: "value",
+				context: "value",
+				urgency: "value",
+			});
+			const title = text(parsed, "title")?.trim();
+			const body = text(parsed, "body")?.trim();
+			if (!title || !body) throw new AssistantError("--title and --body are required");
+			const urgency = (text(parsed, "urgency") ?? "P2") as Urgency;
+			if (!URGENCIES.includes(urgency)) throw new AssistantError(`--urgency must be one of ${URGENCIES.join(", ")}`);
+			const now = new Date();
+			const key = `notify:${ulid(now)}`;
+			const candidate: Candidate = {
+				id: key,
+				server: "ton",
+				stream: "notify",
+				itemKey: key,
+				title: clip(title, 60),
+				context: clip(text(parsed, "context") ?? "通知", 80),
+				urgencyHint: urgency,
+				observedAt: toStored(now),
+				suggested: "none",
+				payload: { why: clip(body, 300), type: "notify", body: clip(body, 2000) },
+			};
+			const item = service.store.insertItem(candidate, now);
+			service.store.updateItem(item.id, { why: clip(body, 300), reported_at: toStored(now) });
+			service.store.setState(item.id, { to: "reported", now, actor: "system", reason: "notify" });
+			const result = { id: item.id, title: item.title, why: clip(body, 300), state: "reported" };
+			out(result, () => `已加入收件箱：${item.title}`);
 			return 0;
 		}
 		case "note": {
