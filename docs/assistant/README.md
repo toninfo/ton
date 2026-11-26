@@ -27,6 +27,7 @@
 | [DESIGN.md](./DESIGN.md) | 架构、状态机、数据模型、CLI 与 JSON 契约 | 核心/后端开发 |
 | [PROBES.md](./PROBES.md) | 通用数据源层：发现、三种来源、归一化、关闭与 triage | 核心/后端开发 |
 | [CONTRACT.md](./CONTRACT.md) | 通用数据源契约 `ton_assistant_items` v1：自动发现、字段块、生命周期、验收 | MCP 数据源开发者、核心开发 |
+| [SETTINGS.md](./SETTINGS.md) | `settings.json` 的完整键与默认值（由 `defaultSettings()` 生成） | 配置排查 |
 | [DESKTOP.md](./DESKTOP.md) | Tauri 桌面端：定时、窗口、托盘、X11 细节 | 桌面端开发 |
 | [PLAN.md](./PLAN.md) / [TASKS.md](./TASKS.md) / [SPC_REQUIREMENTS.md](./SPC_REQUIREMENTS.md) | 历史里程碑与旧需求存档；当前实现以 `CONTRACT.md` 为准 | 存档 |
 

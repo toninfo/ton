@@ -228,9 +228,13 @@ new ──────────┼────────► dropped
 | `collapseMinutes` | 10 | 无交互自动缩回 |
 | `p0MaxMinutes` | 30 | P0 气泡的自动缩回时间，单独计时 |
 
+完整键与默认值见 `SETTINGS.md`（由 `defaultSettings()` 生成，`npm run check` 会拦截漂移）。下表只列策略层直接消费的参数。
+
 每日上限的计数口径：`notified_at` 落在当天且 `urgency != P0` 的 item 数。用 `notified_at` 而不是 `reported_at`，是为了让「生成了但没真正弹出来」的条目不占额度。
 
 静默时段处理：非 P0 候选入库后保持 `new`，不在静默时段调模型；早上第一轮再进入 triage。P0 不受静默时段限制，当轮照常判断与推送。
+
+跨机：`state.db`、`schedule/state.db` 与日志都在本机 `~/.ton/agent` 下，不同步。两台机器都运行 Ton Desktop 时各自探测、各自提醒，确认与静默也只影响本机；`schedule` 任务只在创建它的机器上执行。`status.machine` / `doctor.machine` 返回主机名，用于区分通知来自哪台机器。
 
 ## 8. CLI 契约
 
