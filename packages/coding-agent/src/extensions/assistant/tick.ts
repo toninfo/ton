@@ -5,6 +5,7 @@
 
 import { DAY, formatLocalIso, HOUR, hhmmMinutes, inQuietHours, MINUTE, parseTime, toStored, ulid } from "../time.ts";
 import { COLLECTOR_SYNC_KEY, collectorSyncCursor, maybeSyncCollectors } from "./archive-sync.ts";
+import { DOWNRANK_WINDOW_DAYS, downrankedStreams, streamKey } from "./downrank.ts";
 import { readPrefs } from "./settings.ts";
 import { mergeCandidates, SYSTEM_SERVER, SYSTEM_STREAM, sortCandidates } from "./sources/index.ts";
 import type { AssistantStore } from "./store.ts";
@@ -369,6 +370,13 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 		id: string;
 		action: "done" | "cancel";
 	}[] = [];
+	// A stream the user keeps muting/deleting loses the bubble; new items go to the ignored group.
+	const downranked = new Map(
+		downrankedStreams(store.streamSignals(new Date(now.getTime() - DOWNRANK_WINDOW_DAYS * DAY))).map((signal) => [
+			streamKey(signal.server, signal.stream),
+			signal,
+		]),
+	);
 	store.transaction(() => {
 		const health = healthCandidates(store, snapshots, now);
 		const digest = digestCandidate(store, settings, now);
@@ -416,6 +424,27 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 				continue;
 			}
 			const item = store.insertItem(candidate, now, runId);
+			const downrank = downranked.get(streamKey(candidate.server, candidate.stream));
+			if (downrank && candidate.urgencyHint !== "P0") {
+				store.updateItem(item.id, {
+					why: String(candidate.payload.why ?? "") || "该来源近期被多次静默或删除，已自动降级",
+				});
+				store.setState(item.id, { to: "ignored", now, actor: "system", reason: "downrank", runId });
+				store.event({
+					now,
+					actor: "system",
+					action: "downranked",
+					itemId: item.id,
+					runId,
+					detail: {
+						server: downrank.server,
+						stream: downrank.stream,
+						notified: downrank.notified,
+						negative: downrank.negative,
+					},
+				});
+				continue;
+			}
 			if (candidate.direct) {
 				store.updateItem(item.id, { why: String(candidate.payload.why ?? ""), reported_at: toStored(now) });
 				store.setState(item.id, { to: "reported", now, actor: "system", runId, reason: "direct" });

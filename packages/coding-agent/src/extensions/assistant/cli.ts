@@ -961,6 +961,9 @@ async function dispatch(
 			out(stats, () =>
 				[
 					`近 ${String(stats.days)} 天提醒 ${String(stats.notified)} 次，静音率 ${Math.round(Number(stats.mute_rate) * 100)}%`,
+					...((stats.downranked as { server: string; stream: string; negative: number }[]) ?? []).map(
+						(entry) => `- 已降级 ${entry.server}/${entry.stream}（近 7 天静默/删除 ${entry.negative} 次）`,
+					),
 					...(stats.suggestions as string[]).map((line) => `- ${line}`),
 				].join("\n"),
 			);

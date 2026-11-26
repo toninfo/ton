@@ -1147,6 +1147,50 @@ describe("cli", () => {
 		expect(undone.skipped).toHaveLength(0);
 	});
 
+	it("downranks a stream after repeated mutes", async () => {
+		const harness = tickHarness();
+		for (let index = 0; index < 4; index++) {
+			const item = harness.store.insertItem(cand(`old${index}`), NOW);
+			harness.store.event({
+				now: NOW,
+				actor: "system",
+				action: "notified",
+				itemId: item.id,
+				detail: { batch: "b" },
+			});
+			harness.store.setState(item.id, { to: "muted", now: NOW, actor: "user", until: at(72), action: "ack" });
+		}
+		await harness.tick({ snapshots: [snap("demo", [cand("fresh")])] });
+		expect(itemAt(harness.store, "demo", "chat", "fresh").state).toBe("ignored");
+	});
+
+	it("lets P0 through a downranked stream and recovers after the window", async () => {
+		const harness = tickHarness();
+		for (let index = 0; index < 4; index++) {
+			const item = harness.store.insertItem(cand(`old${index}`), NOW);
+			harness.store.event({
+				now: NOW,
+				actor: "system",
+				action: "notified",
+				itemId: item.id,
+				detail: { batch: "b" },
+			});
+			harness.store.setState(item.id, { to: "muted", now: NOW, actor: "user", until: at(72), action: "ack" });
+		}
+		await harness.tick({
+			snapshots: [snap("demo", [cand("p0", { urgencyHint: "P0" })])],
+			now: at(1),
+		});
+		expect(itemAt(harness.store, "demo", "chat", "p0").state).toBe("reported");
+
+		// The negative events age out of the 7-day window; the stream is trusted again.
+		await harness.tick({
+			snapshots: [snap("demo", [cand("later")])],
+			now: at(24 * 8),
+		});
+		expect(itemAt(harness.store, "demo", "chat", "later").state).toBe("reported");
+	});
+
 	it("keeps triage-rejected items in the inbox as ignored", async () => {
 		const harness = tickHarness({
 			realTriage: true,

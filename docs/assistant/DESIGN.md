@@ -234,6 +234,15 @@ new ──────────┼────────► reported ──
 
 静默时段处理：非 P0 候选入库后保持 `new`，不在静默时段调模型；早上第一轮再进入 triage。P0 不受静默时段限制，当轮照常判断与推送。
 
+### 自动降级
+
+用户不需要点「判断错了」；同一个来源反复被静默或删除时，ton 自己降低它的打扰级别：
+
+- 信号：近 7 天同一 `(server, stream)` 的 `notified` 次数，以及负面动作（`muted`、删除、`not_mine`）。
+- 触发：`notified >= 4`、负面动作 `>= 3`、负面占比 `>= 50%`。
+- 效果：新候选直接进入 `ignored`（待办底部「低优先」分组），不调 triage、不弹气泡；P0 不受影响。写一条 `downranked` 事件，`ton assistant stats --json` 的 `downranked` 字段可见。
+- 恢复：规则按滚动窗口重算，负面事件 7 天后移出窗口，来源自动恢复正常。没有配置项。
+
 跨机：`state.db`、`schedule/state.db` 与日志都在本机 `~/.ton/agent` 下，不同步。两台机器都运行 Ton Desktop 时各自探测、各自提醒，确认与静默也只影响本机；`schedule` 任务只在创建它的机器上执行。`status.machine` / `doctor.machine` 返回主机名，用于区分通知来自哪台机器。
 
 ## 8. CLI 契约

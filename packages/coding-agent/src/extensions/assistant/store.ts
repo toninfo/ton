@@ -436,6 +436,28 @@ export class AssistantStore {
 		};
 	}
 
+	/**
+	 * Per (server, stream) feedback counts inside the window: `notified` bubbles and `negative`
+	 * user corrections (mute, delete, not-mine). Used to downrank noisy sources automatically.
+	 */
+	streamSignals(since: Date): { server: string; stream: string; notified: number; negative: number }[] {
+		return this.db
+			.prepare(
+				`SELECT items.server AS server, items.stream AS stream,
+				        SUM(CASE WHEN events.action = 'notified' THEN 1 ELSE 0 END) AS notified,
+				        SUM(CASE WHEN events.action = 'delete'
+				                   OR (events.action = 'ack' AND (
+				                        json_extract(events.detail, '$.to') = 'muted'
+				                     OR json_extract(events.detail, '$.reason') = 'not_mine'))
+				                 THEN 1 ELSE 0 END) AS negative
+				   FROM events JOIN items ON items.id = events.item_id
+				  WHERE events.ts >= ? AND items.server NOT IN ('system', 'legacy')
+				  GROUP BY items.server, items.stream
+				  ORDER BY negative DESC`,
+			)
+			.all(toStored(since)) as unknown as { server: string; stream: string; notified: number; negative: number }[];
+	}
+
 	// runs --------------------------------------------------------------------
 
 	startRun(now: Date, trigger: string, dryRun: boolean): number {

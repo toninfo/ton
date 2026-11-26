@@ -10,6 +10,7 @@ import {
 	toStored,
 } from "../time.ts";
 import { type ActionResult, AGENT_HEARTBEAT_STALE_MS, runAction, runningAgent } from "./actions.ts";
+import { DOWNRANK_WINDOW_DAYS, downrankedStreams } from "./downrank.ts";
 import { createMcpCaller, type McpCaller } from "./mcp.ts";
 import { createModelCompleter } from "./model.ts";
 import { loadSettings, readPrefs } from "./settings.ts";
@@ -957,6 +958,9 @@ export class AssistantService {
 				 GROUP BY kind ORDER BY n DESC`,
 			)
 			.all(at) as unknown as { kind: string; n: number }[];
+		const downranked = downrankedStreams(
+			this.store.streamSignals(new Date(now.getTime() - DOWNRANK_WINDOW_DAYS * DAY)),
+		);
 		const notified = perDay.reduce((sum, row) => sum + row.n, 0);
 		const muted = acks.find((row) => row.state === "muted")?.n ?? 0;
 		const muteRate = notified > 0 ? muted / notified : 0;
@@ -976,6 +980,7 @@ export class AssistantService {
 			acks: Object.fromEntries(acks.map((row) => [row.state, row.n])),
 			muted_kinds: mutedKinds,
 			mute_rate: Math.round(muteRate * 100) / 100,
+			downranked,
 			suggestions,
 		};
 	}
