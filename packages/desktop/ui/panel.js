@@ -1116,6 +1116,7 @@ async function renderSchedule() {
 		el("option", { value: "cron", text: "自定义 cron" }),
 	);
 	const time = el("input", { type: "time", value: "09:00" });
+	const weekTime = el("input", { type: "time", value: "09:00" });
 	const days = el("input", { type: "text", placeholder: "mon-fri", value: "mon-fri" });
 	const every = el("input", { type: "text", placeholder: "30m / 2h", value: "30m" });
 	const cron = el("input", { type: "text", placeholder: "0 9 * * 1-5" });
@@ -1137,10 +1138,17 @@ async function renderSchedule() {
 	const status = el("span.card-hint", { text: "" });
 	const submit = el("button.primary", { type: "submit", text: "保存" });
 
+	const nameField = field("名称", null, name);
+	const modeField = field("频率", null, mode);
 	const dailyField = field("时间", null, time);
-	const weeklyField = field("星期与时间", "例如 mon-fri 09:00", el("div.schedule-row", {}, days, time));
+	const weeklyField = field("星期与时间", "例如 mon-fri 09:00", el("div.schedule-row", {}, days, weekTime));
 	const everyField = field("间隔", "分钟需整除 60，小时需整除 24", every);
 	const cronField = field("cron", "分 时 日 月 周；本地时区", cron);
+	const promptField = field("prompt", "到点执行 ton，等价于 ton -p；可读写文件、调用工具", prompt);
+	const cwdField = field("工作目录", "任务的 cwd；~ 会展开", cwd);
+	nameField.classList.add("wide");
+	cwdField.classList.add("wide");
+	cronField.classList.add("wide");
 	const syncMode = () => {
 		for (const node of [dailyField, weeklyField, everyField, cronField]) node.hidden = true;
 		const selected = mode.value;
@@ -1151,7 +1159,7 @@ async function renderSchedule() {
 	};
 	mode.addEventListener("change", syncMode);
 	syncMode();
-	for (const input of [name, mode, time, days, every, cron, prompt, cwd, model, thinking, tools, noTools, approve, session, timeout, catchUp]) {
+	for (const input of [name, mode, time, weekTime, days, every, cron, prompt, cwd, model, thinking, tools, noTools, approve, session, timeout, catchUp]) {
 		input.addEventListener("input", () => {
 			scheduleDirty = true;
 		});
@@ -1161,9 +1169,9 @@ async function renderSchedule() {
 		"form.card.schedule-form",
 		{},
 		cardHead("clock", "新建 / 编辑定时任务"),
-		el("div.settings-grid", {}, field("名称", null, name), field("频率", null, mode), dailyField, weeklyField, everyField, cronField),
-		field("prompt", "到点执行 ton，等价于 ton -p；可读写文件、调用工具", prompt),
-		field("工作目录", "任务的 cwd；~ 会展开", cwd),
+		el("div.settings-grid", {}, nameField, modeField, dailyField, weeklyField, everyField, cronField),
+		promptField,
+		cwdField,
 		el(
 			"details.card-more",
 			{},
@@ -1197,7 +1205,7 @@ async function renderSchedule() {
 		const args = [editing ? "update" : "add", who];
 		if (editing && name.value.trim() && name.value.trim() !== editing) args.push("--name", name.value.trim());
 		if (mode.value === "daily") args.push("--daily", time.value);
-		else if (mode.value === "weekly") args.push("--weekly", `${days.value.trim()} ${time.value}`);
+		else if (mode.value === "weekly") args.push("--weekly", `${days.value.trim()} ${weekTime.value}`);
 		else if (mode.value === "every") args.push("--every", every.value.trim());
 		else args.push("--cron", cron.value.trim());
 		args.push(
@@ -1251,6 +1259,7 @@ async function renderSchedule() {
 		const parsed = scheduleModeOf(job.cron ?? "* * * * *");
 		mode.value = parsed.mode;
 		time.value = parsed.time ?? "09:00";
+		weekTime.value = parsed.time ?? "09:00";
 		days.value = parsed.days ?? "mon-fri";
 		every.value = parsed.cron ?? "30m";
 		cron.value = parsed.cron ?? job.cron ?? "";
