@@ -429,6 +429,23 @@ async function dismiss(card) {
 	if (result) closeCard(card, "已标为不是我的事");
 }
 
+/** Tombstone the card: it leaves every list now and the source cannot recreate the same key. */
+async function removeCard(card) {
+	const result = await run(card, [["delete", "item", card.item.id]], () => removeCard(card));
+	if (!result) return;
+	const id = card.item.id;
+	if (!Array.isArray(result.deleted) || !result.deleted.includes(id)) {
+		showToast("删除失败：正在处理中");
+		return;
+	}
+	card.node.remove();
+	cards.delete(id);
+	closing.add(id);
+	showToast("已删除");
+	if (cards.size === 0) void invoke("bubble_close");
+	setTimeout(() => closing.delete(id), 5000);
+}
+
 async function doNow(card) {
 	const retry = () => doNow(card);
 	const result = await run(
@@ -534,6 +551,11 @@ function renderCard(item) {
 				"aria-label": "别再说了",
 				onclick: () => void ack(card, "3 天内不再提醒", "--state", "muted", "--for", "3d"),
 			}, icon(["M6 9a6 6 0 0 1 10.2-4.2", "M18 9c0 5 2 6 2 6H4s2-1 2-6", "M3 3l18 18"])),
+			el("button.act", {
+				title: "删除（不再出现）",
+				"aria-label": "删除",
+				onclick: () => void removeCard(card),
+			}, icon(["M4 7h16", "M9 7V5h6v2", "M7 7l1 13h8l1-13"])),
 			el("button.act", { title: "更多", "aria-label": "更多", onclick: () => toggleMenu(card) }, "⋯"),
 		),
 	);
