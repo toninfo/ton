@@ -391,7 +391,7 @@ function doNowButton(item) {
 async function renderInbox() {
 	const inbox = await ton("inbox");
 	if (inbox.items.length === 0) {
-		return [emptyState("inbox", "收件箱是空的")];
+		return [emptyState("inbox", "没有待办")];
 	}
 	const list = selectableList("item", BULK_ACK);
 	const cards = inbox.items.map((item) =>
@@ -1007,7 +1007,7 @@ async function renderOverview() {
 					el(
 						"div.ov-links",
 						{},
-						el("button.link", { type: "button", text: "查看活动", onclick: () => void show("activity") }),
+						el("button.link", { type: "button", text: "查看动态", onclick: () => void show("activity") }),
 					),
 				)
 			: null;
@@ -1502,10 +1502,10 @@ async function renderSettings() {
  */
 const TABS = {
 	overview: { label: "概况", title: "运行状态与统计", icon: "chart", render: renderOverview, live: true },
-	inbox: { label: "收件箱", icon: "inbox", render: renderInbox, live: true },
+	inbox: { label: "待办", icon: "inbox", render: renderInbox, live: true },
 	quiet: { label: "静默", icon: "moon", render: renderQuiet, live: true, hidden: true },
 	history: { label: "历史", icon: "list", render: renderHistory, hidden: true },
-	activity: { label: "活动", icon: "sparkles", render: renderActivity, live: true },
+	activity: { label: "动态", icon: "sparkles", render: renderActivity, live: true },
 	schedule: { label: "定时", title: "定时运行 ton 提示词", icon: "clock", render: renderSchedule },
 	runs: { label: "日志", icon: "pulse", render: renderRuns, hidden: true },
 	settings: { label: "设置", icon: "sliders", render: renderSettings },
@@ -1518,7 +1518,7 @@ async function refreshHeader() {
 		const counts = status.counts ?? {};
 		const pending = counts.pending ?? 0;
 		const quiet = (counts.later ?? 0) + (counts.muted ?? 0);
-		const base = [pending > 0 ? `待处理 ${pending}` : "", quiet > 0 ? `静默 ${quiet}` : ""].filter(Boolean).join(" · ");
+		const base = [pending > 0 ? `待办 ${pending}` : "", quiet > 0 ? `静默 ${quiet}` : ""].filter(Boolean).join(" · ");
 		document.getElementById("summary").textContent =
 			(base || "没有待办") +
 			(status.paused_until ? ` · 暂停至 ${shortTime(status.paused_until)}` : "") +

@@ -135,7 +135,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Tray> {
     #[cfg(target_os = "linux")]
     wait_for_host();
     let open = MenuItem::with_id(app, "open", "打开", true, None::<&str>)?;
-    let activity = MenuItem::with_id(app, "activity", "工作动态", true, None::<&str>)?;
+    let activity = MenuItem::with_id(app, "activity", "动态", true, None::<&str>)?;
     let tick = MenuItem::with_id(app, "tick", "现在探测", true, None::<&str>)?;
     let pause_hour = MenuItem::with_id(app, "pause_1h", "暂停 1 小时", true, None::<&str>)?;
     let pause_today = MenuItem::with_id(app, "pause_today", "暂停今天", true, None::<&str>)?;

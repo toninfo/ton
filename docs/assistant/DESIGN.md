@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS events (
   actor   TEXT NOT NULL,                   -- system | model | user | desktop | agent
   action  TEXT NOT NULL,                   -- created | reported | ack | mute | done | delete | activity_hide | probe_error
   detail  TEXT,
-  hidden  INTEGER NOT NULL DEFAULT 0       -- 活动页删除：1 表示用户已从动态流隐藏（schema v2）
+  hidden  INTEGER NOT NULL DEFAULT 0       -- 动态页删除：1 表示用户已从动态流隐藏（schema v2）
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_item ON events(item_id, id);
@@ -161,7 +161,7 @@ schema 版本为 3：v2 给 `events` 加 `hidden`；v3 把 items 的身份从 `(
 
 保留策略：`items` 中 `done/expired/dropped` 超过 30 天清理；`runs` 保留 30 天；`events` 保留 90 天。
 
-用户删除的事项是 `state='deleted'` 的墓碑，**不进清理**：它只有一行，长期留着才能让 `(server, stream, item_key)` 去重不再重建同一张卡。来源状态/截止时间变化不会换身份，因此同一件事的新进展仍会原位更新或重新打开。活动页删除只置 `events.hidden=1`，事件本身跟着 90 天保留期走。
+用户删除的事项是 `state='deleted'` 的墓碑，**不进清理**：它只有一行，长期留着才能让 `(server, stream, item_key)` 去重不再重建同一张卡。来源状态/截止时间变化不会换身份，因此同一件事的新进展仍会原位更新或重新打开。动态页删除只置 `events.hidden=1`，事件本身跟着 90 天保留期走。
 
 ## 5. 状态机
 
@@ -179,7 +179,7 @@ new ──────────┼────────► dropped
 |---|---|---|
 | `new` | 本轮新建，等待 triage | 数据源产出候选 |
 | `dropped` | 判定不打扰 | triage 拒绝，或 policy 过滤 |
-| `reported` | 已推送或在收件箱 | triage 接受且 policy 放行 |
+| `reported` | 已推送或在待办 | triage 接受且 policy 放行 |
 | `working` | 用户点了「马上做」 | 桌面端 ack `--state working` |
 | `later` | 「知道了」，暂时压住 | `snooze_until = now + 2h` |
 | `muted` | 「别再说了」 | `muted_until = now + 3d` |
@@ -191,7 +191,7 @@ new ──────────┼────────► dropped
 
 - 禅道候选（bug / task / todo / story）全部是 `direct`：来源返回的已经是指派给用户的工作（story 通过 `get_products` → `get_products_productID_stories(assignedtome)`），`wait` 表示「未开始」而不是「在等别人」。它们插入时直接进入 `reported`，不经过 triage，避免被模型以「没有截止 / 没有点名」静默丢弃；静默时段、每日上限与最小间隔仍由策略层执行。story 只提醒，不自动拆任务。
 - `later` 到期：若源事项仍成立 → `reported`（重新提醒一次），若已消失 → `done`。
-- `muted` 到期：若源事项仍成立 → `dropped`（不再主动提，留在收件箱），若消失 → `done`。这里刻意不回到 `reported`，避免「别再说了」三天后又弹一次。
+- `muted` 到期：若源事项仍成立 → `dropped`（不再主动提，留在待办），若消失 → `done`。这里刻意不回到 `reported`，避免「别再说了」三天后又弹一次。
 - 同一 `(server, stream, item_key)` 的内容更新（`observed_at` 前进）原位更新，不新建卡片；条目被关闭后再次出现且 `observed_at` 前进时按 `reopened` 重新入库，受全局静默时段和每日上限约束。
 
 ## 6. 身份与关闭
@@ -224,7 +224,7 @@ new ──────────┼────────► dropped
 | `minGapMinutes` | 15 | 两次气泡最小间隔，期间的批次合并 |
 | `snoozeHours` | 2 | 「知道了」 |
 | `muteDays` | 3 | 「别再说了」 |
-| `maxCardsPerWindow` | 3 | 单窗最多卡片数，超出进收件箱 |
+| `maxCardsPerWindow` | 3 | 单窗最多卡片数，超出进待办 |
 | `collapseMinutes` | 10 | 无交互自动缩回 |
 | `p0MaxMinutes` | 30 | P0 气泡的自动缩回时间，单独计时 |
 
@@ -312,7 +312,7 @@ ton assistant doctor [--json]
 }
 ```
 
-`decision=silent` 时 `batch` 为 `null`。`pending` 是本轮结束时收件箱里 `reported + working` 的条数，供托盘角标使用。`probes` 以 server 名为键；失败项只有 `{ok:false,error,ms}`；因没有 root 等原因跳过的数据源带 `skipped:true`。
+`decision=silent` 时 `batch` 为 `null`。`pending` 是本轮结束时待办里 `reported + working` 的条数，供托盘角标使用。`probes` 以 server 名为键；失败项只有 `{ok:false,error,ms}`；因没有 root 等原因跳过的数据源带 `skipped:true`。
 
 `dry_run=true` 时整轮跑在 `state.db` 的临时副本上（复制后随进程删除），不创建 `reported`、不更新 `notified_at`，也不在真实库里留下 `runs` / `events` / `cursors` 或任何 item；输出照常反映「假如正式跑会怎样」。因此 dry-run 里自动处理也不会执行（`autoHandle` 直接返回 0）。
 
@@ -326,7 +326,7 @@ ton assistant doctor [--json]
 
 ### activity 输出（schema v1）
 
-自动处理与回写的工作动态，桌面「活动」页的数据源：
+自动处理与回写的工作动态，桌面「动态」页的数据源：
 
 ```json
 {
@@ -358,7 +358,7 @@ ton assistant doctor [--json]
 - `kind`：`agent`（交给编码代理）或 `draft`（预起草回复，只有它带 `text`）。`result` 取值 `draft|launched|created|manual|failed`，只说明「启动」这一步。
 - `status`：编码代理条目的跟踪状态，draft 为 `null`。有回写时取最新一条 note 的状态（`progress|done|blocked|failed`）；没有回写且事项已被探针关闭为 `closed`；启动超过 `agentTimeoutHours` 仍未回写为 `timeout`；包装脚本在跑（15 分钟内有心跳）为 `running`；否则 `launched`。启动失败为 `failed`。
 - `notes` 只挂在同一事项最新的一条动作事件上，避免旧草稿/旧派发误挂后来的回写。
-- `summary_24h` 只统计 `auto_handle`（自动处理），不含手动启动；被隐藏（`hidden=1`）的条目不计入，活动页删掉一条启动后 24 小时数字跟着减。`ok` 只表示启动命令执行成功，不代表编码代理完成任务——代理结果看条目的 `status` 与回写 note。
+- `summary_24h` 只统计 `auto_handle`（自动处理），不含手动启动；被隐藏（`hidden=1`）的条目不计入，动态页删掉一条启动后 24 小时数字跟着减。`ok` 只表示启动命令执行成功，不代表编码代理完成任务——代理结果看条目的 `status` 与回写 note。
 
 ### runs 输出（schema v1）
 
@@ -370,17 +370,17 @@ ton assistant doctor [--json]
 
 ### note
 
-`ton assistant notify --title <text> --body <text> [--key <id>] [--source <text>] [--ref <text>] [--untrusted]`：往收件箱插入一条 `ton/notify` 系统条目，下一次 `tick` 按普通 `reported` 条目参与气泡策略；`--key` 幂等，`--untrusted` 会把 P0/P1 降为 P2。供定时 prompt、脚本或其他本地流程使用；内容由调用方决定，ton 不写死通知文案。
+`ton assistant notify --title <text> --body <text> [--key <id>] [--source <text>] [--ref <text>] [--untrusted]`：往待办插入一条 `ton/notify` 系统条目，下一次 `tick` 按普通 `reported` 条目参与气泡策略；`--key` 幂等，`--untrusted` 会把 P0/P1 降为 P2。供定时 prompt、脚本或其他本地流程使用；内容由调用方决定，ton 不写死通知文案。
 
 `ton assistant note <id> --status progress|done|blocked|failed --message <text>`：编码代理结束工作时回写一条结果，写 `agent_note` 事件（`actor: "agent"`），复制该事项最新 `auto_handle` 的 `run_id`。
 
-`note` 只记录、展示，**不改 item 状态**：收件箱里的「处理中」仍由用户关闭；禅道状态仍由编码代理用 zentao MCP 回写。`message` 截断到 2000 字，事项不存在时退出码 1。
+`note` 只记录、展示，**不改 item 状态**：待办里的「处理中」仍由用户关闭；禅道状态仍由编码代理用 zentao MCP 回写。`message` 截断到 2000 字，事项不存在时退出码 1。
 
 包装脚本用隐藏的 `--wrapper` 调用：同一轮启动如果已经有终态回写（`done`/`failed`/`blocked`），这次回写直接忽略。代理已经回报完成后，用户关终端产生的 exit 129 不该把成功的任务改成「失败」。
 
 ### beat
 
-`ton assistant beat <id>`：终端包装脚本在代理存活期间每 5 分钟调一次，写 `agent_beat` 事件（`actor: "agent"`，无 detail）。它只表示「进程还活着」，不展示为 note，活动页用它把「已启动」升级为「运行中」。
+`ton assistant beat <id>`：终端包装脚本在代理存活期间每 5 分钟调一次，写 `agent_beat` 事件（`actor: "agent"`，无 detail）。它只表示「进程还活着」，不展示为 note，动态页用它把「已启动」升级为「运行中」。
 
 ### 启动后的跟踪
 
@@ -389,7 +389,7 @@ ton assistant doctor [--json]
 - shell 忽略 `HUP/INT/TERM`，所以关终端窗口、Ctrl-C、`kill` 都不会在回写前杀掉包装脚本；子进程（编码代理）照常收到信号退出，脚本按 `$?` 回写 `done`（exit 0）或 `failed`（exit ≥128 注明 129=终端关闭、130=Ctrl-C）。包装脚本的回写带 `--wrapper`，代理已经报过终态时不会覆盖（见 §8 `note`）。
 - 代理存活期间后台每 5 分钟 `beat` 一次（心跳在终端关闭后仍继续，直到包装脚本退出）。
 - 代理没回写、也没被包装脚本接住（`kill -9`、重启、卡死）时，`tick` 的 `reconcileLaunches` 在启动超过 `agentTimeoutHours`（默认 2，0 关闭）后自己写一条 `blocked` + `timeout: true` 的 `agent_note`；同一轮启动只补一次（note 本身就是标记），最新一条仍是超时的 `progress` 也算。心跳只证明进程活着，不满足这个检查。
-- 同一事项不会重复派发：`open_zentao` 启动前先看最新一次 `launched` 事件的后续 —— 有 15 分钟内的 `agent_beat`（或启动不足 2 分钟、首个心跳还没落地）且最新 note 不是终态（`done`/`failed`/`blocked`）时，说明代理还活着，直接返回「已在运行，没有重复派发」，不打开第二个终端；这次点击只写一条 `act_refused` 事件留痕，不进活动页。心跳过期、已有终态 note 或旧版启动（无心跳且超过 2 分钟）时允许重新派发。
+- 同一事项不会重复派发：`open_zentao` 启动前先看最新一次 `launched` 事件的后续 —— 有 15 分钟内的 `agent_beat`（或启动不足 2 分钟、首个心跳还没落地）且最新 note 不是终态（`done`/`failed`/`blocked`）时，说明代理还活着，直接返回「已在运行，没有重复派发」，不打开第二个终端；这次点击只写一条 `act_refused` 事件留痕，不进动态页。心跳过期、已有终态 note 或旧版启动（无心跳且超过 2 分钟）时允许重新派发。
 
 ### ack 与 undo
 
@@ -406,10 +406,10 @@ ton assistant doctor [--json]
 `ton assistant delete <item|activity|run> <id...>`：批量删除，一次最多 200 个 id，超过报错；重复 id 自动去重。输出 `{schema:1, ok:true, deleted:[...], skipped:[{id, reason}]}`，人类模式一行汇总；部分跳过仍退出 0（否则面板整批失败），用法错误或未知 kind 退出 1。
 
 - `item`（待处理/静默/历史）：置 `state='deleted'` 墓碑，清空 `snooze_until`/`muted_until`，写 `delete` 事件（detail 带原状态）。之后所有列表、计数、tick 自动处理都看不到它，`(server, stream, item_key)` 命中墓碑后也不会重建。已删除的 id 再删返回 `deleted`；`ack`/`note`/`beat`/`act`/`undo` 对墓碑报 `item "..." was deleted`。
-- `activity`：只接受活动页会显示的条目（`auto_handle`，或没有同 ts 自动行的 `act_open_zentao`），置 `events.hidden=1` 并写 `activity_hide` 审计事件（不进动态流）。事件本身保留：回写归属、`reconcileLaunches`、包装脚本抑制、autoHandle 去重仍读它，所以隐藏一条启动不会引起二次派发。`trace` 仍能看到原始事件。
+- `activity`：只接受动态页会显示的条目（`auto_handle`，或没有同 ts 自动行的 `act_open_zentao`），置 `events.hidden=1` 并写 `activity_hide` 审计事件（不进动态流）。事件本身保留：回写归属、`reconcileLaunches`、包装脚本抑制、autoHandle 去重仍读它，所以隐藏一条启动不会引起二次派发。`trace` 仍能看到原始事件。
 - `run`（日志）：硬删 `runs` 行；事件不动（与 30 天 retention 一致）。未完成且启动不到 10 分钟的 run 是正在写的那轮，跳过。
 
-存活守卫：事项或活动条目的最新启动仍有存活代理（15 分钟内心跳，或启动不足 2 分钟且无终态 note）时跳过，reason=`agent_running`；run 未完成且年轻则 reason=`running`。其余跳过原因：`unknown`、`deleted`、`not_entry`。
+存活守卫：事项或动态条目的最新启动仍有存活代理（15 分钟内心跳，或启动不足 2 分钟且无终态 note）时跳过，reason=`agent_running`；run 未完成且年轻则 reason=`running`。其余跳过原因：`unknown`、`deleted`、`not_entry`。
 
 ### settings
 
@@ -444,20 +444,20 @@ ton assistant doctor [--json]
 | ⋯ → 永久静音此类 | `prefs add ...` + `ack --state muted --for 3650d` | 收起 |
 | ⋯ → 不是我的事 | `ton assistant dismiss <id>`（等价 `ack --state done --reason not_mine`，并向支持写回的来源回写 `cancel`） | 收起 |
 | ⋯ → 判断错了 | `ack --state done --reason false_positive` | 收起 |
-| 撤销 | `ack <id> --undo` | 撤销最近一次批复；对 ton 自己关闭的卡片（triage 丢弃、回复/被取代关闭）恢复到关闭前状态，从未展示过的卡片放回收件箱 |
+| 撤销 | `ack <id> --undo` | 撤销最近一次批复；对 ton 自己关闭的卡片（triage 丢弃、回复/被取代关闭）恢复到关闭前状态，从未展示过的卡片放回待办 |
 | 底部「全部知道了」 | 对 batch 内每条执行 `later --for 2h` | 整窗收起 |
 
 - 桌面端不做本地缓存副本；每次打开面板都重新 `inbox --json`。气泡窗口的数据在创建时注入，操作后不再回读（除结果区）。
 
-「待处理 / 静默 / 历史 / 活动 / 日志」的列表操作：
+「待处理 / 静默 / 历史 / 动态 / 日志」的列表操作：
 
 - 每个列表顶部有工具栏：「选择」进入多选，卡片前出现复选框；「全选已加载」只覆盖当前已加载的卡片，「删除所选 (N)」两段确认——第一次点击变成「确认删除 N 项？」，3 秒内再点才执行，没有模态框；单条删除用卡片上的「删除」，同样两段确认。切换标签或删除后自动退出多选。待处理与静默页另有「已处理所选」（`ack --state done`），历史页有「撤销所选」（`ack --undo`），确认与分块方式相同。
 - 删除走 `ton assistant delete ...`（见 §8），超过 200 个 id 按 200 分批；完成后 toast `已删除 N 项`（有跳过时附 `，跳过 M 项`）并整页重载当前标签。批量处理与撤销同理，跳过原因见 §8 `ack 与 undo`。
-- 历史与日志每页 50 条，「加载更多」用 `--offset` 追加；活动同样每页 50 条，但用 `--before <最后一条 event_id>` 游标追加——25 秒轮询会在顶部插入新事件，offset 会重复或漏条。
+- 历史与日志每页 50 条，「加载更多」用 `--offset` 追加；动态同样每页 50 条，但用 `--before <最后一条 event_id>` 游标追加——25 秒轮询会在顶部插入新事件，offset 会重复或漏条。
 - 日志默认隐藏空探测（见 §8 runs），底部一行「另有 N 次空探测（最近 HH:mm）· 显示」可切到 `--all` 全量；离开标签页即复位为默认过滤。
-- 活动页轮询：多选模式或已加载超过一页时，25 秒轮询与 `assistant-state` 只重拉 `activity --limit 1` 并原地替换顶部状态卡，已加载条目与选择状态保持不变；否则整页刷新，新事件照常实时出现。
+- 动态页轮询：多选模式或已加载超过一页时，25 秒轮询与 `assistant-state` 只重拉 `activity --limit 1` 并原地替换顶部状态卡，已加载条目与选择状态保持不变；否则整页刷新，新事件照常实时出现。
 
-「活动」标签页：
+「动态」标签页：
 
 - 数据来自 `ton assistant activity --json`（见 §8），面板打开期间每 25 秒轮询一次；
 - 运行态不进数据库：调度器真正执行 tick 时把 `running/started_at/last_*` 写进 Rust 内存，并通过 Tauri 事件 `assistant-state` 推给前端；面板打开时用 `assistant_state` 命令补一次快照；
@@ -498,7 +498,7 @@ ton assistant doctor [--json]
 }
 ```
 
-数据源没有配置项：接哪些服务器、读哪些 stream 只由 `mcp.json` 与各服务器暴露的工具决定（见 [PROBES.md](./PROBES.md)），所以这里没有 `probes` / `servers` / `wechat` / `memory`。`zentao` 块只有适配器的两个时间阈值；「打开禅道」链接的 base URL 从检测到的 zentao MCP 端点自动推导（`https://host/mcp` → `https://host`），也不提供配置项。`knowledge.collectorSyncMinutes`（默认 15）控制 tick 前置启动归档采集器的最小间隔。`terminal` 留空时 `act open_zentao` 用系统默认终端。`codingAgent` 决定禅道事项交给谁处理：`claude`（Claude Code CLI，默认）或 `cursor`（cursor-agent），ton 自己不写代码。`autoHandle`（默认 `true`）打开 tick 内的自动处理：禅道 bug/任务/待办交给编码代理（bug 修完标记已解决、不关单；任务/待办由 Claude Code 判断能做就做、只能准备就准备好）；研发需求只提醒、不自动拆任务（已有子任务的需求跳过），也不交给编码代理（启动 Claude Code 时用 `--allowedTools` 只预授权禅道 `get_*` 读工具与 `put_tasks_taskID_start/finish`、`put_bugs_bugID_resolve`，无人值守时不会停在权限确认，新建/删除类工具仍需人工确认）；预起草只覆盖带 `reply` 块的条目与非自动通知（`doc.automated=false`）的 P0/P1 文档，从不发送；每 tick 最多 3 项、总预算约 25 秒，同一条目只处理一次（`auto_handle` 事件去重），草稿按 `observedAt` 版本去重。`agentTimeoutHours`（默认 2，0 关闭）是派发后的跟踪超时：启动超过这个时间仍没有结果回写（最新回写还停在 `progress` 也算），`tick` 会自己补一条「被卡住」的 note，避免终端被关掉后活动页永远显示「已启动」。字段类型不符时保留默认值并在 `tick` 的 stderr 报告。
+数据源没有配置项：接哪些服务器、读哪些 stream 只由 `mcp.json` 与各服务器暴露的工具决定（见 [PROBES.md](./PROBES.md)），所以这里没有 `probes` / `servers` / `wechat` / `memory`。`zentao` 块只有适配器的两个时间阈值；「打开禅道」链接的 base URL 从检测到的 zentao MCP 端点自动推导（`https://host/mcp` → `https://host`），也不提供配置项。`knowledge.collectorSyncMinutes`（默认 15）控制 tick 前置启动归档采集器的最小间隔。`terminal` 留空时 `act open_zentao` 用系统默认终端。`codingAgent` 决定禅道事项交给谁处理：`claude`（Claude Code CLI，默认）或 `cursor`（cursor-agent），ton 自己不写代码。`autoHandle`（默认 `true`）打开 tick 内的自动处理：禅道 bug/任务/待办交给编码代理（bug 修完标记已解决、不关单；任务/待办由 Claude Code 判断能做就做、只能准备就准备好）；研发需求只提醒、不自动拆任务（已有子任务的需求跳过），也不交给编码代理（启动 Claude Code 时用 `--allowedTools` 只预授权禅道 `get_*` 读工具与 `put_tasks_taskID_start/finish`、`put_bugs_bugID_resolve`，无人值守时不会停在权限确认，新建/删除类工具仍需人工确认）；预起草只覆盖带 `reply` 块的条目与非自动通知（`doc.automated=false`）的 P0/P1 文档，从不发送；每 tick 最多 3 项、总预算约 25 秒，同一条目只处理一次（`auto_handle` 事件去重），草稿按 `observedAt` 版本去重。`agentTimeoutHours`（默认 2，0 关闭）是派发后的跟踪超时：启动超过这个时间仍没有结果回写（最新回写还停在 `progress` 也算），`tick` 会自己补一条「被卡住」的 note，避免终端被关掉后动态页永远显示「已启动」。字段类型不符时保留默认值并在 `tick` 的 stderr 报告。
 
 `digest` 每天在 `[time, time+windowMinutes)` 内生成一条「今日摘要」系统卡片（条数与来源计数，随本轮结果刷新），隔天自动被新摘要取代。没有「过期记忆自动取消」的配置：时间盒事项由数据源给 `expires_at`，过期后 ton 关闭并回写 `resolve(cancel)`（契约 §14）；数据源自己决定是否随之取消记忆。
 
@@ -533,7 +533,7 @@ ton assistant doctor [--json]
 | 数据源 `skipped` | 不算失败：不记 streak、不进 `degraded`、不拉退出码 |
 | 模型超时/解析失败 | 解析失败重试 1 次；仍失败则本轮 fallback：P0/P1 按原文展示，其余留到下轮；记录原始候选；连续 3 轮 → 系统事项 |
 | DB 锁 | 5s 超时；仍失败则退出码 1，桌面端红点 |
-| 桌面端未运行 | 不影响：手动跑 tick 仍可入库，下次启动收件箱可见 |
+| 桌面端未运行 | 不影响：手动跑 tick 仍可入库，下次启动待办可见 |
 
 ## 13. 隐私与安全
 
