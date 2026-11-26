@@ -772,7 +772,13 @@ async function dispatch(
 			const itemKey = suppliedKey ? `user:${clip(suppliedKey, 80)}` : `notify:${ulid(now)}`;
 			const existing = service.store.findByKey("ton", "notify", itemKey);
 			if (existing) {
-				if (existing.state === "new" || existing.state === "reported" || existing.state === "working") {
+				if (
+					existing.state === "new" ||
+					existing.state === "reported" ||
+					existing.state === "working" ||
+					existing.state === "later" ||
+					existing.state === "muted"
+				) {
 					const held = service.settings.enabled === false ? "assistant disabled" : undefined;
 					out(
 						{ id: existing.id, title: existing.title, why: existing.why, state: existing.state, held },

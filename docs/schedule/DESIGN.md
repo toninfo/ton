@@ -97,6 +97,7 @@ runner 不包含任何通知专用逻辑。
 
 ## 与主动助理的边界
 
-- 不修改 assistant `state.db`、`AssistantSettings` 或 `ton_assistant_items`。
-- 定时任务结果默认不进收件箱/气泡，只在桌面「定时」页查看运行记录。
+- schedule 自身不修改 assistant `state.db`、`AssistantSettings` 或 `ton_assistant_items`。
+- 定时任务结果默认不进收件箱/气泡，只在桌面「定时」页查看运行记录；需要时由 prompt 显式调用
+  通用命令 `ton assistant notify` 写入收件箱，再由下一次 tick 按现有气泡策略展示。
 - spc 的 `task_add` 到期提醒仍由主动助理处理；需要「到点执行」时使用 schedule。
