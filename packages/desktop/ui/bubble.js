@@ -511,7 +511,7 @@ function toggleMenu(card) {
 		}),
 		card.draft ? entry("复制回复", () => void copyText(card.draft)) : null,
 		entry("打开来源", () => void openSource(card)),
-		entry("不是我的事", () => void dismiss(card)),
+		item.resolvable ? entry("不是我的事", () => void dismiss(card)) : null,
 	);
 	card.node.append(menu);
 }

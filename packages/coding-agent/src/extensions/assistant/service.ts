@@ -15,7 +15,7 @@ import { createMcpCaller, type McpCaller } from "./mcp.ts";
 import { createModelCompleter } from "./model.ts";
 import { loadSettings, readPrefs } from "./settings.ts";
 import { callResolve } from "./sources/contract.ts";
-import { type Discovery, discoverSources, sourceServers } from "./sources/discover.ts";
+import { cachedResolvableServers, type Discovery, discoverSources, sourceServers } from "./sources/discover.ts";
 import { runSources } from "./sources/index.ts";
 import { KB_SERVER } from "./sources/kb.ts";
 import { zentaoBaseFromUrl } from "./sources/zentao.ts";
@@ -147,7 +147,14 @@ export class AssistantService {
 	}
 
 	inbox(): { schema: 1; items: ItemView[]; counts: Record<string, number> } {
-		return { schema: 1, items: this.store.listByStates(INBOX_STATES).map(toView), counts: this.store.counts() };
+		const resolvable = cachedResolvableServers(this.agentDir);
+		return {
+			schema: 1,
+			items: this.store
+				.listByStates(INBOX_STATES)
+				.map((item) => ({ ...toView(item), resolvable: resolvable.has(item.server) })),
+			counts: this.store.counts(),
+		};
 	}
 
 	history(limit: number, offset = 0): ItemView[] {
@@ -178,6 +185,13 @@ export class AssistantService {
 			if (!output.dry_run) {
 				output.model_calls += await this.autoHandle(output, now);
 				this.reconcileLaunches(now);
+			}
+			if (output.batch) {
+				const resolvable = cachedResolvableServers(this.agentDir);
+				output.batch.items = output.batch.items.map((item) => ({
+					...item,
+					resolvable: resolvable.has(item.server),
+				}));
 			}
 			return output;
 		} finally {

@@ -405,14 +405,17 @@ async function renderInbox() {
 							ackButton(item, "明天再说", "明天再提醒", "--state", "later", "--for", "tomorrow"),
 						];
 		if (item.state !== "ignored" && !snoozed(item)) {
-			buttons.push(
-				ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"),
-				() =>
+			buttons.push(ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"));
+			// Only sources that implement ton_assistant_resolve can actually cancel upstream; for
+			// the others "not mine" is weaker than 删除 (which leaves a local tombstone).
+			if (item.resolvable) {
+				buttons.push(() =>
 					el("button.small", {
 						text: "不是我的事",
 						onclick: (event) => void action(event.currentTarget, "已标为不是我的事", "dismiss", item.id),
 					}),
-			);
+				);
+			}
 		}
 		buttons.push(() => deleteButton("item", item.id));
 		return list.add(itemNode(item, buttons), item.id);

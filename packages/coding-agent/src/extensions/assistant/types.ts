@@ -156,6 +156,8 @@ export interface ItemView {
 	excerpt: string;
 	/** 原文文件路径（知识源/邮件），有就能直接打开。 */
 	source_path: string;
+	/** The source implements ton_assistant_resolve, so "not mine" can cancel it upstream. */
+	resolvable: boolean;
 }
 
 export interface ProbeSummary {

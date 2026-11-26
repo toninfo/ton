@@ -209,7 +209,7 @@ new ──────────┼────────► reported ──
 
 关闭判定按服务器和 stream 隔离；契约不做跨服务器去重——同一件事被两个服务器各报一次就会得到两张卡，应由数据源避免。`ton` 的 `system` 流走同一套规则，关闭原因分别为 `recovered` / `expired`。
 
-用户关闭的回写走契约 §14：`ack --state done` → `ton_assistant_resolve(done)`，「不是我的事」→ `cancel`，`expires_at` 到期 → `cancel`。来源没有该工具时只在本地关闭；回写失败不影响本地结果。旧的 `closeOnDone` 开关、`create_todo` 动作与 `doing`+P1 降级都已删除：记忆过期由数据源用 `expires_at` 表达，并在收到 `cancel` 时自行取消。
+用户关闭的回写走契约 §14：`ack --state done` → `ton_assistant_resolve(done)`，「不是我的事」→ `cancel`，`expires_at` 到期 → `cancel`。来源没有该工具时只在本地关闭（界面也不显示「不是我的事」，避免按了没有效果）；回写失败不影响本地结果。旧的 `closeOnDone` 开关、`create_todo` 动作与 `doing`+P1 降级都已删除：记忆过期由数据源用 `expires_at` 表达，并在收到 `cancel` 时自行取消。
 
 ## 7. 策略层（代码，不让模型决定）
 
@@ -451,7 +451,7 @@ ton assistant doctor [--json]
 | ⋯ → 已处理 | `ton assistant ack <id> --state done` | 收起 |
 | ⋯ → 推迟今晚/明天 | `ack --state later --for tonight\|tomorrow` | 收起 |
 | ⋯ → 永久静音此类 | `prefs add ...` + `ack --state muted --for 3650d` | 收起 |
-| ⋯ → 不是我的事 | `ton assistant dismiss <id>`（等价 `ack --state done --reason not_mine`，并向支持写回的来源回写 `cancel`） | 收起 |
+| ⋯ → 不是我的事 | `ton assistant dismiss <id>`（等价 `ack --state done --reason not_mine`，并向支持写回的来源回写 `cancel`）；只在来源支持写回时显示 | 收起 |
 | 撤销 | `ack <id> --undo` | 撤销最近一次批复；对 ton 自己关闭的卡片（triage 丢弃、回复/被取代关闭）恢复到关闭前状态，从未展示过的卡片放回待办 |
 | 底部「全部知道了」 | 对 batch 内每条执行 `later --for 2h` | 整窗收起 |
 

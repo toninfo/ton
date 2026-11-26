@@ -19,6 +19,12 @@ export interface DiscoveredServer {
 	zentao: boolean;
 }
 
+/** Resolve-capable servers from the cached discovery; never probes. Empty before the first discovery. */
+export function cachedResolvableServers(agentDir: string): Set<string> {
+	const cache = readCache(agentDir);
+	return new Set((cache?.servers ?? []).filter((server) => server.resolve).map((server) => server.name));
+}
+
 export interface Discovery {
 	servers: DiscoveredServer[];
 	/** Servers whose tool list could not be read this time; retried on the next discovery. */

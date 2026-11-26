@@ -1147,6 +1147,22 @@ describe("cli", () => {
 		expect(undone.skipped).toHaveLength(0);
 	});
 
+	it("marks whether a source can cancel the item", async () => {
+		const harness = tickHarness();
+		await harness.tick({ snapshots: [snap("demo", [cand("a")])] });
+		const service = newService(harness.agentDir, fakeMcp({ servers: [] }), acceptAll);
+		expect(service.inbox().items[0]?.resolvable).toBe(false);
+		writeFileSync(
+			join(harness.agentDir, "assistant", "sources.json"),
+			JSON.stringify({
+				mcp_mtime_ms: null,
+				servers: [{ name: "demo", contract: true, resolve: true, zentao: false }],
+				failed: [],
+			}),
+		);
+		expect(service.inbox().items[0]?.resolvable).toBe(true);
+	});
+
 	it("downranks a stream after repeated mutes", async () => {
 		const harness = tickHarness();
 		for (let index = 0; index < 4; index++) {

@@ -102,5 +102,6 @@ export function toView(item: ItemRow): ItemView {
 		close_reason: item.close_reason,
 		excerpt: excerptOf(item, payload),
 		source_path: sourcePathOf(payload),
+		resolvable: false,
 	};
 }
