@@ -5,7 +5,7 @@ use crate::state::{log, Shared};
 use crate::{panel, scheduler};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::tray::{MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
@@ -28,7 +28,6 @@ pub struct TrayStatus {
 
 pub struct Tray {
     icon: TrayIcon,
-    open: MenuItem<Wry>,
     autostart: CheckMenuItem<Wry>,
 }
 
@@ -65,14 +64,6 @@ fn draw(dot: Option<[u8; 3]>) -> Image<'static> {
 const WHITE: [u8; 3] = [255, 255, 255];
 const YELLOW: [u8; 3] = [234, 179, 8];
 
-fn open_label(pending: u64) -> String {
-    if pending > 0 {
-        format!("打开收件箱 ({pending})")
-    } else {
-        "打开概况".to_string()
-    }
-}
-
 fn default_tab(app: &AppHandle) -> Option<&'static str> {
     let pending = app
         .state::<Shared>()
@@ -83,12 +74,10 @@ fn default_tab(app: &AppHandle) -> Option<&'static str> {
     Some(if pending > 0 { "inbox" } else { "overview" })
 }
 
-/// The Linux tray backend (libayatana-appindicator) creates a legacy GtkStatusIcon when no
-/// StatusNotifier host is registered shortly after it starts, and that fallback stays even after
-/// the host registers. At login ton can beat xfce4-panel's systray plugin: the watcher name exists
-/// but no host is registered yet, so the process ends up with two tray icons, the SNI item and the
-/// XEmbed fallback. Wait for the host before creating the indicator; with the panel already
-/// running this returns at once.
+/// The Linux backend is a pure StatusNotifierItem (tray-icon's `ksni` feature). At login ton can
+/// beat xfce4-panel's watcher host: the watcher name exists but no host is registered yet, and an
+/// item registered before any host may not be picked up. Wait for the host before creating the
+/// item; with the panel already running this returns at once.
 #[cfg(target_os = "linux")]
 fn wait_for_host() {
     use std::time::{Duration, Instant};
@@ -145,7 +134,7 @@ fn host_registered() -> Option<bool> {
 pub fn build(app: &AppHandle) -> tauri::Result<Tray> {
     #[cfg(target_os = "linux")]
     wait_for_host();
-    let open = MenuItem::with_id(app, "open", open_label(0), true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "打开", true, None::<&str>)?;
     let activity = MenuItem::with_id(app, "activity", "工作动态", true, None::<&str>)?;
     let tick = MenuItem::with_id(app, "tick", "现在探测", true, None::<&str>)?;
     let pause_hour = MenuItem::with_id(app, "pause_1h", "暂停 1 小时", true, None::<&str>)?;
@@ -165,29 +154,39 @@ pub fn build(app: &AppHandle) -> tauri::Result<Tray> {
         &[&tick, &more_sep, &settings, &autostart, &quit],
     )?;
     let menu = Menu::with_items(app, &[&open, &activity, &pause, &more])?;
-    let icon = TrayIconBuilder::with_id("ton")
+    let mut builder = TrayIconBuilder::with_id("ton")
         .icon(draw(None))
         .tooltip("Silen's Assistant")
         .menu(&menu)
         .show_menu_on_left_click(cfg!(target_os = "linux"))
         .on_menu_event(|app, event| on_menu(app, event.id().as_ref()))
         .on_tray_icon_event(|tray, event| {
-            // Linux app indicators never deliver click events; there the menu is the only entry.
-            if let TrayIconEvent::DoubleClick {
-                button: MouseButton::Left,
-                ..
-            } = event
-            {
+            // Linux (SNI) has no double click: the host's first left click is `Activate`.
+            // Windows/macOS deliver `DoubleClick`; the menu opens on left click there.
+            let open = match event {
+                TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                } => true,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => cfg!(target_os = "linux"),
+                _ => false,
+            };
+            if open {
                 let app = tray.app_handle().clone();
                 tauri::async_runtime::spawn(async move { panel::open(&app, default_tab(&app)) });
             }
-        })
-        .build(app)?;
-    Ok(Tray {
-        icon,
-        open,
-        autostart,
-    })
+        });
+    #[cfg(target_os = "linux")]
+    {
+        // SNI Title: the bold first tooltip line. The status text stays in ToolTip.description.
+        builder = builder.title("Silen's Assistant");
+    }
+    let icon = builder.build(app)?;
+    Ok(Tray { icon, autostart })
 }
 
 fn on_menu(app: &AppHandle, id: &str) {
@@ -267,5 +266,4 @@ pub fn update(app: &AppHandle, change: impl FnOnce(&mut TrayStatus)) {
         tooltip.push_str(&format!(" · {}", status.message));
     }
     let _ = tray.icon.set_tooltip(Some(tooltip));
-    let _ = tray.open.set_text(open_label(status.pending));
 }

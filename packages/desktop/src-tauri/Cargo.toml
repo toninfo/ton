@@ -26,6 +26,11 @@ rand = "=0.8.8"
 gtk = "=0.18.2"
 gdkx11 = "=0.18.2"
 gio = "=0.18.4"
+# Tauri always enables tray-icon's libappindicator backend. Enabling `ksni` here wins the cfg
+# choice in tray-icon (ksni takes precedence), giving a pure StatusNotifierItem that receives
+# left-click Activate and can open the panel. Cargo features are additive, so this single direct
+# dependency switches the backend Tauri's tray uses.
+tray-icon = { path = "vendor/tray-icon", default-features = false, features = ["ksni"] }
 
 # Upstream tray-icon ignores tooltips on the GTK/AppIndicator backend. The vendored copy sets the
 # SNI Title and writes the tooltip into the icon description so xfce4-statusnotifier shows it.

@@ -130,7 +130,7 @@ impl Ton {
         self.run_in("schedule", args, limit, stdin).await
     }
 
-    async fn run_in(
+    pub async fn run_in(
         &self,
         group: &str,
         args: &[String],

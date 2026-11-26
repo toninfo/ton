@@ -5,9 +5,6 @@ import { copyText, el, errorText, invoke, listen, relativeTime, schedule, STATE_
 const content = document.getElementById("content");
 const toastEl = document.getElementById("toast");
 const tickButton = document.getElementById("tick");
-const tabs = ["overview", "inbox", "quiet", "history", "activity", "schedule", "runs", "settings"];
-/** Reachable from the overview records card, not from the top tab bar. */
-const HIDDEN_TABS = new Set(["history", "runs"]);
 let current = "inbox";
 let toastTimer;
 /** Discards a render that finishes after the user moved to another tab. */
@@ -955,8 +952,65 @@ function sourceRows(checks, failed) {
 	];
 }
 
+const RUNNING_STATUS = new Set(["launched", "running", "progress"]);
+
+function elapsedSince(ts) {
+	const ms = Date.now() - Date.parse(ts);
+	if (!Number.isFinite(ms) || ms < 0) return "";
+	const minutes = Math.floor(ms / 60000);
+	if (minutes < 1) return "刚刚启动";
+	if (minutes < 60) return `已运行 ${minutes} 分钟`;
+	const hours = Math.floor(minutes / 60);
+	return `已运行 ${hours} 小时 ${minutes % 60} 分`;
+}
+
 async function renderOverview() {
-	const status = await ton("status");
+	const [status, activity] = await Promise.all([ton("status"), ton("activity", "--limit", "20").catch(() => null)]);
+	const running = (activity?.entries ?? []).filter(
+		(entry) => entry.kind === "agent" && RUNNING_STATUS.has(entry.status),
+	);
+	const runningGroup =
+		running.length > 0
+			? el(
+					"section.ov-group",
+					{},
+					el("h3", { text: "正在执行" }),
+					el(
+						"div.ov-runs",
+						{},
+						running.map((entry) => {
+							const note = [...(entry.notes ?? [])].reverse().find((item) => item.message);
+							const meta = [
+								entry.trigger === "manual" ? "手动启动" : "自动处理",
+								entry.item?.source_label,
+								elapsedSince(entry.ts),
+							].filter(Boolean);
+							return el(
+								"article.ov-run",
+								{},
+								el(
+									"div.ov-run-head",
+									{},
+									el("span.ov-run-title", { text: entry.item?.title ?? "（事项已清理）" }),
+									el(
+										`span.badge.${AGENT_STATUS_TONE[entry.status] ?? "muted"}`,
+										{},
+										el("span.badge-dot"),
+										AGENT_STATUS_LABEL[entry.status] ?? entry.status,
+									),
+								),
+								el("div.ov-run-meta", { text: meta.join(" · ") }),
+								note || entry.message ? el("div.ov-run-note", { text: note?.message ?? entry.message }) : null,
+							);
+						}),
+					),
+					el(
+						"div.ov-links",
+						{},
+						el("button.link", { type: "button", text: "查看活动", onclick: () => void show("activity") }),
+					),
+				)
+			: null;
 	const health = Object.entries(status.health ?? {});
 	const healthOK = health.length > 0 && health.every(([, entry]) => entry.enabled && !(entry.failing > 0));
 	const lastRunText = status.last_run
@@ -973,6 +1027,8 @@ async function renderOverview() {
 			el("dd", { text: `${status.enabled ? "已启用" : "已停用"}${status.dry_run ? "（dry-run：只记录不弹窗）" : ""}` }),
 			el("dt", { text: "探测间隔" }),
 			el("dd", { text: `每 ${status.desktop?.tickMinutes ?? "-"} 分钟` }),
+			el("dt", { text: "本机" }),
+			el("dd", { text: status.machine ?? "-" }),
 			el("dt", { text: "自动处理" }),
 			el("dd", {
 				text: status.auto_handle === false ? "关" : `开 · ${status.coding_agent === "cursor" ? "Cursor Agent" : "Claude Code"}`,
@@ -1027,7 +1083,7 @@ async function renderOverview() {
 					el("pre", { text: status.settings_errors.join("\n") }),
 				)
 			: null;
-	return [el("div.overview", {}, statusGroup, healthGroup, errors)];
+	return [el("div.overview", {}, statusGroup, runningGroup, healthGroup, errors)];
 }
 
 function field(label, hint, input) {
@@ -1435,16 +1491,21 @@ async function renderSettings() {
 	return [el("div.cards.settings", {}, prefsCard, rulesCard, contractCard)];
 }
 
-const RENDER = {
-	inbox: renderInbox,
-	quiet: renderQuiet,
-	history: renderHistory,
-	activity: renderActivity,
-	schedule: renderSchedule,
-	runs: renderRuns,
-	overview: renderOverview,
-	settings: renderSettings,
+/**
+ * Every tab in one place: `hidden` ones are reachable from the overview (history/logs), `live`
+ * ones re-render on focus and assistant-state events.
+ */
+const TABS = {
+	overview: { label: "概况", title: "运行状态与统计", icon: "chart", render: renderOverview, live: true },
+	inbox: { label: "收件箱", icon: "inbox", render: renderInbox, live: true },
+	quiet: { label: "静默", icon: "moon", render: renderQuiet, live: true },
+	history: { label: "历史", icon: "list", render: renderHistory, hidden: true },
+	activity: { label: "活动", icon: "sparkles", render: renderActivity, live: true },
+	schedule: { label: "定时", title: "定时运行 ton 提示词", icon: "clock", render: renderSchedule },
+	runs: { label: "日志", icon: "pulse", render: renderRuns, hidden: true },
+	settings: { label: "设置", icon: "sliders", render: renderSettings },
 };
+const tabs = Object.keys(TABS);
 
 async function refreshHeader() {
 	try {
@@ -1476,7 +1537,7 @@ async function refreshActivityStatus() {
 
 async function show(tab) {
 	const seq = ++renderSeq;
-	const next = tabs.includes(tab) ? tab : "inbox";
+	const next = Object.hasOwn(TABS, tab) ? tab : "inbox";
 	if (next !== "runs") runsShowEmpty = false;
 	current = next;
 	resetSelection();
@@ -1499,9 +1560,9 @@ async function show(tab) {
 		}, 15000);
 	}
 	try {
-		const nodes = await RENDER[current]();
+		const nodes = await TABS[current].render();
 		if (seq !== renderSeq) return;
-		if (HIDDEN_TABS.has(current)) {
+		if (TABS[current]?.hidden) {
 			nodes.unshift(
 				el("div.subnav", {}, el("button.link", { type: "button", text: "← 概况", onclick: () => void show("overview") })),
 			);
@@ -1514,24 +1575,22 @@ async function show(tab) {
 	void refreshHeader();
 }
 
-const TAB_ICON = {
-	inbox: "inbox",
-	quiet: "moon",
-	history: "list",
-	activity: "sparkles",
-	schedule: "clock",
-	runs: "pulse",
-	overview: "chart",
-	settings: "sliders",
-};
-
 const titleEl = document.querySelector(".top h1");
 titleEl.replaceChildren(el("img.brand-mark", { src: "logo-64.png", alt: "", width: 28, height: 28 }));
-for (const [tab, name] of Object.entries(TAB_ICON)) {
-	const button = document.querySelector(`#tabs button[data-tab="${tab}"]`);
-	if (!button) continue;
-	const label = button.textContent;
-	button.replaceChildren(icon(name, 14), document.createTextNode(label));
+const nav = document.getElementById("tabs");
+for (const [tab, meta] of Object.entries(TABS)) {
+	if (meta.hidden) continue;
+	const button = el(
+		"button",
+		{ type: "button", "data-tab": tab, title: meta.title ?? meta.label },
+		icon(meta.icon, 14),
+		document.createTextNode(meta.label),
+	);
+	button.addEventListener("click", () => {
+		location.hash = tab;
+		void show(tab);
+	});
+	nav.append(button);
 }
 for (const [id, name] of [
 	["pause-1h", "moon"],
@@ -1542,13 +1601,6 @@ for (const [id, name] of [
 	if (!button) continue;
 	const label = button.textContent;
 	button.replaceChildren(icon(name, 13), document.createTextNode(label));
-}
-
-for (const button of document.querySelectorAll("#tabs button")) {
-	button.addEventListener("click", () => {
-		location.hash = button.dataset.tab;
-		void show(button.dataset.tab);
-	});
 }
 
 const headerAction = (id, label, ...args) =>
@@ -1563,11 +1615,9 @@ tickButton.addEventListener("click", async () => {
 	toast("已开始探测");
 });
 
-/** Tabs that are cheap to re-render as a whole; settings keeps unsaved text, history/runs keep their paging. */
-const LIVE_TABS = new Set(["inbox", "quiet", "overview", "activity"]);
-
+/** Settings keeps unsaved text; history/runs keep their paging. */
 async function refreshLive() {
-	if (!LIVE_TABS.has(current)) return;
+	if (!TABS[current]?.live) return;
 	if (current === "activity" && (selectMode || activityPages > 1)) {
 		void refreshActivityStatus();
 		return;

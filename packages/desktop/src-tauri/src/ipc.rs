@@ -52,40 +52,34 @@ pub fn assistant_state(app: AppHandle) -> AssistantState {
     app.state::<Shared>().assistant_state()
 }
 
-/// `ton schedule <args> --json`. Only `SCHEDULE_ALLOWED` subcommands; `execute` stays internal.
-#[tauri::command]
-pub async fn schedule(
-    app: AppHandle,
+/// Run `ton <group> <args> --json` with the panel's allowlist and turn both the exit status and
+/// a JSON `error` field into an IPC error.
+async fn run_ton(
+    app: &AppHandle,
+    group: &str,
+    allowed: &[&str],
     args: Vec<String>,
     stdin: Option<String>,
+    limit: Duration,
 ) -> Result<Value, String> {
     let command = args.first().map(String::as_str).unwrap_or_default();
-    if !SCHEDULE_ALLOWED.contains(&command) {
-        return Err(format!("不支持的定时任务命令：{command}"));
-    }
-    if args.first().map(String::as_str) == Some("execute") || args.iter().any(|arg| arg == "--wait")
-    {
-        return Err("不支持的定时任务参数".into());
+    if !allowed.contains(&command) {
+        return Err(if group == "schedule" {
+            format!("不支持的定时任务命令：{command}")
+        } else {
+            format!("不支持的命令：{command}")
+        });
     }
     let shared = app.state::<Shared>();
     let Some(ton) = shared.ton.clone() else {
         return Err("找不到 ton：设置 TON_BIN 或把 ton 放进 PATH".into());
     };
-    let mut full = args.clone();
+    let mut full = args;
     full.push("--json".into());
-    if command == "run" && !full.iter().any(|arg| arg == "--detach") {
-        full.push("--detach".into());
-    }
     let output = ton
-        .schedule(&full, scheduler::SHORT_TIMEOUT, stdin.as_deref())
+        .run_in(group, &full, limit, stdin.as_deref())
         .await
         .map_err(|error| error.to_string())?;
-    if matches!(
-        command,
-        "add" | "update" | "remove" | "enable" | "disable" | "run" | "prune"
-    ) {
-        shared.schedule_wake.notify_one();
-    }
     match output.json {
         Some(json) => match json.get("error").and_then(Value::as_str) {
             Some(error) => Err(error.to_string()),
@@ -99,44 +93,59 @@ pub async fn schedule(
     }
 }
 
+/// `ton schedule <args> --json`. Only `SCHEDULE_ALLOWED` subcommands; `execute` stays internal.
+#[tauri::command]
+pub async fn schedule(
+    app: AppHandle,
+    args: Vec<String>,
+    stdin: Option<String>,
+) -> Result<Value, String> {
+    let command = args.first().cloned().unwrap_or_default();
+    if command == "execute" || args.iter().any(|arg| arg == "--wait") {
+        return Err("不支持的定时任务参数".into());
+    }
+    let mut args = args;
+    if command == "run" && !args.iter().any(|arg| arg == "--detach") {
+        args.push("--detach".into());
+    }
+    let json = run_ton(
+        &app,
+        "schedule",
+        SCHEDULE_ALLOWED,
+        args,
+        stdin,
+        scheduler::SHORT_TIMEOUT,
+    )
+    .await?;
+    if matches!(
+        command.as_str(),
+        "add" | "update" | "remove" | "enable" | "disable" | "run" | "prune"
+    ) {
+        app.state::<Shared>().schedule_wake.notify_one();
+    }
+    Ok(json)
+}
+
 /// `ton assistant <args> --json`. Only `ALLOWED` subcommands; acks and deletes are attributed to the desktop.
 #[tauri::command]
 pub async fn ton(app: AppHandle, args: Vec<String>) -> Result<Value, String> {
-    let command = args.first().map(String::as_str).unwrap_or_default();
-    if !ALLOWED.contains(&command) {
-        return Err(format!("不支持的命令：{command}"));
-    }
-    let shared = app.state::<Shared>();
-    let Some(ton) = shared.ton.clone() else {
-        return Err("找不到 ton：设置 TON_BIN 或把 ton 放进 PATH".into());
-    };
-    let mut full = args.clone();
-    full.push("--json".into());
-    if matches!(command, "ack" | "delete") {
-        full.extend(["--actor".to_string(), "desktop".to_string()]);
-    }
-    let limit = match command {
+    let command = args.first().cloned().unwrap_or_default();
+    let limit = match command.as_str() {
         "act" => ACT_TIMEOUT,
         "contract" | "doctor" => PROBE_TIMEOUT,
         _ => scheduler::SHORT_TIMEOUT,
     };
-    let output = ton
-        .assistant(&full, limit)
-        .await
-        .map_err(|error| error.to_string())?;
-    if matches!(command, "ack" | "act" | "delete" | "pause" | "resume") {
+    let mut args = args;
+    if matches!(command.as_str(), "ack" | "delete") {
+        args.extend(["--actor".to_string(), "desktop".to_string()]);
+    }
+    let json = run_ton(&app, "assistant", ALLOWED, args, None, limit).await?;
+    if matches!(
+        command.as_str(),
+        "ack" | "act" | "delete" | "pause" | "resume"
+    ) {
         let app = app.clone();
         tauri::async_runtime::spawn(async move { scheduler::refresh_status(&app).await });
     }
-    match output.json {
-        Some(json) => match json.get("error").and_then(Value::as_str) {
-            Some(error) => Err(error.to_string()),
-            None => Ok(json),
-        },
-        None => Err(if output.stderr.is_empty() {
-            format!("ton 退出码 {}", output.code)
-        } else {
-            output.stderr
-        }),
-    }
+    Ok(json)
 }
