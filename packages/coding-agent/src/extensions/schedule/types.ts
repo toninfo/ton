@@ -1,10 +1,12 @@
 /** A user-defined scheduled ton prompt. Runtime state lives in ~/.ton/agent/schedule/. */
 
-export type RunStatus = "queued" | "running" | "ok" | "failed" | "timeout" | "skipped" | "error";
+export type RunStatus = "queued" | "running" | "ok" | "failed" | "timeout" | "skipped" | "error" | "gated" | "capped";
+export type JobKind = "prompt" | "gated";
 
 export interface Job {
 	id: string;
 	name: string;
+	kind: JobKind;
 	cron: string;
 	prompt: string;
 	cwd: string;
@@ -13,6 +15,9 @@ export interface Job {
 	tools: string | null;
 	noTools: boolean;
 	approve: boolean;
+	script: string | null;
+	scriptArgs: string[];
+	scriptTimeoutSeconds: number;
 	sessionId: string | null;
 	timeoutSeconds: number;
 	catchUpMinutes: number;
@@ -35,6 +40,9 @@ export interface Run {
 	exitCode: number | null;
 	durationMs: number | null;
 	pid: number | null;
+	sent: boolean;
+	manual: boolean;
+	gate: string | null;
 	outputTail: string | null;
 	errorTail: string | null;
 	logPath: string | null;
@@ -43,6 +51,7 @@ export interface Run {
 
 export interface JobInput {
 	name: string;
+	kind?: JobKind;
 	cron: string;
 	prompt: string;
 	cwd: string;
@@ -51,6 +60,9 @@ export interface JobInput {
 	tools?: string | null;
 	noTools?: boolean;
 	approve?: boolean;
+	script?: string | null;
+	scriptArgs?: string[];
+	scriptTimeoutSeconds?: number;
 	sessionId?: string | null;
 	timeoutSeconds?: number;
 	catchUpMinutes?: number;
@@ -59,6 +71,7 @@ export interface JobInput {
 
 export interface JobUpdate {
 	name?: string;
+	kind?: JobKind;
 	cron?: string;
 	prompt?: string;
 	cwd?: string;
@@ -67,6 +80,9 @@ export interface JobUpdate {
 	tools?: string | null;
 	noTools?: boolean;
 	approve?: boolean;
+	script?: string | null;
+	scriptArgs?: string[];
+	scriptTimeoutSeconds?: number;
 	sessionId?: string | null;
 	timeoutSeconds?: number;
 	catchUpMinutes?: number;

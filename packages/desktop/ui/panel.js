@@ -1109,6 +1109,10 @@ async function renderSchedule() {
 	let editing = null;
 
 	const name = el("input", { type: "text", placeholder: "例如：每日早报" });
+	const kind = el("select", {},
+		el("option", { value: "prompt", text: "直发 prompt（最少 1 小时）" }),
+		el("option", { value: "gated", text: "脚本前置（最少 1 分钟）" }),
+	);
 	const mode = el("select", {},
 		el("option", { value: "daily", text: "每天" }),
 		el("option", { value: "weekly", text: "每周" }),
@@ -1118,37 +1122,38 @@ async function renderSchedule() {
 	const time = el("input", { type: "time", value: "09:00" });
 	const weekTime = el("input", { type: "time", value: "09:00" });
 	const days = el("input", { type: "text", placeholder: "mon-fri", value: "mon-fri" });
-	const every = el("input", { type: "text", placeholder: "30m / 2h", value: "30m" });
+	const every = el("input", { type: "text", placeholder: "1h / 2h / 1m", value: "2h" });
 	const cron = el("input", { type: "text", placeholder: "0 9 * * 1-5" });
 	const prompt = el("textarea", { rows: "4", placeholder: "到点让 ton 做什么…" });
 	const cwd = el("input", { type: "text", placeholder: "~ 或绝对路径", value: "~" });
-	const model = el("input", { type: "text", placeholder: "留空用默认模型" });
-	const thinking = el("select", {},
-		el("option", { value: "", text: "默认" }),
-		...["off", "minimal", "low", "medium", "high", "xhigh", "max"].map((value) =>
-			el("option", { value, text: value }),
-		),
-	);
-	const tools = el("input", { type: "text", placeholder: "read,grep,find,ls" });
-	const noTools = el("input", { type: "checkbox" });
-	const approve = el("input", { type: "checkbox" });
-	const session = el("input", { type: "text", placeholder: "固定会话 id（可选）" });
-	const timeout = el("input", { type: "number", min: "1", max: "1440", value: "30" });
-	const catchUp = el("input", { type: "number", min: "0", max: "10080", value: "60" });
+	const script = el("input", { type: "text", placeholder: "/path/to/check.sh" });
+	const scriptArgs = el("textarea", { rows: "2", placeholder: "每行一个参数（可选）" });
 	const status = el("span.card-hint", { text: "" });
 	const submit = el("button.primary", { type: "submit", text: "保存" });
 
 	const nameField = field("名称", null, name);
+	const kindField = field("类型", null, kind);
 	const modeField = field("频率", null, mode);
 	const dailyField = field("时间", null, time);
 	const weeklyField = field("星期与时间", "例如 mon-fri 09:00", el("div.schedule-row", {}, days, weekTime));
 	const everyField = field("间隔", "分钟需整除 60，小时需整除 24", every);
 	const cronField = field("cron", "分 时 日 月 周；本地时区", cron);
-	const promptField = field("prompt", "到点执行 ton，等价于 ton -p；可读写文件、调用工具", prompt);
+	const promptField = field("prompt", "直发任务必填；脚本前置任务可作默认 prompt，脚本可用自己的 prompt 覆盖", prompt);
 	const cwdField = field("工作目录", "任务的 cwd；~ 会展开", cwd);
+	const scriptField = field("前置脚本", '可执行文件；stdin 收 JSON，stdout 返回 {"send":true|false}', script);
+	const scriptArgsField = field("脚本参数（可选）", "每行一个参数，不经过 shell", scriptArgs);
+	const scriptBlock = el("div.settings-grid", {}, scriptField, scriptArgsField);
+	scriptArgsField.classList.add("wide");
 	nameField.classList.add("wide");
 	cwdField.classList.add("wide");
 	cronField.classList.add("wide");
+	const syncKind = () => {
+		scriptBlock.hidden = kind.value !== "gated";
+		if (kind.value === "gated" && mode.value === "every" && every.value === "2h") every.value = "1m";
+		if (kind.value === "prompt" && mode.value === "every" && every.value === "1m") every.value = "2h";
+	};
+	kind.addEventListener("change", syncKind);
+	syncKind();
 	const syncMode = () => {
 		for (const node of [dailyField, weeklyField, everyField, cronField]) node.hidden = true;
 		const selected = mode.value;
@@ -1159,7 +1164,7 @@ async function renderSchedule() {
 	};
 	mode.addEventListener("change", syncMode);
 	syncMode();
-	for (const input of [name, mode, time, weekTime, days, every, cron, prompt, cwd, model, thinking, tools, noTools, approve, session, timeout, catchUp]) {
+	for (const input of [name, kind, mode, time, weekTime, days, every, cron, prompt, cwd, script, scriptArgs]) {
 		input.addEventListener("input", () => {
 			scheduleDirty = true;
 		});
@@ -1169,26 +1174,10 @@ async function renderSchedule() {
 		"form.card.schedule-form",
 		{},
 		cardHead("clock", "新建 / 编辑定时任务"),
-		el("div.settings-grid", {}, nameField, modeField, dailyField, weeklyField, everyField, cronField),
+		el("div.settings-grid", {}, nameField, kindField, modeField, dailyField, weeklyField, everyField, cronField),
 		promptField,
 		cwdField,
-		el(
-			"details.card-more",
-			{},
-			el("summary", { text: "高级" }),
-			el(
-				"div.settings-grid",
-				{},
-				field("模型", null, model),
-				field("thinking", null, thinking),
-				field("tools", null, tools),
-				field("不用工具", null, noTools),
-				field("信任项目文件", "无人值守运行，模型可调用工具；只在可信目录开启", approve),
-				field("固定会话 id", "留空则每次 --no-session", session),
-				field("超时（分钟）", null, timeout),
-				field("补发窗口（分钟）", "错过后仍执行一次的时限", catchUp),
-			),
-		),
+		scriptBlock,
 		el("div.card-foot", {}, status, submit),
 	);
 	form.addEventListener("submit", async (event) => {
@@ -1198,8 +1187,12 @@ async function renderSchedule() {
 			status.textContent = "名称不能为空";
 			return;
 		}
-		if (!prompt.value.trim()) {
-			status.textContent = "prompt 不能为空";
+		if (kind.value === "prompt" && !prompt.value.trim()) {
+			status.textContent = "直发任务的 prompt 不能为空";
+			return;
+		}
+		if (kind.value === "gated" && !script.value.trim()) {
+			status.textContent = "脚本前置任务需要脚本路径";
 			return;
 		}
 		const args = [editing ? "update" : "add", who];
@@ -1208,26 +1201,14 @@ async function renderSchedule() {
 		else if (mode.value === "weekly") args.push("--weekly", `${days.value.trim()} ${weekTime.value}`);
 		else if (mode.value === "every") args.push("--every", every.value.trim());
 		else args.push("--cron", cron.value.trim());
-		args.push(
-			"--prompt-file",
-			"-",
-			"--cwd",
-			cwd.value.trim() || "~",
-			"--model",
-			model.value.trim(),
-			"--thinking",
-			thinking.value,
-			"--tools",
-			tools.value.trim(),
-			"--session-id",
-			session.value.trim(),
-			"--timeout-minutes",
-			timeout.value || "30",
-			"--catch-up-minutes",
-			catchUp.value || "60",
-			approve.checked ? "--approve" : "--no-approve",
-		);
-		if (noTools.checked) args.push("--no-tools");
+		args.push("--kind", kind.value);
+		if (kind.value === "gated") {
+			args.push("--script", script.value.trim());
+			for (const arg of scriptArgs.value.split("\n").map((line) => line.trim()).filter(Boolean)) {
+				args.push("--script-arg", arg);
+			}
+		}
+		args.push("--prompt-file", "-", "--cwd", cwd.value.trim() || "~");
 		submit.disabled = true;
 		status.textContent = "保存中…";
 		try {
@@ -1248,14 +1229,9 @@ async function renderSchedule() {
 		name.value = job.name;
 		prompt.value = job.prompt ?? "";
 		cwd.value = job.cwd ?? "~";
-		model.value = job.model ?? "";
-		thinking.value = job.thinking ?? "";
-		tools.value = job.tools ?? "";
-		noTools.checked = Boolean(job.no_tools);
-		approve.checked = Boolean(job.approve);
-		session.value = job.session_id ?? "";
-		timeout.value = String(Math.round((job.timeout_seconds ?? 1800) / 60));
-		catchUp.value = String(job.catch_up_minutes ?? 60);
+		kind.value = job.kind === "gated" ? "gated" : "prompt";
+		script.value = job.script ?? "";
+		scriptArgs.value = (job.script_args ?? []).join("\n");
 		const parsed = scheduleModeOf(job.cron ?? "* * * * *");
 		mode.value = parsed.mode;
 		time.value = parsed.time ?? "09:00";
@@ -1263,6 +1239,7 @@ async function renderSchedule() {
 		days.value = parsed.days ?? "mon-fri";
 		every.value = parsed.cron ?? "30m";
 		cron.value = parsed.cron ?? job.cron ?? "";
+		syncKind();
 		syncMode();
 		form.scrollIntoView({ behavior: "smooth", block: "start" });
 	};
@@ -1330,7 +1307,7 @@ async function renderSchedule() {
 			"section.card.schedule-card",
 			{},
 			cardHead("clock", job.name),
-			el("div.schedule-meta", { text: `${job.summary ?? job.cron} · ${job.enabled ? "启用" : "停用"}` }),
+			el("div.schedule-meta", { text: `${job.kind === "gated" ? "脚本前置" : "直发"} · ${job.summary ?? job.cron} · ${job.enabled ? "启用" : "停用"}` }),
 			el("div.schedule-meta", { text: `下次 ${shortTime(job.next_run_at)} · 上次 ${runState}` }),
 			el("div.item-actions", {}, run, detail, el("button.small", { type: "button", text: "编辑", onclick: () => edit(job) }), toggle, remove),
 			output,
@@ -1338,7 +1315,7 @@ async function renderSchedule() {
 	});
 
 	const statusLine = info
-		? `共 ${info.jobs} 个任务，启用 ${info.enabled}，运行中 ${info.running}`
+		? `共 ${info.jobs} 个任务，启用 ${info.enabled}，运行中 ${info.running} · 本小时模型调用 ${info.callsLastHour ?? 0}/${info.callCap ?? 20}`
 		: "定时任务";
 	return [
 		el("div.act-section", {}, el("span", { text: statusLine })),

@@ -7,6 +7,7 @@ import type { Job, Run, RunStatus } from "./types.ts";
 interface JobRow {
 	id: string;
 	name: string;
+	kind: "prompt" | "gated";
 	cron: string;
 	prompt: string;
 	cwd: string;
@@ -15,6 +16,9 @@ interface JobRow {
 	tools: string | null;
 	no_tools: number;
 	approve: number;
+	script: string | null;
+	script_args: string;
+	script_timeout_seconds: number;
 	session_id: string | null;
 	timeout_seconds: number;
 	catch_up_minutes: number;
@@ -37,6 +41,9 @@ interface RunRow {
 	exit_code: number | null;
 	duration_ms: number | null;
 	pid: number | null;
+	sent: number;
+	manual: number;
+	gate: string | null;
 	output_tail: string | null;
 	error_tail: string | null;
 	log_path: string | null;
@@ -47,6 +54,7 @@ function toJob(row: JobRow): Job {
 	return {
 		id: row.id,
 		name: row.name,
+		kind: row.kind,
 		cron: row.cron,
 		prompt: row.prompt,
 		cwd: row.cwd,
@@ -55,6 +63,9 @@ function toJob(row: JobRow): Job {
 		tools: row.tools,
 		noTools: row.no_tools === 1,
 		approve: row.approve === 1,
+		script: row.script,
+		scriptArgs: JSON.parse(row.script_args) as string[],
+		scriptTimeoutSeconds: row.script_timeout_seconds,
 		sessionId: row.session_id,
 		timeoutSeconds: row.timeout_seconds,
 		catchUpMinutes: row.catch_up_minutes,
@@ -79,6 +90,9 @@ function toRun(row: RunRow): Run {
 		exitCode: row.exit_code,
 		durationMs: row.duration_ms,
 		pid: row.pid,
+		sent: row.sent === 1,
+		manual: row.manual === 1,
+		gate: row.gate,
 		outputTail: row.output_tail,
 		errorTail: row.error_tail,
 		logPath: row.log_path,
@@ -129,13 +143,15 @@ export class ScheduleStore {
 	insertJob(job: Job): void {
 		this.db
 			.prepare(
-				`INSERT INTO jobs(id,name,cron,prompt,cwd,model,thinking,tools,no_tools,approve,session_id,
-				 timeout_seconds,catch_up_minutes,enabled,created_at,updated_at,last_run_at,last_status,next_run_at)
-				 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				`INSERT INTO jobs(id,name,kind,cron,prompt,cwd,model,thinking,tools,no_tools,approve,script,script_args,
+				 script_timeout_seconds,session_id,timeout_seconds,catch_up_minutes,enabled,created_at,updated_at,
+				 last_run_at,last_status,next_run_at)
+				 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			)
 			.run(
 				job.id,
 				job.name,
+				job.kind,
 				job.cron,
 				job.prompt,
 				job.cwd,
@@ -144,6 +160,9 @@ export class ScheduleStore {
 				job.tools,
 				job.noTools ? 1 : 0,
 				job.approve ? 1 : 0,
+				job.script,
+				JSON.stringify(job.scriptArgs),
+				job.scriptTimeoutSeconds,
 				job.sessionId,
 				job.timeoutSeconds,
 				job.catchUpMinutes,
@@ -159,12 +178,13 @@ export class ScheduleStore {
 	saveJob(job: Job): void {
 		this.db
 			.prepare(
-				`UPDATE jobs SET name=?, cron=?, prompt=?, cwd=?, model=?, thinking=?, tools=?, no_tools=?,
-				 approve=?, session_id=?, timeout_seconds=?, catch_up_minutes=?, enabled=?, updated_at=?,
-				 last_run_at=?, last_status=?, next_run_at=? WHERE id=?`,
+				`UPDATE jobs SET name=?, kind=?, cron=?, prompt=?, cwd=?, model=?, thinking=?, tools=?, no_tools=?,
+				 approve=?, script=?, script_args=?, script_timeout_seconds=?, session_id=?, timeout_seconds=?,
+				 catch_up_minutes=?, enabled=?, updated_at=?, last_run_at=?, last_status=?, next_run_at=? WHERE id=?`,
 			)
 			.run(
 				job.name,
+				job.kind,
 				job.cron,
 				job.prompt,
 				job.cwd,
@@ -173,6 +193,9 @@ export class ScheduleStore {
 				job.tools,
 				job.noTools ? 1 : 0,
 				job.approve ? 1 : 0,
+				job.script,
+				JSON.stringify(job.scriptArgs),
+				job.scriptTimeoutSeconds,
 				job.sessionId,
 				job.timeoutSeconds,
 				job.catchUpMinutes,
@@ -195,10 +218,11 @@ export class ScheduleStore {
 		claimedAt: string,
 		status: RunStatus = "queued",
 		error?: string,
+		manual = false,
 	): number {
 		const result = this.db
-			.prepare("INSERT INTO runs(job_id,scheduled_for,claimed_at,status,error) VALUES (?,?,?,?,?)")
-			.run(jobId, scheduledFor, claimedAt, status, error ?? null);
+			.prepare("INSERT INTO runs(job_id,scheduled_for,claimed_at,status,error,manual) VALUES (?,?,?,?,?,?)")
+			.run(jobId, scheduledFor, claimedAt, status, error ?? null, manual ? 1 : 0);
 		return Number(result.lastInsertRowid);
 	}
 
@@ -244,6 +268,8 @@ export class ScheduleStore {
 			exitCode?: number | null;
 			durationMs?: number | null;
 			pid?: number | null;
+			sent?: boolean;
+			gate?: string | null;
 			outputTail?: string | null;
 			errorTail?: string | null;
 			logPath?: string | null;
@@ -259,6 +285,8 @@ export class ScheduleStore {
 			exitCode: "exit_code",
 			durationMs: "duration_ms",
 			pid: "pid",
+			sent: "sent",
+			gate: "gate",
 			outputTail: "output_tail",
 			errorTail: "error_tail",
 			logPath: "log_path",
@@ -267,7 +295,8 @@ export class ScheduleStore {
 		for (const [key, column] of Object.entries(columns)) {
 			if (!(key in patch)) continue;
 			fields.push(`${column}=?`);
-			values.push(patch[key as keyof typeof patch] ?? null);
+			const value = patch[key as keyof typeof patch];
+			values.push(typeof value === "boolean" ? (value ? 1 : 0) : (value ?? null));
 		}
 		if (fields.length === 0) return;
 		values.push(id);
@@ -276,6 +305,26 @@ export class ScheduleStore {
 
 	markJobRun(jobId: string, at: Date, status: RunStatus): void {
 		this.db.prepare("UPDATE jobs SET last_run_at = ?, last_status = ? WHERE id = ?").run(toStored(at), status, jobId);
+	}
+
+	/** Actual automatic prompt calls in the rolling last hour (manual runs are ignored). */
+	globalPromptCalls(now: Date): number {
+		const floor = toStored(new Date(now.getTime() - 60 * 60_000));
+		const row = this.db
+			.prepare(
+				"SELECT COUNT(*) AS count FROM runs WHERE sent = 1 AND manual = 0 AND COALESCE(started_at, claimed_at) >= ?",
+			)
+			.get(floor) as { count: number };
+		return row.count;
+	}
+
+	/** Reserve one of the 20 automatic prompt calls per hour before spawning the model. */
+	reservePromptCall(runId: number, now: Date): boolean {
+		return this.transaction(() => {
+			if (this.globalPromptCalls(now) >= 20) return false;
+			this.db.prepare("UPDATE runs SET sent = 1 WHERE id = ?").run(runId);
+			return true;
+		});
 	}
 
 	/** queued/running older than the job timeout + 5 minutes are dead wrappers. */

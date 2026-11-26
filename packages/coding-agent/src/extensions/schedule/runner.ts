@@ -61,6 +61,64 @@ export function spawnDetachedExecute(agentDir: string, runId: number): void {
 	child.unref();
 }
 
+interface GateResult {
+	send: boolean;
+	prompt: string;
+	reason: string;
+}
+
+/** Run the executable gate with JSON on stdin and one JSON object on stdout. */
+async function runGate(agentDir: string, job: Job): Promise<GateResult> {
+	if (!job.script) throw new Error("gated schedule has no script");
+	const input = JSON.stringify({
+		schema: 1,
+		job: { id: job.id, name: job.name },
+		trigger: { scheduled_for: toStored(new Date()), now: toStored(new Date()) },
+		last: { status: job.lastStatus, finished_at: job.lastRunAt },
+	});
+	const child = spawnProcess(job.script, job.scriptArgs, {
+		cwd: job.cwd,
+		stdio: ["pipe", "pipe", "pipe"],
+		windowsHide: true,
+		env: { ...process.env, TON_CODING_AGENT_DIR: agentDir, TON_SCHEDULE_JOB_ID: job.id },
+	});
+	let stdout = "";
+	let stderr = "";
+	let timedOut = false;
+	const timer = setTimeout(() => {
+		timedOut = true;
+		if (child.pid) killProcessTree(child.pid);
+	}, job.scriptTimeoutSeconds * 1000);
+	try {
+		child.stdout?.on("data", (chunk: Buffer) => {
+			stdout = appendTail(stdout, chunk.toString("utf8"));
+		});
+		child.stderr?.on("data", (chunk: Buffer) => {
+			stderr = appendTail(stderr, chunk.toString("utf8"));
+		});
+		child.stdin?.on("error", () => {});
+		child.stdin?.end(input);
+		const code = await waitForChildProcess(child);
+		if (timedOut) throw new Error(`gate timed out after ${job.scriptTimeoutSeconds}s`);
+		if (code !== 0) throw new Error(`gate exit ${code}: ${stderr.trim().slice(0, 500)}`);
+		let value: unknown;
+		try {
+			value = JSON.parse(stdout.trim());
+		} catch {
+			throw new Error(`gate did not print JSON: ${stdout.trim().slice(0, 200)}`);
+		}
+		if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("gate JSON must be an object");
+		const record = value as Record<string, unknown>;
+		const send = record.send === true;
+		const prompt = typeof record.prompt === "string" ? record.prompt.trim() : "";
+		const reason = typeof record.reason === "string" ? record.reason.trim() : "";
+		if (send && !prompt && !job.prompt.trim()) throw new Error("gate sent true without a prompt");
+		return { send, prompt, reason };
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
 /** Execute one queued run synchronously and persist its result. */
 export async function executeRun(agentDir: string, runId: number): Promise<Run> {
 	const store = ScheduleStore.open(agentDir);
@@ -73,7 +131,8 @@ export async function executeRun(agentDir: string, runId: number): Promise<Run> 
 			store.updateRun(runId, { status: "error", finishedAt: toStored(new Date()), error: "schedule was deleted" });
 			throw new Error("schedule was deleted");
 		}
-		store.updateRun(runId, { status: "running", startedAt: toStored(new Date()) });
+		const now = new Date();
+		store.updateRun(runId, { status: "running", startedAt: toStored(now) });
 
 		const started = Date.now();
 		const logs = getRunLogPaths(agentDir, job.id, runId);
@@ -85,6 +144,42 @@ export async function executeRun(agentDir: string, runId: number): Promise<Run> 
 		let child: ReturnType<typeof spawnProcess> | undefined;
 
 		try {
+			let prompt = job.prompt;
+			let gate: string | null = null;
+			if (job.kind === "gated") {
+				const decision = await runGate(agentDir, job);
+				gate = decision.reason || (decision.send ? "send" : "skip");
+				if (!decision.send) {
+					store.updateRun(runId, {
+						status: "gated",
+						finishedAt: toStored(new Date()),
+						durationMs: Date.now() - started,
+						gate,
+						logPath: logs.out,
+					});
+					store.markJobRun(job.id, new Date(), "gated");
+					const skipped = store.getRun(runId);
+					if (!skipped) throw new Error(`run disappeared: ${runId}`);
+					return skipped;
+				}
+				prompt = decision.prompt || job.prompt;
+				if (!prompt) throw new Error("gate returned no prompt");
+			}
+			if (!run.manual && !store.reservePromptCall(runId, now)) {
+				store.updateRun(runId, {
+					status: "capped",
+					finishedAt: toStored(new Date()),
+					durationMs: Date.now() - started,
+					gate,
+					error: "hourly prompt cap reached (20)",
+				});
+				store.markJobRun(job.id, new Date(), "capped");
+				const capped = store.getRun(runId);
+				if (!capped) throw new Error(`run disappeared: ${runId}`);
+				return capped;
+			}
+			if (run.manual) store.updateRun(runId, { sent: true });
+
 			child = spawnProcess(tonCommand()[0], [...tonCommand().slice(1), ...agentArgs(job)], {
 				cwd: job.cwd,
 				stdio: ["pipe", "pipe", "pipe"],
@@ -104,7 +199,7 @@ export async function executeRun(agentDir: string, runId: number): Promise<Run> 
 				err.write(text);
 			});
 			child.stdin?.on("error", () => {});
-			child.stdin?.end(job.prompt);
+			child.stdin?.end(prompt);
 			const timer = setTimeout(() => {
 				timedOut = true;
 				if (child?.pid) killProcessTree(child.pid);
@@ -121,6 +216,7 @@ export async function executeRun(agentDir: string, runId: number): Promise<Run> 
 				finishedAt: toStored(new Date()),
 				exitCode: code,
 				durationMs: Date.now() - started,
+				gate,
 				outputTail,
 				errorTail,
 				logPath: logs.out,

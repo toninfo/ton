@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -41,7 +41,7 @@ describe("schedule store and service", () => {
 		expect(updated.cron).toBe("0 10 * * 1-5");
 		expect(updated.enabled).toBe(false);
 		expect(updated.nextRunAt).toBe(new Date("2026-11-16T10:00:00+08:00").toISOString());
-		expect(() => createJob(store, { name: "日报", cron: "* * * * *", prompt: "x", cwd: dir }, NOW)).toThrow(
+		expect(() => createJob(store, { name: "日报", cron: "0 * * * *", prompt: "x", cwd: dir }, NOW)).toThrow(
 			ScheduleError,
 		);
 		store.close();
@@ -101,12 +101,49 @@ describe("schedule store and service", () => {
 		store.close();
 	});
 
+	it("rejects direct schedules faster than one hour", () => {
+		const { store, dir } = storeFor();
+		expect(() =>
+			createJob(store, { name: "fast", kind: "prompt", cron: "*/30 * * * *", prompt: "x", cwd: dir }, NOW),
+		).toThrow(/1 小时/);
+		store.close();
+	});
+
+	it("allows a one-minute gate schedule", () => {
+		const { store, dir } = storeFor();
+		const script = join(dir, "gate.sh");
+		writeFileSync(script, "#!/bin/sh\nprintf '%s\\n' '{\"send\":false}'\n", { mode: 0o755 });
+		const job = createJob(
+			store,
+			{ name: "gate", kind: "gated", cron: "* * * * *", prompt: "", cwd: dir, script },
+			NOW,
+		);
+		expect(job.kind).toBe("gated");
+		expect(job.sessionId).toMatch(/^schedule-/);
+		store.close();
+	});
+
+	it("reserves at most 20 automatic prompt calls per hour", () => {
+		const { store, dir } = storeFor();
+		const job = add(store, dir);
+		for (let i = 0; i < 20; i += 1) {
+			const runId = store.createRun(job.id, NOW.toISOString(), NOW.toISOString());
+			expect(store.reservePromptCall(runId, NOW)).toBe(true);
+		}
+		const extra = store.createRun(job.id, NOW.toISOString(), NOW.toISOString());
+		expect(store.reservePromptCall(extra, NOW)).toBe(false);
+		const manual = store.createRun(job.id, NOW.toISOString(), NOW.toISOString(), "queued", undefined, true);
+		store.updateRun(manual, { sent: true });
+		expect(store.globalPromptCalls(NOW)).toBe(20);
+		store.close();
+	});
+
 	it("validates cwd and prompt", () => {
 		const { store, dir } = storeFor();
 		expect(() =>
-			createJob(store, { name: "bad", cron: "* * * * *", prompt: "x", cwd: join(dir, "missing") }, NOW),
+			createJob(store, { name: "bad", cron: "0 * * * *", prompt: "x", cwd: join(dir, "missing") }, NOW),
 		).toThrow(/does not exist/);
-		expect(() => createJob(store, { name: "bad", cron: "* * * * *", prompt: "", cwd: dir }, NOW)).toThrow(/prompt/);
+		expect(() => createJob(store, { name: "bad", cron: "0 * * * *", prompt: "", cwd: dir }, NOW)).toThrow(/prompt/);
 		store.close();
 	});
 });
@@ -128,6 +165,6 @@ describe("schedule CLI", () => {
 		const listed = JSON.parse(lines.pop() ?? "{}") as { jobs?: unknown[] };
 		expect(listed.jobs).toHaveLength(1);
 		expect(await runScheduleCommand(["disable", "早报", "--json"], options)).toBe(0);
-		expect(await runScheduleCommand(["update", "早报", "--cron", "* * * * *", "--json"], options)).toBe(0);
+		expect(await runScheduleCommand(["update", "早报", "--cron", "0 * * * *", "--json"], options)).toBe(0);
 	});
 });

@@ -18,6 +18,8 @@ const HELP = `${chalk.bold("Usage:")}
       (--prompt "..." | --prompt-file <path|->) [--cwd <dir>] [--model <id>] [--thinking <level>]
       [--tools <list>|--no-tools] [--approve|--no-approve] [--session-id <id>]
       [--timeout-minutes <n>] [--catch-up-minutes <n>] [--disabled]
+  ${APP_NAME} schedule add <name> --script <exe> [--script-arg <arg>...] [--script-timeout-seconds <n>]
+      --cron ... [--prompt <fallback>]   # 脚本前置：send=true 才调用模型
   ${APP_NAME} schedule list [--json]
   ${APP_NAME} schedule show <id|name> [--runs <n>] [--json]
   ${APP_NAME} schedule update <id|name> [same fields as add]
@@ -29,6 +31,9 @@ const HELP = `${chalk.bold("Usage:")}
 
 Runs a ton prompt (like \`${APP_NAME} -p\`) at the given local-time cron. Jobs only run while
 Ton Desktop is running; the desktop calls \`schedule run-due\` about once a minute.
+Direct prompt schedules must be at least 1 hour apart. Script-gated schedules may run every
+minute; the script decides whether to call the model. Automatic prompt calls are capped at 20
+per rolling hour across all schedules; manual \`run\` bypasses both limits.
 
 Cron: minute hour day month weekday; supports * , - / and month/weekday names.
 Presets: --daily HH:MM, --weekly mon-fri HH:MM, --every 30m|2h.
@@ -48,6 +53,7 @@ interface Options {
 class Args {
 	readonly positionals: string[] = [];
 	readonly values = new Map<string, string>();
+	readonly multi = new Map<string, string[]>();
 	readonly flags = new Set<string>();
 	private readonly booleanFlags = new Set([
 		"json",
@@ -78,7 +84,13 @@ class Args {
 			}
 			const value = eq >= 0 ? arg.slice(eq + 1) : args[++i];
 			if (value === undefined) throw new ScheduleError(`--${key} requires a value`);
-			this.values.set(key, value);
+			if (key === "script-arg") {
+				const list = this.multi.get(key) ?? [];
+				list.push(value);
+				this.multi.set(key, list);
+			} else {
+				this.values.set(key, value);
+			}
 		}
 	}
 
@@ -88,6 +100,10 @@ class Args {
 
 	value(key: string): string | undefined {
 		return this.values.get(key);
+	}
+
+	valuesOf(key: string): string[] {
+		return this.multi.get(key) ?? [];
 	}
 }
 
@@ -121,11 +137,7 @@ async function promptFrom(args: Args): Promise<string | undefined> {
 	const file = args.value("prompt-file");
 	const inline = args.value("prompt");
 	if (file !== undefined && inline !== undefined) throw new ScheduleError("use --prompt or --prompt-file, not both");
-	if (file === "-") {
-		const text = await readStdin();
-		if (!text.trim()) throw new ScheduleError("no prompt on stdin");
-		return text;
-	}
+	if (file === "-") return await readStdin();
 	if (file !== undefined) return readPromptFile(file);
 	return inline;
 }
@@ -143,8 +155,14 @@ function scheduleFrom(args: Args): string | undefined {
 }
 
 function jobInput(args: Args, baseCwd: string, prompt: string, cron: string): JobInput {
+	const script = args.value("script");
+	const explicitKind = args.value("kind");
+	if (explicitKind !== undefined && explicitKind !== "prompt" && explicitKind !== "gated") {
+		throw new ScheduleError("--kind must be prompt or gated");
+	}
 	return {
 		name: args.positionals[0] ?? "",
+		kind: (explicitKind as "prompt" | "gated" | undefined) ?? (script ? "gated" : "prompt"),
 		cron,
 		prompt,
 		cwd: args.value("cwd") ?? baseCwd,
@@ -153,6 +171,11 @@ function jobInput(args: Args, baseCwd: string, prompt: string, cron: string): Jo
 		tools: args.value("tools"),
 		noTools: args.flags.has("no-tools"),
 		approve: args.flags.has("approve"),
+		script: script ?? null,
+		scriptArgs: args.valuesOf("script-arg"),
+		scriptTimeoutSeconds: args.value("script-timeout-seconds")
+			? Number(args.value("script-timeout-seconds"))
+			: undefined,
 		sessionId: args.value("session-id"),
 		timeoutSeconds: args.value("timeout-minutes") ? Number(args.value("timeout-minutes")) * 60 : undefined,
 		catchUpMinutes: args.value("catch-up-minutes") ? Number(args.value("catch-up-minutes")) : undefined,
@@ -172,6 +195,20 @@ function patchFrom(args: Args, baseCwd: string, prompt?: string, cron?: string):
 	if (args.flags.has("no-tools")) patch.noTools = true;
 	if (args.flags.has("approve")) patch.approve = true;
 	if (args.flags.has("no-approve")) patch.approve = false;
+	if (args.value("kind") !== undefined) {
+		if (args.value("kind") !== "prompt" && args.value("kind") !== "gated") {
+			throw new ScheduleError("--kind must be prompt or gated");
+		}
+		patch.kind = args.value("kind") as "prompt" | "gated";
+	}
+	if (args.value("script") !== undefined) {
+		patch.script = args.value("script") || null;
+		if (patch.script) patch.kind = "gated";
+	}
+	if (args.valuesOf("script-arg").length > 0) patch.scriptArgs = args.valuesOf("script-arg");
+	if (args.value("script-timeout-seconds") !== undefined) {
+		patch.scriptTimeoutSeconds = Number(args.value("script-timeout-seconds"));
+	}
 	if (args.value("session-id") !== undefined) patch.sessionId = args.value("session-id") ?? "";
 	if (args.value("timeout-minutes") !== undefined) {
 		patch.timeoutSeconds = Number(args.value("timeout-minutes")) * 60;
@@ -184,6 +221,7 @@ function jobJson(job: Job): Record<string, unknown> {
 	return {
 		id: job.id,
 		name: job.name,
+		kind: job.kind,
 		cron: job.cron,
 		summary: cronSummary(job.cron),
 		prompt: job.prompt,
@@ -193,6 +231,9 @@ function jobJson(job: Job): Record<string, unknown> {
 		tools: job.tools,
 		no_tools: job.noTools,
 		approve: job.approve,
+		script: job.script,
+		script_args: job.scriptArgs,
+		script_timeout_seconds: job.scriptTimeoutSeconds,
 		session_id: job.sessionId,
 		timeout_seconds: job.timeoutSeconds,
 		catch_up_minutes: job.catchUpMinutes,
@@ -208,6 +249,9 @@ function runJson(run: Run): Record<string, unknown> {
 		id: run.id,
 		job_id: run.jobId,
 		status: run.status,
+		sent: run.sent,
+		manual: run.manual,
+		gate: run.gate,
 		scheduled_for: run.scheduledFor,
 		started_at: run.startedAt,
 		finished_at: run.finishedAt,
@@ -223,7 +267,8 @@ function runJson(run: Run): Record<string, unknown> {
 function humanJob(job: Job): string {
 	const next = formatLocalIso(new Date(job.nextRunAt));
 	const last = job.lastRunAt ? `${formatLocalIso(new Date(job.lastRunAt))} ${job.lastStatus ?? ""}` : "-";
-	return `${job.enabled ? "●" : "○"} ${job.name} (${job.id})\n  ${cronSummary(job.cron)}  next ${next}\n  last ${last}  cwd ${job.cwd}`;
+	const kind = job.kind === "gated" ? "脚本前置" : "直发";
+	return `${job.enabled ? "●" : "○"} ${job.name} (${job.id}) [${kind}]\n  ${cronSummary(job.cron)}  next ${next}\n  last ${last}  cwd ${job.cwd}`;
 }
 
 export async function runScheduleCommand(args: readonly string[], options: Options): Promise<number> {
@@ -246,9 +291,10 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const cron = scheduleFrom(parsed);
 			if (!cron) throw new ScheduleError("one of --cron/--daily/--weekly/--every is required");
 			const prompt = await promptFrom(parsed);
-			if (prompt === undefined) throw new ScheduleError("--prompt or --prompt-file is required");
+			const script = parsed.value("script");
+			if (prompt === undefined && !script) throw new ScheduleError("--prompt or --prompt-file is required");
 			if (!parsed.positionals[0]) throw new ScheduleError("name is required");
-			const job = createJob(store, jobInput(parsed, options.cwd, prompt, cron), now);
+			const job = createJob(store, jobInput(parsed, options.cwd, prompt ?? "", cron), now);
 			if (json) log(JSON.stringify({ job: jobJson(job) }));
 			else log(humanJob(job));
 			return 0;
@@ -329,7 +375,7 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			const run = await executeRun(options.agentDir, manual.run.id);
 			if (json) log(JSON.stringify({ run: runJson(run) }));
 			else log(`#${run.id} ${run.status}${run.outputTail ? `\n${run.outputTail}` : ""}`);
-			return run.status === "ok" ? 0 : 1;
+			return run.status === "ok" || run.status === "gated" ? 0 : 1;
 		}
 
 		if (command === "runs") {
@@ -369,7 +415,10 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 		if (command === "status") {
 			const info = status(store, now);
 			if (json) log(JSON.stringify(info));
-			else log(`任务 ${info.jobs}，启用 ${info.enabled}，运行中 ${info.running}`);
+			else
+				log(
+					`任务 ${info.jobs}，启用 ${info.enabled}，运行中 ${info.running}，本小时调用 ${info.callsLastHour}/${info.callCap}`,
+				);
 			return 0;
 		}
 
@@ -387,7 +436,7 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 			store = undefined;
 			const run = await executeRun(options.agentDir, runId);
 			if (json) log(JSON.stringify({ run: runJson(run) }));
-			return run.status === "ok" ? 0 : 1;
+			return run.status === "ok" || run.status === "gated" ? 0 : 1;
 		}
 
 		throw new ScheduleError(`unknown schedule command: ${command}`);

@@ -6,6 +6,7 @@ const SCHEMA = `
 CREATE TABLE IF NOT EXISTS jobs (
   id                 TEXT PRIMARY KEY,
   name               TEXT NOT NULL UNIQUE,
+  kind               TEXT NOT NULL DEFAULT 'prompt',
   cron               TEXT NOT NULL,
   prompt             TEXT NOT NULL,
   cwd                TEXT NOT NULL,
@@ -14,6 +15,9 @@ CREATE TABLE IF NOT EXISTS jobs (
   tools              TEXT,
   no_tools           INTEGER NOT NULL DEFAULT 0,
   approve            INTEGER NOT NULL DEFAULT 0,
+  script             TEXT,
+  script_args        TEXT NOT NULL DEFAULT '[]',
+  script_timeout_seconds INTEGER NOT NULL DEFAULT 60,
   session_id         TEXT,
   timeout_seconds    INTEGER NOT NULL DEFAULT 1800,
   catch_up_minutes   INTEGER NOT NULL DEFAULT 60,
@@ -37,6 +41,9 @@ CREATE TABLE IF NOT EXISTS runs (
   exit_code       INTEGER,
   duration_ms     INTEGER,
   pid             INTEGER,
+  sent            INTEGER NOT NULL DEFAULT 0,
+  manual          INTEGER NOT NULL DEFAULT 0,
+  gate            TEXT,
   output_tail     TEXT,
   error_tail      TEXT,
   log_path        TEXT,
@@ -53,5 +60,23 @@ export function openScheduleDb(path: string): DatabaseSync {
 	db.exec("PRAGMA synchronous=NORMAL");
 	db.exec("PRAGMA busy_timeout=5000");
 	db.exec(SCHEMA);
+	ensureColumns(db);
 	return db;
+}
+
+/** Add columns to a state.db created by the first schedule build. */
+function ensureColumns(db: DatabaseSync): void {
+	const add = (table: string, column: string, definition: string) => {
+		const columns = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
+		if (!columns.some((entry) => entry.name === column)) {
+			db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+		}
+	};
+	add("jobs", "kind", "TEXT NOT NULL DEFAULT 'prompt'");
+	add("jobs", "script", "TEXT");
+	add("jobs", "script_args", "TEXT NOT NULL DEFAULT '[]'");
+	add("jobs", "script_timeout_seconds", "INTEGER NOT NULL DEFAULT 60");
+	add("runs", "sent", "INTEGER NOT NULL DEFAULT 0");
+	add("runs", "manual", "INTEGER NOT NULL DEFAULT 0");
+	add("runs", "gate", "TEXT");
 }

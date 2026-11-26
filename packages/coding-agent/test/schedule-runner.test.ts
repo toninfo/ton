@@ -24,7 +24,7 @@ function setup(script: string, timeoutSeconds = 30) {
 	const store = ScheduleStore.open(dir);
 	const job = createJob(
 		store,
-		{ name: "run", cron: "* * * * *", prompt: "hello\nworld", cwd: dir, timeoutSeconds },
+		{ name: "run", cron: "0 * * * *", prompt: "hello\nworld", cwd: dir, timeoutSeconds },
 		new Date(),
 	);
 	const manual = createManualRun(store, job.name, new Date());
@@ -58,5 +58,51 @@ describe("schedule runner", () => {
 		const run = await executeRun(dir, runId);
 		expect(run.status).toBe("timeout");
 		expect(Date.now() - started).toBeLessThan(5000);
+	});
+});
+
+describe("gated schedule runner", () => {
+	function gatedSetup(gateBody: string) {
+		const dir = mkdtempSync(join(tmpdir(), "ton-schedule-gate-"));
+		dirs.push(dir);
+		const gate = join(dir, "gate.sh");
+		writeFileSync(gate, `#!/bin/sh\ncat >/dev/null\n${gateBody}\n`, { mode: 0o755 });
+		chmodSync(gate, 0o755);
+		const bin = join(dir, "fake-ton");
+		writeFileSync(bin, "#!/bin/sh\ncat\n", { mode: 0o755 });
+		chmodSync(bin, 0o755);
+		process.env.TON_BIN = bin;
+		const store = ScheduleStore.open(dir);
+		const job = createJob(
+			store,
+			{ name: "gate", kind: "gated", cron: "* * * * *", prompt: "fallback", cwd: dir, script: gate },
+			new Date(),
+		);
+		const manual = createManualRun(store, job.name, new Date());
+		store.close();
+		return { dir, runId: manual.run.id };
+	}
+
+	it("does not call the model when the gate says no", async () => {
+		const { dir, runId } = gatedSetup('printf \'%s\\n\' \'{"send":false,"reason":"nothing"}\'');
+		const run = await executeRun(dir, runId);
+		expect(run.status).toBe("gated");
+		expect(run.sent).toBe(false);
+		expect(run.gate).toBe("nothing");
+	});
+
+	it("uses the prompt printed by the gate", async () => {
+		const { dir, runId } = gatedSetup('printf \'%s\\n\' \'{"send":true,"prompt":"from gate"}\'');
+		const run = await executeRun(dir, runId);
+		expect(run.status).toBe("ok");
+		expect(run.sent).toBe(true);
+		expect(run.outputTail).toContain("from gate");
+	});
+
+	it("treats an invalid gate output as an error", async () => {
+		const { dir, runId } = gatedSetup("printf '%s\\n' 'not json'");
+		const run = await executeRun(dir, runId);
+		expect(run.status).toBe("error");
+		expect(run.sent).toBe(false);
 	});
 });

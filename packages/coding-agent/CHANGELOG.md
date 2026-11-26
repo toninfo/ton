@@ -4,7 +4,7 @@
 
 ### Added
 
-- 定时任务：`ton schedule add|list|show|update|remove|enable|disable|run|runs`，支持 5 段 cron 与 `--daily/--weekly/--every` 预设，到点执行一段 ton prompt；桌面新增「定时」页管理任务和运行记录，任务只在 Ton Desktop 运行时执行。
+- 定时任务：`ton schedule add|list|show|update|remove|enable|disable|run|runs`，支持 5 段 cron 与 `--daily/--weekly/--every` 预设。直发 prompt 任务间隔至少 1 小时；脚本前置任务最低 1 分钟，脚本通过 stdin/stdout JSON 决定是否调用模型，自动调用全局上限 20 次/小时（手动运行不受限且不计数）。桌面新增「定时」页管理任务和运行记录，任务只在 Ton Desktop 运行时执行。
 - 禅道研发需求（story）接入提醒：按产品拉取 `assignedtome` 需求，取详情后作为 `direct` 候选提醒用户；不自动拆任务，已有子任务的需求跳过（交给任务链路）。
 - `ton assistant activity [--limit <n>] [--json]`：ton 最近自动处理的动态流（禅道交给编码代理、会话与邮件预起草），附 24 小时汇总、上一轮运行与每个事项的代理回写。
 - `ton assistant note <id> --status progress|done|blocked|failed --message <text>`：编码代理结束工作时回写结果，写 `agent_note` 事件用于桌面「活动」页；只记录，不改 item 状态。

@@ -136,6 +136,25 @@ export function cronSummary(spec: string): string {
 	return spec;
 }
 
+/** Smallest gap between two matches over the next `days`; Infinity when fewer than two match. */
+export function minimumIntervalSeconds(spec: string, after: Date, days = 400): number {
+	const fields = parseCron(spec);
+	const next = new Date(after.getTime());
+	next.setSeconds(0, 0);
+	next.setMinutes(next.getMinutes() + 1);
+	const end = after.getTime() + days * 24 * 60 * 60_000;
+	let previous: number | null = null;
+	let minimum = Number.POSITIVE_INFINITY;
+	while (next.getTime() <= end) {
+		if (matches(fields, next)) {
+			if (previous !== null) minimum = Math.min(minimum, (next.getTime() - previous) / 1000);
+			previous = next.getTime();
+		}
+		next.setMinutes(next.getMinutes() + 1);
+	}
+	return minimum;
+}
+
 export interface PresetInput {
 	daily?: string;
 	weekly?: string;
