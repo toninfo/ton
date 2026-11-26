@@ -1247,6 +1247,9 @@ async function renderSchedule() {
 
 	const cards = jobs.map((job) => {
 		const runState = job.last_status ? `${job.last_status} · ${shortTime(job.last_run_at)}` : "从未运行";
+		const checked = job.last_checked_at
+			? `上次检查 ${shortTime(job.last_checked_at)}${job.last_gate ? ` · ${job.last_gate}` : ""}`
+			: "";
 		const output = el("pre.schedule-output", { hidden: true });
 		const detail = el("button.small", {
 			type: "button",
@@ -1310,6 +1313,7 @@ async function renderSchedule() {
 			cardHead("clock", job.name),
 			el("div.schedule-meta", { text: `${job.kind === "gated" ? "脚本前置" : "直发"} · ${job.summary ?? job.cron} · ${job.enabled ? "启用" : "停用"}` }),
 			el("div.schedule-meta", { text: `下次 ${shortTime(job.next_run_at)} · 上次 ${runState}` }),
+			checked ? el("div.schedule-meta", { text: checked }) : null,
 			el("div.item-actions", {}, run, detail, el("button.small", { type: "button", text: "编辑", onclick: () => edit(job) }), toggle, remove),
 			output,
 		);

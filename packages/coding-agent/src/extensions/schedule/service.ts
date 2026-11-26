@@ -125,6 +125,8 @@ export function createJob(store: ScheduleStore, input: JobInput, now: Date): Job
 		updatedAt: toStored(now),
 		lastRunAt: null,
 		lastStatus: null,
+		lastCheckedAt: null,
+		lastGate: null,
 		nextRunAt: toStored(nextCronOccurrence(cron, now)),
 	};
 	store.insertJob(job);

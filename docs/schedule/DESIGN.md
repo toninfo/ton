@@ -92,6 +92,8 @@ runner 不包含任何通知专用逻辑。
 
 - `~/.ton/agent/schedule/state.db`：任务定义与运行记录（WAL）。
 - `~/.ton/agent/schedule/runs/<job-id>/<run-id>.{out,err}.log`：完整输出，目录 0700、文件 0600。
+- 运行记录只保存真正发起 prompt 的 run，以及失败/超时的 run；gate 返回 `send:false` 或额度
+  `capped` 的检查不落 run，只更新任务的「上次检查/原因」。
 - 数据库保留最后 16 KB 输出；日志每路最多 5 MB；运行记录保留 30 天或每任务最近 100 次，
   `run-due` 每天自动清理一次（含日志文件）。
 

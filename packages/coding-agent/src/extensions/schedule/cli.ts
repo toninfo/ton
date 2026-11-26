@@ -241,6 +241,8 @@ function jobJson(job: Job): Record<string, unknown> {
 		next_run_at: job.nextRunAt,
 		last_run_at: job.lastRunAt,
 		last_status: job.lastStatus,
+		last_checked_at: job.lastCheckedAt,
+		last_gate: job.lastGate,
 	};
 }
 

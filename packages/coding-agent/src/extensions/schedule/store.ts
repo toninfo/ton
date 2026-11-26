@@ -28,6 +28,8 @@ interface JobRow {
 	updated_at: string;
 	last_run_at: string | null;
 	last_status: RunStatus | null;
+	last_checked_at: string | null;
+	last_gate: string | null;
 	next_run_at: string;
 }
 
@@ -75,6 +77,8 @@ function toJob(row: JobRow): Job {
 		updatedAt: row.updated_at,
 		lastRunAt: row.last_run_at,
 		lastStatus: row.last_status,
+		lastCheckedAt: row.last_checked_at,
+		lastGate: row.last_gate,
 		nextRunAt: row.next_run_at,
 	};
 }
@@ -146,8 +150,8 @@ export class ScheduleStore {
 			.prepare(
 				`INSERT INTO jobs(id,name,kind,cron,prompt,cwd,model,thinking,tools,no_tools,approve,script,script_args,
 				 script_timeout_seconds,session_id,timeout_seconds,catch_up_minutes,enabled,created_at,updated_at,
-				 last_run_at,last_status,next_run_at)
-				 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				 last_run_at,last_status,last_checked_at,last_gate,next_run_at)
+				 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			)
 			.run(
 				job.id,
@@ -172,6 +176,8 @@ export class ScheduleStore {
 				job.updatedAt,
 				job.lastRunAt,
 				job.lastStatus,
+				job.lastCheckedAt,
+				job.lastGate,
 				job.nextRunAt,
 			);
 	}
@@ -181,7 +187,7 @@ export class ScheduleStore {
 			.prepare(
 				`UPDATE jobs SET name=?, kind=?, cron=?, prompt=?, cwd=?, model=?, thinking=?, tools=?, no_tools=?,
 				 approve=?, script=?, script_args=?, script_timeout_seconds=?, session_id=?, timeout_seconds=?,
-				 catch_up_minutes=?, enabled=?, updated_at=?, last_run_at=?, last_status=?, next_run_at=? WHERE id=?`,
+				 catch_up_minutes=?, enabled=?, updated_at=?, last_run_at=?, last_status=?, last_checked_at=?, last_gate=?, next_run_at=? WHERE id=?`,
 			)
 			.run(
 				job.name,
@@ -204,6 +210,8 @@ export class ScheduleStore {
 				job.updatedAt,
 				job.lastRunAt,
 				job.lastStatus,
+				job.lastCheckedAt,
+				job.lastGate,
 				job.nextRunAt,
 				job.id,
 			);
@@ -302,6 +310,14 @@ export class ScheduleStore {
 		if (fields.length === 0) return;
 		values.push(id);
 		this.db.prepare(`UPDATE runs SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+	}
+
+	deleteRun(id: number): void {
+		this.db.prepare("DELETE FROM runs WHERE id = ?").run(id);
+	}
+
+	markJobCheck(jobId: string, at: Date, gate: string): void {
+		this.db.prepare("UPDATE jobs SET last_checked_at = ?, last_gate = ? WHERE id = ?").run(toStored(at), gate, jobId);
 	}
 
 	markJobRun(jobId: string, at: Date, status: RunStatus): void {

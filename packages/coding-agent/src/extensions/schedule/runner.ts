@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createWriteStream, type WriteStream } from "node:fs";
+import { createWriteStream, existsSync, unlinkSync, type WriteStream } from "node:fs";
 import { spawnProcess, waitForChildProcess } from "../../utils/child-process.ts";
 import { killProcessTree } from "../../utils/shell.ts";
 import { tonCommand } from "../../utils/ton-command.ts";
@@ -33,6 +33,17 @@ function logWriter(path: string): { stream: WriteStream; write: (chunk: string) 
 			stream.end();
 		},
 	};
+}
+
+function dropRun(store: ScheduleStore, runId: number, logs: { out: string; err: string }): void {
+	store.deleteRun(runId);
+	for (const path of [logs.out, logs.err]) {
+		try {
+			if (existsSync(path)) unlinkSync(path);
+		} catch {
+			// Best-effort cleanup; the run row is already gone.
+		}
+	}
 }
 
 function agentArgs(job: Job): string[] {
@@ -150,33 +161,29 @@ export async function executeRun(agentDir: string, runId: number): Promise<Run> 
 				const decision = await runGate(agentDir, job, run);
 				gate = decision.reason || (decision.send ? "send" : "skip");
 				if (!decision.send) {
-					store.updateRun(runId, {
+					dropRun(store, runId, logs);
+					store.markJobCheck(job.id, new Date(), gate);
+					return {
+						...run,
 						status: "gated",
+						gate,
 						finishedAt: toStored(new Date()),
 						durationMs: Date.now() - started,
-						gate,
-						logPath: logs.out,
-					});
-					store.markJobRun(job.id, new Date(), "gated");
-					const skipped = store.getRun(runId);
-					if (!skipped) throw new Error(`run disappeared: ${runId}`);
-					return skipped;
+					};
 				}
 				prompt = decision.prompt || job.prompt;
 				if (!prompt) throw new Error("gate returned no prompt");
 			}
 			if (!run.manual && !store.reservePromptCall(runId, now)) {
-				store.updateRun(runId, {
+				dropRun(store, runId, logs);
+				store.markJobCheck(job.id, new Date(), "hourly cap (20)");
+				return {
+					...run,
 					status: "capped",
+					gate,
 					finishedAt: toStored(new Date()),
 					durationMs: Date.now() - started,
-					gate,
-					error: "hourly prompt cap reached (20)",
-				});
-				store.markJobRun(job.id, new Date(), "capped");
-				const capped = store.getRun(runId);
-				if (!capped) throw new Error(`run disappeared: ${runId}`);
-				return capped;
+				};
 			}
 			if (run.manual) store.updateRun(runId, { sent: true });
 

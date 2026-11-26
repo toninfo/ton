@@ -26,6 +26,8 @@ export interface Job {
 	updatedAt: string;
 	lastRunAt: string | null;
 	lastStatus: RunStatus | null;
+	lastCheckedAt: string | null;
+	lastGate: string | null;
 	nextRunAt: string;
 }
 

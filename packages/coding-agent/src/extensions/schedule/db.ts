@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at         TEXT NOT NULL,
   last_run_at        TEXT,
   last_status        TEXT,
+  last_checked_at    TEXT,
+  last_gate          TEXT,
   next_run_at        TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_next ON jobs(enabled, next_run_at);
@@ -81,6 +83,8 @@ function ensureColumns(db: DatabaseSync): void {
 	add("jobs", "script", "TEXT");
 	add("jobs", "script_args", "TEXT NOT NULL DEFAULT '[]'");
 	add("jobs", "script_timeout_seconds", "INTEGER NOT NULL DEFAULT 60");
+	add("jobs", "last_checked_at", "TEXT");
+	add("jobs", "last_gate", "TEXT");
 	add("runs", "sent", "INTEGER NOT NULL DEFAULT 0");
 	add("runs", "manual", "INTEGER NOT NULL DEFAULT 0");
 	add("runs", "gate", "TEXT");
