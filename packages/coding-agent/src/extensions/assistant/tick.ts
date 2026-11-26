@@ -208,10 +208,7 @@ function digestCandidate(store: AssistantStore, settings: AssistantSettings, now
 		observedAt: now.toISOString(),
 		suggested: "none",
 		payload: {
-			why:
-				pending.length > 0
-					? "收件箱里还有未处理的事项，详情见待处理页。"
-					: "收件箱是空的，今天没有需要你处理的事。",
+			why: pending.length > 0 ? "待办里还有需要你处理的事项。" : "现在没有需要你处理的事。",
 		},
 		direct: true,
 	};
@@ -476,7 +473,8 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 		}
 		for (const item of store.listByStates(["muted"])) {
 			if (item.muted_until && item.muted_until <= at) {
-				store.setState(item.id, { to: "dropped", now, actor: "system", reason: "mute_expired", runId });
+				// Muting only holds back bubbles; the item stays in the inbox and becomes eligible again.
+				store.setState(item.id, { to: "reported", now, actor: "system", reason: "mute_expired", runId });
 			}
 		}
 		const stale = toStored(new Date(now.getTime() - settings.expireDays * DAY));

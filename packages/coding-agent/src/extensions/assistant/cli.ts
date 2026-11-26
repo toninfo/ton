@@ -38,7 +38,7 @@ import { clip, isRecord } from "./util.ts";
 
 const HELP = `${chalk.bold("Usage:")}
   ${APP_NAME} assistant tick [--json] [--dry-run] [--mock <file>] [--now <iso>] [--force] [--trigger <name>]
-  ${APP_NAME} assistant inbox [--json] [--all] [--history [--limit <n>] [--offset <n>]]
+  ${APP_NAME} assistant inbox [--json] [--history [--limit <n>] [--offset <n>]]
   ${APP_NAME} assistant activity [--limit <n>] [--before <event_id>] [--json]
   ${APP_NAME} assistant ack <id...> [--state later|muted|done|working] [--for <duration>] [--reason <text>]   (批量；一次最多 200 个)
   ${APP_NAME} assistant ack [<id...>] --undo     (without id: the most recent ack)
@@ -593,7 +593,7 @@ async function dispatch(
 			}
 		}
 		case "inbox": {
-			const parsed = parse(rest, { json: "flag", all: "flag", history: "flag", limit: "value", offset: "value" });
+			const parsed = parse(rest, { json: "flag", history: "flag", limit: "value", offset: "value" });
 			const now = new Date();
 			if (parsed.values.has("history")) {
 				const items = service.history(parsePositiveInt(parsed, "limit", 50), parseOffset(parsed));
@@ -602,11 +602,14 @@ async function dispatch(
 				);
 				return 0;
 			}
-			const inbox = service.inbox(parsed.values.has("all"));
+			const inbox = service.inbox();
 			out(inbox, () => {
 				const { counts } = inbox;
-				const header = `待处理 ${counts.pending} · 稍后 ${counts.later} · 已静默 ${counts.muted}${counts.new ? ` · 待判断 ${counts.new}` : ""}`;
-				if (inbox.items.length === 0) return `${header}\n收件箱是空的`;
+				const quiet = [counts.later ? `稍后 ${counts.later}` : "", counts.muted ? `静默 ${counts.muted}` : ""]
+					.filter(Boolean)
+					.join(" · ");
+				const header = `待办 ${counts.open}${quiet ? `（${quiet}）` : ""}${counts.new ? ` · 待判断 ${counts.new}` : ""}`;
+				if (inbox.items.length === 0) return `${header}\n没有待办`;
 				return [header, ...inbox.items.map((item, index) => formatItem(item, now, index))].join("\n");
 			});
 			return 0;

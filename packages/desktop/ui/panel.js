@@ -394,52 +394,35 @@ async function renderInbox() {
 		return [emptyState("inbox", "没有待办")];
 	}
 	const list = selectableList("item", BULK_ACK);
-	const cards = inbox.items.map((item) =>
-		list.add(
-			itemNode(
-				item,
-				[
+	/** Snoozed and muted items stay here; they only stop bubbling until their time is up. */
+	const snoozed = (item) => item.state === "later" || item.state === "muted";
+	const cards = inbox.items.map((item) => {
+		const buttons = snoozed(item)
+			? [
+					ackButton(item, "撤销", "已撤销", "--undo"),
+					ackButton(item, "已处理", "已处理", "--state", "done"),
+					item.state === "muted"
+						? ackButton(item, "延长到 30 天", "静默 30 天", "--state", "muted", "--for", "30d")
+						: ackButton(item, "改到明天", "明天再提醒", "--state", "later", "--for", "tomorrow"),
+				]
+			: [
 					doNowButton(item),
 					ackButton(item, "已处理", "已处理", "--state", "done"),
 					ackButton(item, "稍后 2 小时", "2 小时后再提醒", "--state", "later", "--for", "2h"),
 					ackButton(item, "明天再说", "明天再提醒", "--state", "later", "--for", "tomorrow"),
-				],
-				[
-					ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"),
-					ackButton(item, "判断错了", "已记入 prefs.md", "--state", "done", "--reason", "false_positive"),
-					() =>
-						el("button.small", {
-							text: "不是我的事",
-							onclick: (event) => void action(event.currentTarget, "已标为不是我的事", "dismiss", item.id),
-						}),
-					() => deleteButton("item", item.id),
-				].filter(Boolean),
-			),
-			item.id,
-		),
-	);
-	list.refresh();
-	return [list.toolbar, ...cards];
-}
-
-async function renderQuiet() {
-	const inbox = await ton("inbox", "--all");
-	const items = inbox.items.filter((item) => item.state === "later" || item.state === "muted");
-	if (items.length === 0) return [emptyState("moon", "没有静默的事项")];
-	const list = selectableList("item", BULK_ACK);
-	const cards = items.map((item) =>
-		list.add(
-			itemNode(item, [
-				ackButton(item, "撤销", "已撤销", "--undo"),
-				ackButton(item, "已处理", "已处理", "--state", "done"),
-				item.state === "muted"
-					? ackButton(item, "延长到 30 天", "静默 30 天", "--state", "muted", "--for", "30d")
-					: ackButton(item, "改到明天", "明天再提醒", "--state", "later", "--for", "tomorrow"),
-				() => deleteButton("item", item.id),
-			]),
-			item.id,
-		),
-	);
+				];
+		const more = [
+			snoozed(item) ? null : ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"),
+			ackButton(item, "判断错了", "已记入 prefs.md", "--state", "done", "--reason", "false_positive"),
+			() =>
+				el("button.small", {
+					text: "不是我的事",
+					onclick: (event) => void action(event.currentTarget, "已标为不是我的事", "dismiss", item.id),
+				}),
+			() => deleteButton("item", item.id),
+		].filter(Boolean);
+		return list.add(itemNode(item, buttons, more), item.id);
+	});
 	list.refresh();
 	return [list.toolbar, ...cards];
 }
@@ -1051,11 +1034,6 @@ async function renderOverview() {
 		el(
 			"div.ov-links",
 			{},
-			el("button.link", {
-				type: "button",
-				text: `静默 ${(status.counts?.later ?? 0) + (status.counts?.muted ?? 0)}`,
-				onclick: () => void show("quiet"),
-			}),
 			el("button.link", { type: "button", text: "历史", onclick: () => void show("history") }),
 			el("button.link", { type: "button", text: "日志", onclick: () => void show("runs") }),
 		),
@@ -1503,7 +1481,6 @@ async function renderSettings() {
 const TABS = {
 	overview: { label: "概况", title: "运行状态与统计", icon: "chart", render: renderOverview, live: true },
 	inbox: { label: "待办", icon: "inbox", render: renderInbox, live: true },
-	quiet: { label: "静默", icon: "moon", render: renderQuiet, live: true, hidden: true },
 	history: { label: "历史", icon: "list", render: renderHistory, hidden: true },
 	activity: { label: "动态", icon: "sparkles", render: renderActivity, live: true },
 	schedule: { label: "定时", title: "定时运行 ton 提示词", icon: "clock", render: renderSchedule },
@@ -1516,9 +1493,8 @@ async function refreshHeader() {
 	try {
 		const status = await ton("status");
 		const counts = status.counts ?? {};
-		const pending = counts.pending ?? 0;
-		const quiet = (counts.later ?? 0) + (counts.muted ?? 0);
-		const base = [pending > 0 ? `待办 ${pending}` : "", quiet > 0 ? `静默 ${quiet}` : ""].filter(Boolean).join(" · ");
+		const pending = counts.open ?? (counts.pending ?? 0) + (counts.later ?? 0) + (counts.muted ?? 0);
+		const base = pending > 0 ? `待办 ${pending}` : "";
 		document.getElementById("summary").textContent =
 			(base || "没有待办") +
 			(status.paused_until ? ` · 暂停至 ${shortTime(status.paused_until)}` : "") +

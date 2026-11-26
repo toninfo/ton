@@ -67,7 +67,7 @@ function formatItems(items: readonly ItemView[], now: Date): string {
 /** `2` means the second item of the current inbox list; anything else is an item id or id prefix. */
 function resolveRef(service: AssistantService, ref: string): string {
 	if (/^\d{1,2}$/.test(ref)) {
-		const item = service.inbox(false).items[Number(ref) - 1];
+		const item = service.inbox().items[Number(ref) - 1];
 		if (!item) throw new Error(`收件箱里没有第 ${ref} 条`);
 		return item.id;
 	}
@@ -108,9 +108,7 @@ async function applyAck(agentDir: string, cwd: string, request: AckRequest): Pro
 	});
 }
 
-const inboxSchema = Type.Object({
-	all: Type.Optional(Type.Boolean({ description: "Include snoozed (later) and muted items" })),
-});
+const inboxSchema = Type.Object({});
 
 const ackSchema = Type.Object({
 	item: Type.Optional(
@@ -141,12 +139,12 @@ function createToolDefinitions(agentDir: string): ToolDefinition[] {
 		promptSnippet: "List assistant inbox",
 		parameters: inboxSchema,
 		defaultActive: true,
-		async execute(_toolCallId, { all }, signal, _onUpdate, ctx) {
+		async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("操作已中止");
 			const text = await withService(agentDir, ctx?.cwd ?? process.cwd(), (service) => {
-				const { items, counts } = service.inbox(all === true);
-				const header = `待处理 ${counts.pending} · 稍后 ${counts.later} · 已静默 ${counts.muted}`;
-				return items.length === 0 ? `${header}\n收件箱是空的` : `${header}\n${formatItems(items, new Date())}`;
+				const { items, counts } = service.inbox();
+				const header = `待办 ${counts.open}${counts.pending !== counts.open ? `（需处理 ${counts.pending}）` : ""}`;
+				return items.length === 0 ? `${header}\n没有待办` : `${header}\n${formatItems(items, new Date())}`;
 			});
 			return { content: [{ type: "text", text }], details: undefined };
 		},
@@ -208,10 +206,9 @@ export function createAssistantExtension(options: AssistantExtensionOptions = {}
 				try {
 					if (verb === "" || verb === "all") {
 						const text = await withService(agentDir, ctx.cwd, (service) => {
-							const { items, counts } = service.inbox(verb === "all");
-							const header = `待处理 ${counts.pending} · 稍后 ${counts.later} · 已静默 ${counts.muted}`;
-							if (items.length === 0)
-								return `${header}\n收件箱是空的（${APP_NAME} assistant status 查看运行情况）`;
+							const { items, counts } = service.inbox();
+							const header = `待办 ${counts.open}${counts.pending !== counts.open ? `（需处理 ${counts.pending}）` : ""}`;
+							if (items.length === 0) return `${header}\n没有待办（${APP_NAME} assistant status 查看运行情况）`;
 							return `${header}\n${formatItems(items, new Date())}`;
 						});
 						ctx.ui.notify(text, "info");

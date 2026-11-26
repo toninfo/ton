@@ -800,7 +800,7 @@ describe("tick policy", () => {
 		expect(writes).toEqual([{ stream: "chat", id: "e", action: "cancel" }]);
 	});
 
-	it("drops muted items when the mute expires", async () => {
+	it("returns muted items to the inbox when the mute expires", async () => {
 		const harness = tickHarness();
 		await harness.tick({ snapshots: [snap("demo", [cand("m")])] });
 		const item = itemAt(harness.store, "demo", "chat", "m");
@@ -810,8 +810,7 @@ describe("tick policy", () => {
 			harness.store.listByKey("demo", "chat", "m", ["new", "reported", "working", "later", "muted"]),
 		).toHaveLength(1);
 		await harness.tick({ snapshots: [snap("demo", [cand("m")])], now: at(73) });
-		expect(harness.store.getItem(item.id)?.state).toBe("dropped");
-		expect(harness.store.getItem(item.id)?.close_reason).toBe("mute_expired");
+		expect(harness.store.getItem(item.id)?.state).toBe("reported");
 	});
 });
 
@@ -1081,9 +1080,14 @@ describe("cli", () => {
 
 		const inbox = cliOptions(agentDir);
 		expect(await runAssistantCommand(["inbox", "--json"], inbox.options)).toBe(EXIT_OK);
-		const data = JSON.parse(inbox.lines.join("\n")) as { counts: Record<string, number> };
+		const data = JSON.parse(inbox.lines.join("\n")) as {
+			counts: Record<string, number>;
+			items: { id: string; state: string }[];
+		};
 		expect(data.counts.pending).toBe(2);
 		expect(data.counts.later).toBe(1);
+		expect(data.counts.open).toBe(3);
+		expect(data.items.some((item) => item.id === first.id && item.state === "later")).toBe(true);
 	});
 
 	it("reports an unknown item as skipped instead of failing the call", async () => {

@@ -170,7 +170,7 @@ schema 版本为 3：v2 给 `events` 加 `hidden`；v3 把 items 的身份从 `(
 new ──────────┼────────► dropped
  │            └────────► reported ──┬──► working ──► done
  │                                  ├──► later ──(到期)──► reported
- │                                  ├──► muted ──(到期)──► dropped
+ │                                  ├──► muted ──(到期)──► reported
  │                                  └──► done (自动闭环)
  └────────────────────────────────► expired (7 天无变化)
 ```
@@ -191,7 +191,7 @@ new ──────────┼────────► dropped
 
 - 禅道候选（bug / task / todo / story）全部是 `direct`：来源返回的已经是指派给用户的工作（story 通过 `get_products` → `get_products_productID_stories(assignedtome)`），`wait` 表示「未开始」而不是「在等别人」。它们插入时直接进入 `reported`，不经过 triage，避免被模型以「没有截止 / 没有点名」静默丢弃；静默时段、每日上限与最小间隔仍由策略层执行。story 只提醒，不自动拆任务。
 - `later` 到期：若源事项仍成立 → `reported`（重新提醒一次），若已消失 → `done`。
-- `muted` 到期：若源事项仍成立 → `dropped`（不再主动提，留在待办），若消失 → `done`。这里刻意不回到 `reported`，避免「别再说了」三天后又弹一次。
+- `muted` 到期：若源事项仍成立 → `reported`，若消失 → `done`。静默只暂停气泡，条目始终留在待办；三天后恢复提醒节奏。
 - 同一 `(server, stream, item_key)` 的内容更新（`observed_at` 前进）原位更新，不新建卡片；条目被关闭后再次出现且 `observed_at` 前进时按 `reopened` 重新入库，受全局静默时段和每日上限约束。
 
 ## 6. 身份与关闭
@@ -312,7 +312,7 @@ ton assistant doctor [--json]
 }
 ```
 
-`decision=silent` 时 `batch` 为 `null`。`pending` 是本轮结束时待办里 `reported + working` 的条数，供托盘角标使用。`probes` 以 server 名为键；失败项只有 `{ok:false,error,ms}`；因没有 root 等原因跳过的数据源带 `skipped:true`。
+`decision=silent` 时 `batch` 为 `null`。`pending` 是本轮结束时真正需要处理的 `reported + working` 条数，供托盘角标使用；`counts.open` 才是待办页的全部条目（含 `later`/`muted`）。`probes` 以 server 名为键；失败项只有 `{ok:false,error,ms}`；因没有 root 等原因跳过的数据源带 `skipped:true`。
 
 `dry_run=true` 时整轮跑在 `state.db` 的临时副本上（复制后随进程删除），不创建 `reported`、不更新 `notified_at`，也不在真实库里留下 `runs` / `events` / `cursors` 或任何 item；输出照常反映「假如正式跑会怎样」。因此 dry-run 里自动处理也不会执行（`autoHandle` 直接返回 0）。
 
@@ -321,7 +321,7 @@ ton assistant doctor [--json]
 ### inbox 输出
 
 ```json
-{ "schema": 1, "items": [ ... ], "counts": { "pending": 3, "later": 1, "muted": 2 } }
+{ "schema": 1, "items": [ ... ], "counts": { "open": 6, "pending": 3, "later": 1, "muted": 2 } }
 ```
 
 ### activity 输出（schema v1）
@@ -449,9 +449,9 @@ ton assistant doctor [--json]
 
 - 桌面端不做本地缓存副本；每次打开面板都重新 `inbox --json`。气泡窗口的数据在创建时注入，操作后不再回读（除结果区）。
 
-「待处理 / 静默 / 历史 / 动态 / 日志」的列表操作：
+「待办 / 历史 / 动态 / 日志」的列表操作：
 
-- 每个列表顶部有工具栏：「选择」进入多选，卡片前出现复选框；「全选已加载」只覆盖当前已加载的卡片，「删除所选 (N)」两段确认——第一次点击变成「确认删除 N 项？」，3 秒内再点才执行，没有模态框；单条删除用卡片上的「删除」，同样两段确认。切换标签或删除后自动退出多选。待处理与静默页另有「已处理所选」（`ack --state done`），历史页有「撤销所选」（`ack --undo`），确认与分块方式相同。
+- 每个列表顶部有工具栏：「选择」进入多选，卡片前出现复选框；「全选已加载」只覆盖当前已加载的卡片，「删除所选 (N)」两段确认——第一次点击变成「确认删除 N 项？」，3 秒内再点才执行，没有模态框；单条删除用卡片上的「删除」，同样两段确认。切换标签或删除后自动退出多选。待办页另有「已处理所选」（`ack --state done`），历史页有「撤销所选」（`ack --undo`），确认与分块方式相同。
 - 删除走 `ton assistant delete ...`（见 §8），超过 200 个 id 按 200 分批；完成后 toast `已删除 N 项`（有跳过时附 `，跳过 M 项`）并整页重载当前标签。批量处理与撤销同理，跳过原因见 §8 `ack 与 undo`。
 - 历史与日志每页 50 条，「加载更多」用 `--offset` 追加；动态同样每页 50 条，但用 `--before <最后一条 event_id>` 游标追加——25 秒轮询会在顶部插入新事件，offset 会重复或漏条。
 - 日志默认隐藏空探测（见 §8 runs），底部一行「另有 N 次空探测（最近 HH:mm）· 显示」可切到 `--all` 全量；离开标签页即复位为默认过滤。

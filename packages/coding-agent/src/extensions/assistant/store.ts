@@ -418,7 +418,10 @@ export class AssistantStore {
 		}[];
 		const byState = Object.fromEntries(rows.map((row) => [row.state, row.n]));
 		return {
+			/** Actionable now; drives the tray dot. */
 			pending: (byState.reported ?? 0) + (byState.working ?? 0),
+			/** Everything the inbox lists, including snoozed and muted items. */
+			open: (byState.reported ?? 0) + (byState.working ?? 0) + (byState.later ?? 0) + (byState.muted ?? 0),
 			reported: byState.reported ?? 0,
 			working: byState.working ?? 0,
 			later: byState.later ?? 0,

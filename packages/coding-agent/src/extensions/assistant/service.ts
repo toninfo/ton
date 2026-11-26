@@ -70,8 +70,8 @@ export class AssistantError extends Error {
 	}
 }
 
-const INBOX_STATES: readonly ItemState[] = ["reported", "working"];
-const QUIETED_STATES: readonly ItemState[] = ["later", "muted"];
+/** The inbox lists every open item; snoozed/muted ones stay here and only stop bubbling. */
+const INBOX_STATES: readonly ItemState[] = ["reported", "working", "later", "muted"];
 
 export interface AckOptions {
 	state: AckState;
@@ -145,9 +145,8 @@ export class AssistantService {
 		return item;
 	}
 
-	inbox(all: boolean): { schema: 1; items: ItemView[]; counts: Record<string, number> } {
-		const states: readonly ItemState[] = all ? [...INBOX_STATES, ...QUIETED_STATES, "new"] : INBOX_STATES;
-		return { schema: 1, items: this.store.listByStates(states).map(toView), counts: this.store.counts() };
+	inbox(): { schema: 1; items: ItemView[]; counts: Record<string, number> } {
+		return { schema: 1, items: this.store.listByStates(INBOX_STATES).map(toView), counts: this.store.counts() };
 	}
 
 	history(limit: number, offset = 0): ItemView[] {
