@@ -29,11 +29,12 @@
 1. **无上游 git 历史**：仅复制工作树文件，不引入上游 `.git` / submodule。
 2. **npm scope**：`@earendil-works/pi-*` → `@ton/pi-*`（外部依赖 `@earendil-works/gondolin`、`@earendil-works/chord` 保留）。
 3. **package.json repository**：全部指向 `github.com/toninfo/ton`。
-4. **移除上游社区门禁 CI**：contributor gate、issue auto-close、triage、model-catalog 发布等到上游服务的工作流。
+4. **上游社区门禁工作流**：本仓保留部分模板，但发布不依赖上游 npm / pi.dev 服务；model catalog 发布改为手动触发。
 5. **运行时默认不回连上游**：
    - 版本检查 / 安装遥测 / 远程模型目录默认关闭
    - 可通过 `PI_LATEST_VERSION_URL`、`PI_REPORT_INSTALL_URL`、`PI_MODEL_CATALOG_URL`、`PI_SHARE_VIEWER_URL` 自建端点
 6. **GitHub-only 发布**：`@ton/*` 跳过 npm registration 门禁；`build-binaries` 不跑 npm publish / pi.dev announce。
+7. **模型目录固定**：`packages/ai/src/providers/data/` 随仓库提交，构建不再联网重生成；需要更新时手动跑 `npm run generate-models`。
 
 ## 说明
 

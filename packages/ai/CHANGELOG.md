@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Model catalog data is now committed under `src/providers/data/`; `build` no longer regenerates it from models.dev, so CI and release builds use a fixed catalog. Run `npm run generate-models` explicitly to refresh it.
+
 ### Fixed
 
 - Fixed AI tests after catalog churn: the delisted Fireworks `nemotron-3-ultra-nvfp4` is replaced by current models, and the budget-based thinking test uses a fixture model instead of relying on a toggle-only catalog entry.
