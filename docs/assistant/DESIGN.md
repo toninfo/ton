@@ -443,7 +443,6 @@ ton assistant doctor [--json]
 | ⋯ → 推迟今晚/明天 | `ack --state later --for tonight\|tomorrow` | 收起 |
 | ⋯ → 永久静音此类 | `prefs add ...` + `ack --state muted --for 3650d` | 收起 |
 | ⋯ → 不是我的事 | `ton assistant dismiss <id>`（等价 `ack --state done --reason not_mine`，并向支持写回的来源回写 `cancel`） | 收起 |
-| ⋯ → 判断错了 | `ack --state done --reason false_positive` | 收起 |
 | 撤销 | `ack <id> --undo` | 撤销最近一次批复；对 ton 自己关闭的卡片（triage 丢弃、回复/被取代关闭）恢复到关闭前状态，从未展示过的卡片放回待办 |
 | 底部「全部知道了」 | 对 batch 内每条执行 `later --for 2h` | 整窗收起 |
 
@@ -512,7 +511,7 @@ ton assistant doctor [--json]
 - 周五下午不要安排新事项。
 ```
 
-由用户在面板里编辑，或由「永久静音此类」「判断错了」追加。长度控制在 2KB 内，直接拼进 triage 的 system prompt。
+由用户在面板里编辑，或由「永久静音此类」追加。长度控制在 2KB 内，直接拼进 triage 的 system prompt。
 
 ## 11. 模型调用
 

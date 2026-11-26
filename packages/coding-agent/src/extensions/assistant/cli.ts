@@ -960,7 +960,7 @@ async function dispatch(
 			const stats = service.stats(new Date(), parsePositiveInt(parsed, "days", 7));
 			out(stats, () =>
 				[
-					`近 ${String(stats.days)} 天提醒 ${String(stats.notified)} 次，静音率 ${Math.round(Number(stats.mute_rate) * 100)}%，判断错误 ${String(stats.false_positives)} 次`,
+					`近 ${String(stats.days)} 天提醒 ${String(stats.notified)} 次，静音率 ${Math.round(Number(stats.mute_rate) * 100)}%`,
 					...(stats.suggestions as string[]).map((line) => `- ${line}`),
 				].join("\n"),
 			);

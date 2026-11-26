@@ -19,13 +19,11 @@ export interface AssistantExtensionOptions {
 	agentDir?: string;
 }
 
-const INBOX_USAGE = `/inbox                 列出待处理事项
-/inbox all             含稍后、已静默
+const INBOX_USAGE = `/inbox                 列出待办（含稍后、静默、已忽略）
 /inbox done <n>        第 n 条已处理（n 为序号或 id）
 /inbox later <n> [2h]  稍后再提醒
-/inbox mute <n> [3d]   这类事静默几天
+/inbox mute <n> [3d]   这条静默几天
 /inbox working <n>     正在处理
-/inbox wrong <n>       判断错了，记入 prefs.md
 /inbox undo [id]       撤销最近一次操作`;
 
 async function withService<T>(
@@ -125,9 +123,6 @@ const ackSchema = Type.Object({
 		},
 	),
 	for: Type.Optional(Type.String({ description: "Duration for later/muted: 30m, 2h, 3d, today, tonight, tomorrow" })),
-	false_positive: Type.Optional(
-		Type.Boolean({ description: "True when the user says the assistant should not have reported this at all" }),
-	),
 });
 
 function createToolDefinitions(agentDir: string): ToolDefinition[] {
@@ -153,7 +148,7 @@ function createToolDefinitions(agentDir: string): ToolDefinition[] {
 		name: "assistant_ack",
 		label: "Assistant ack",
 		description:
-			"Update one assistant inbox item when the user says e.g. '第2条不用管了' (done), '明天再提醒我' (later, for=tomorrow), '这个别再报了' (muted), '报错了' (done + false_positive). Never sends WeChat messages or changes Zentao.",
+			"Update one assistant inbox item when the user says e.g. '第2条不用管了' (done), '明天再提醒我' (later, for=tomorrow), '这个别再报了' (muted). Never sends WeChat messages or changes Zentao.",
 		promptSnippet: "Ack assistant item",
 		parameters: ackSchema,
 		defaultActive: true,
@@ -163,7 +158,6 @@ function createToolDefinitions(agentDir: string): ToolDefinition[] {
 				ref: params.item,
 				state: params.state as AckState | "undo",
 				for: params.for,
-				reason: params.false_positive ? "false_positive" : undefined,
 			});
 			return { content: [{ type: "text", text }], details: undefined };
 		},
@@ -176,7 +170,6 @@ const COMMAND_STATES: Record<string, { state: AckState | "undo"; reason?: string
 	later: { state: "later" },
 	mute: { state: "muted" },
 	working: { state: "working" },
-	wrong: { state: "done", reason: "false_positive" },
 	undo: { state: "undo" },
 };
 

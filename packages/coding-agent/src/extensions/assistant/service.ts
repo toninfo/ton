@@ -12,7 +12,7 @@ import {
 import { type ActionResult, AGENT_HEARTBEAT_STALE_MS, runAction, runningAgent } from "./actions.ts";
 import { createMcpCaller, type McpCaller } from "./mcp.ts";
 import { createModelCompleter } from "./model.ts";
-import { appendPref, loadSettings, readPrefs } from "./settings.ts";
+import { loadSettings, readPrefs } from "./settings.ts";
 import { callResolve } from "./sources/contract.ts";
 import { type Discovery, discoverSources, sourceServers } from "./sources/discover.ts";
 import { runSources } from "./sources/index.ts";
@@ -292,7 +292,7 @@ export class AssistantService {
 		if (!applied.changed) return { item: toView(applied.item), changed: false };
 		let note = applied.note;
 		// 已处理回写 done；「不是我的事」回写 cancel。没有写回工具的来源保持静默。
-		if (options.state === "done") {
+		if (options.state === "done" && options.reason !== "false_positive") {
 			const action = options.reason === "not_mine" ? "cancel" : "done";
 			note = (await this.resolveItem(item, action, options.now, options.actor)).note;
 		}
@@ -336,7 +336,7 @@ export class AssistantService {
 				continue;
 			}
 			acked.push(toView(applied.item));
-			if (options.state === "done") writtenBack.push(item);
+			if (options.state === "done" && options.reason !== "false_positive") writtenBack.push(item);
 			else if (applied.note) notes.add(applied.note);
 		}
 		if (writtenBack.length > 0) {
@@ -378,10 +378,6 @@ export class AssistantService {
 			until,
 			action: "ack",
 		});
-		if (options.reason === "false_positive") {
-			appendPref(this.agentDir, `不要提醒这类事：${item.title}（${item.server}/${item.stream}）`);
-			return { item: updated, changed: true, note: "已记入 prefs.md" };
-		}
 		return { item: updated, changed: true };
 	}
 
@@ -961,11 +957,6 @@ export class AssistantService {
 				 GROUP BY kind ORDER BY n DESC`,
 			)
 			.all(at) as unknown as { kind: string; n: number }[];
-		const falsePositives = this.store.db
-			.prepare(
-				"SELECT COUNT(*) AS n FROM events WHERE action = 'ack' AND json_extract(detail, '$.reason') = 'false_positive' AND ts >= ?",
-			)
-			.get(at) as { n: number };
 		const notified = perDay.reduce((sum, row) => sum + row.n, 0);
 		const muted = acks.find((row) => row.state === "muted")?.n ?? 0;
 		const muteRate = notified > 0 ? muted / notified : 0;
@@ -984,7 +975,6 @@ export class AssistantService {
 			per_day: perDay,
 			acks: Object.fromEntries(acks.map((row) => [row.state, row.n])),
 			muted_kinds: mutedKinds,
-			false_positives: falsePositives.n,
 			mute_rate: Math.round(muteRate * 100) / 100,
 			suggestions,
 		};

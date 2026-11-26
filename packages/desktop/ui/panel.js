@@ -255,7 +255,7 @@ const CLOSE_LABEL = {
 	migrated: "已迁移",
 };
 
-function itemNode(item, buttons, more = []) {
+function itemNode(item, buttons) {
 	const urgency = (item.urgency ?? "P3").toLowerCase();
 	const tone = URGENCY_TONE[urgency] ?? "muted";
 	const quiet = item.snooze_until
@@ -300,21 +300,8 @@ function itemNode(item, buttons, more = []) {
 	);
 	const row = el("div.item-actions");
 	for (const make of buttons) row.append(make(node));
-	let secondary = null;
-	if (more.length > 0) {
-		const toggle = el("button.small", {
-			text: "更多",
-			onclick: () => {
-				const open = node.classList.toggle("more-open");
-				toggle.textContent = open ? "收起" : "更多";
-			},
-		});
-		row.append(toggle);
-		secondary = el("div.item-actions.secondary", {}, ...more.map((make) => make(node)));
-	}
 	row.append(el("button.link", { onclick: (event) => void trace(item, node, event.currentTarget) }, "详情", icon("chevron", 12)));
 	body.append(row);
-	if (secondary) body.append(secondary);
 	return node;
 }
 
@@ -402,7 +389,6 @@ async function renderInbox() {
 				? [
 						ackButton(item, "转为待办", "已转回待办", "--state", "reported"),
 						ackButton(item, "已处理", "已处理", "--state", "done"),
-						() => deleteButton("item", item.id),
 					]
 				: snoozed(item)
 					? [
@@ -418,22 +404,18 @@ async function renderInbox() {
 							ackButton(item, "稍后 2 小时", "2 小时后再提醒", "--state", "later", "--for", "2h"),
 							ackButton(item, "明天再说", "明天再提醒", "--state", "later", "--for", "tomorrow"),
 						];
-		const more =
-			item.state === "ignored"
-				? []
-				: [
-						snoozed(item)
-							? null
-							: ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"),
-						ackButton(item, "判断错了", "已记入 prefs.md", "--state", "done", "--reason", "false_positive"),
-						() =>
-							el("button.small", {
-								text: "不是我的事",
-								onclick: (event) => void action(event.currentTarget, "已标为不是我的事", "dismiss", item.id),
-							}),
-						() => deleteButton("item", item.id),
-					].filter(Boolean);
-		return list.add(itemNode(item, buttons, more), item.id);
+		if (item.state !== "ignored" && !snoozed(item)) {
+			buttons.push(
+				ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"),
+				() =>
+					el("button.small", {
+						text: "不是我的事",
+						onclick: (event) => void action(event.currentTarget, "已标为不是我的事", "dismiss", item.id),
+					}),
+			);
+		}
+		buttons.push(() => deleteButton("item", item.id));
+		return list.add(itemNode(item, buttons), item.id);
 	};
 	const active = inbox.items.filter((item) => item.state !== "ignored");
 	const ignored = inbox.items.filter((item) => item.state === "ignored");

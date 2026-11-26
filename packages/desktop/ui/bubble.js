@@ -511,7 +511,6 @@ function toggleMenu(card) {
 		}),
 		card.draft ? entry("复制回复", () => void copyText(card.draft)) : null,
 		entry("打开来源", () => void openSource(card)),
-		entry("判断错了", () => void ack(card, "已记下，以后少报", "--state", "done", "--reason", "false_positive")),
 		entry("不是我的事", () => void dismiss(card)),
 	);
 	card.node.append(menu);

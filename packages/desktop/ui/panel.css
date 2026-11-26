@@ -504,12 +504,7 @@ main::-webkit-scrollbar-thumb:hover {
 .item-actions .link {
 	margin-left: auto;
 }
-.item-actions.secondary {
-	display: none;
-}
-.item.more-open .item-actions.secondary {
-	display: flex;
-}
+
 
 .item > .item-result,
 .item > .trace,
