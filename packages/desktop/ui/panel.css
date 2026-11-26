@@ -1208,3 +1208,11 @@ details.origin .origin-path {
   justify-content: space-between;
   gap: 12px;
 }
+
+button.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  min-width: 30px;
+}

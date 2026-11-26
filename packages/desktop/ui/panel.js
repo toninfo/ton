@@ -571,6 +571,7 @@ const ICONS = {
 	moon: [["path", { d: "M19.4 13.6A7.8 7.8 0 0 1 10.4 4.6a7.8 7.8 0 1 0 9 9z" }]],
 	pulse: [["path", { d: "M3.6 12.2h3.6l2.4-5.8 4 11.2 2.4-5.4h4.4" }]],
 	chart: [["path", { d: "M5 19.4v-6.2M10.3 19.4V6.6M15.6 19.4v-4M20.9 19.4V9" }]],
+	plus: [["path", { d: "M12 5v14M5 12h14" }]],
 	sliders: [
 		["path", { d: "M4.6 7.4h5.2M13.8 7.4h5.6" }],
 		["circle", { cx: 11.8, cy: 7.4, r: 2 }],
@@ -1077,7 +1078,7 @@ async function renderOverview() {
 							: "未找到",
 					}),
 				),
-				checks.length === 0 && failed.length === 0 ? el("div.card-hint", { text: "没有发现数据源（mcp.json 里没有启用的服务器）" }) : null,
+				checks.length === 0 && failed.length === 0 ? el("div.card-hint", { text: "没有启用数据源" }) : null,
 				checks.length > 0 || failed.length > 0 ? el("div.card-caption", { text: "数据源" }) : null,
 				checks.length > 0 || failed.length > 0 ? el("dl", {}, ...sourceRows(checks, failed)) : null,
 				warnings.length > 0 ? el("pre", { text: warnings.join("\n") }) : null,
@@ -1138,9 +1139,9 @@ async function renderSchedule() {
 	const weeklyField = field("星期与时间", "例如 mon-fri 09:00", el("div.schedule-row", {}, days, weekTime));
 	const everyField = field("间隔", "分钟需整除 60，小时需整除 24", every);
 	const cronField = field("cron", "分 时 日 月 周；本地时区", cron);
-	const promptField = field("prompt", "直发任务必填；脚本前置任务可作默认 prompt，脚本可用自己的 prompt 覆盖", prompt);
-	const cwdField = field("工作目录", "任务的 cwd；~ 会展开", cwd);
-	const scriptField = field("前置脚本", '可执行文件；stdin 收 JSON，stdout 返回 {"send":true|false}', script);
+	const promptField = field("prompt", "直发必填；脚本可覆盖", prompt);
+	const cwdField = field("工作目录", "~ 会展开", cwd);
+	const scriptField = field("前置脚本", "可执行文件；stdin JSON → stdout {send, prompt|reason}", script);
 	const scriptArgsField = field("脚本参数（可选）", "每行一个参数，不经过 shell", scriptArgs);
 	const scriptBlock = el("div.settings-grid", {}, scriptField, scriptArgsField);
 	scriptArgsField.classList.add("wide");
@@ -1178,7 +1179,22 @@ async function renderSchedule() {
 		promptField,
 		cwdField,
 		scriptBlock,
-		el("div.card-foot", {}, status, submit),
+		el(
+			"div.card-foot",
+			{},
+			status,
+			el("button.small", {
+				type: "button",
+				text: "取消",
+				onclick: () => {
+					editing = null;
+					scheduleDirty = false;
+					form.reset();
+					form.hidden = true;
+				},
+			}),
+			submit,
+		),
 	);
 	form.addEventListener("submit", async (event) => {
 		event.preventDefault();
@@ -1327,10 +1343,14 @@ async function renderSchedule() {
 		scheduleDirty = true;
 		form.scrollIntoView({ behavior: "smooth", block: "start" });
 	};
-	const newButton = el("button.primary", { type: "button", text: "新建任务", onclick: openForm });
+	const newButton = el(
+		"button.small.icon-button",
+		{ type: "button", title: "新建任务", "aria-label": "新建任务", onclick: openForm },
+		icon("plus", 14),
+	);
 	return [
 		el("div.act-section.schedule-toolbar", {}, el("span", { text: statusLine }), newButton),
-		...(cards.length > 0 ? cards : [emptyState("clock", "还没有定时任务", "点「新建任务」，或让 agent 用 ton schedule 创建。")]),
+		...(cards.length > 0 ? cards : [emptyState("clock", "还没有定时任务", "点 + 新建，或让 agent 用 ton schedule 创建。")]),
 		form,
 	];
 }
@@ -1371,7 +1391,7 @@ async function renderSettings() {
 	const sourceList = el("div", {});
 	const renderSources = (checks, failed) => {
 		if (checks.length === 0 && failed.length === 0) {
-			sourceList.replaceChildren(el("div.card-hint", { text: "暂未检测到数据源服务器：mcp.json 里没有启用的 MCP。" }));
+			sourceList.replaceChildren(el("div.card-hint", { text: "没有启用数据源" }));
 			return;
 		}
 		const zentaoBase = checks.find((entry) => entry.kind === "zentao")?.url;
@@ -1434,7 +1454,7 @@ async function renderSettings() {
 		"section.card",
 		{},
 		cardHead("clock", "提醒规则"),
-		el("div.card-hint", { text: "探测间隔、静默时段、每日上限：终端运行 ton settings" }),
+		el("div.card-hint", { text: "探测间隔、静默、上限：`ton assistant settings set`" }),
 		el(
 			"div.settings-grid",
 			{},
@@ -1463,7 +1483,7 @@ async function renderSettings() {
 		{},
 		cardHead("book", "数据源"),
 		el("div.card-hint", {
-			text: "自动检测已启用的 MCP 服务器；实现契约 v1 即接入，ton-kb 是内置归档。",
+			text: "自动检测已启用的 MCP；契约 v1 即接入。",
 		}),
 		sourceList,
 		schemaDetails,
