@@ -40,7 +40,7 @@ const HELP = `${chalk.bold("Usage:")}
   ${APP_NAME} assistant tick [--json] [--dry-run] [--mock <file>] [--now <iso>] [--force] [--trigger <name>]
   ${APP_NAME} assistant inbox [--json] [--history [--limit <n>] [--offset <n>]]
   ${APP_NAME} assistant activity [--limit <n>] [--before <event_id>] [--json]
-  ${APP_NAME} assistant ack <id...> [--state later|muted|done|working] [--for <duration>] [--reason <text>]   (批量；一次最多 200 个)
+  ${APP_NAME} assistant ack <id...> [--state later|muted|done|working|reported] [--for <duration>] [--reason <text>]   (批量；一次最多 200 个)
   ${APP_NAME} assistant ack [<id...>] --undo     (without id: the most recent ack)
   ${APP_NAME} assistant act <id> [--action reply_draft|open_zentao|open] [--hint <text>]
   ${APP_NAME} assistant note <id> --status progress|done|blocked|failed --message <text> [--json]

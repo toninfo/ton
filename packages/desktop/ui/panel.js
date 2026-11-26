@@ -396,35 +396,60 @@ async function renderInbox() {
 	const list = selectableList("item", BULK_ACK);
 	/** Snoozed and muted items stay here; they only stop bubbling until their time is up. */
 	const snoozed = (item) => item.state === "later" || item.state === "muted";
-	const cards = inbox.items.map((item) => {
-		const buttons = snoozed(item)
-			? [
-					ackButton(item, "撤销", "已撤销", "--undo"),
-					ackButton(item, "已处理", "已处理", "--state", "done"),
-					item.state === "muted"
-						? ackButton(item, "延长到 30 天", "静默 30 天", "--state", "muted", "--for", "30d")
-						: ackButton(item, "改到明天", "明天再提醒", "--state", "later", "--for", "tomorrow"),
-				]
-			: [
-					doNowButton(item),
-					ackButton(item, "已处理", "已处理", "--state", "done"),
-					ackButton(item, "稍后 2 小时", "2 小时后再提醒", "--state", "later", "--for", "2h"),
-					ackButton(item, "明天再说", "明天再提醒", "--state", "later", "--for", "tomorrow"),
-				];
-		const more = [
-			snoozed(item) ? null : ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"),
-			ackButton(item, "判断错了", "已记入 prefs.md", "--state", "done", "--reason", "false_positive"),
-			() =>
-				el("button.small", {
-					text: "不是我的事",
-					onclick: (event) => void action(event.currentTarget, "已标为不是我的事", "dismiss", item.id),
-				}),
-			() => deleteButton("item", item.id),
-		].filter(Boolean);
+	const card = (item) => {
+		const buttons =
+			item.state === "ignored"
+				? [
+						ackButton(item, "转为待办", "已转回待办", "--state", "reported"),
+						ackButton(item, "已处理", "已处理", "--state", "done"),
+						() => deleteButton("item", item.id),
+					]
+				: snoozed(item)
+					? [
+							ackButton(item, "撤销", "已撤销", "--undo"),
+							ackButton(item, "已处理", "已处理", "--state", "done"),
+							item.state === "muted"
+								? ackButton(item, "延长到 30 天", "静默 30 天", "--state", "muted", "--for", "30d")
+								: ackButton(item, "改到明天", "明天再提醒", "--state", "later", "--for", "tomorrow"),
+						]
+					: [
+							doNowButton(item),
+							ackButton(item, "已处理", "已处理", "--state", "done"),
+							ackButton(item, "稍后 2 小时", "2 小时后再提醒", "--state", "later", "--for", "2h"),
+							ackButton(item, "明天再说", "明天再提醒", "--state", "later", "--for", "tomorrow"),
+						];
+		const more =
+			item.state === "ignored"
+				? []
+				: [
+						snoozed(item)
+							? null
+							: ackButton(item, "静默 3 天", "3 天内不再提醒", "--state", "muted", "--for", "3d"),
+						ackButton(item, "判断错了", "已记入 prefs.md", "--state", "done", "--reason", "false_positive"),
+						() =>
+							el("button.small", {
+								text: "不是我的事",
+								onclick: (event) => void action(event.currentTarget, "已标为不是我的事", "dismiss", item.id),
+							}),
+						() => deleteButton("item", item.id),
+					].filter(Boolean);
 		return list.add(itemNode(item, buttons, more), item.id);
-	});
+	};
+	const active = inbox.items.filter((item) => item.state !== "ignored");
+	const ignored = inbox.items.filter((item) => item.state === "ignored");
+	const nodes = active.map(card);
+	if (ignored.length > 0) {
+		nodes.push(
+			el(
+				"details.ignored-group",
+				{},
+				el("summary", { text: `低优先 · 已忽略 ${ignored.length}` }),
+				...ignored.map(card),
+			),
+		);
+	}
 	list.refresh();
-	return [list.toolbar, ...cards];
+	return [list.toolbar, ...nodes];
 }
 
 async function renderHistory() {

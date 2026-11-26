@@ -16,6 +16,8 @@ export const URGENCIES: readonly Urgency[] = ["P0", "P1", "P2", "P3"];
 export type ItemState =
 	| "new"
 	| "dropped"
+	/** Triage said "not worth interrupting"; the item stays open but never bubbles. */
+	| "ignored"
 	| "reported"
 	| "working"
 	| "later"
@@ -24,10 +26,10 @@ export type ItemState =
 	| "expired"
 	/** Tombstone: the user deleted the card; the row stays so `(server, stream, item_key)` dedupe cannot recreate it. */
 	| "deleted";
-export const OPEN_STATES: readonly ItemState[] = ["new", "reported", "working", "later", "muted"];
-export const ACTIVE_STATES: readonly ItemState[] = ["new", "reported", "working", "later"];
+export const OPEN_STATES: readonly ItemState[] = ["new", "reported", "working", "later", "muted", "ignored"];
+export const ACTIVE_STATES: readonly ItemState[] = ["new", "reported", "working", "later", "ignored"];
 export const CLOSED_STATES: readonly ItemState[] = ["done", "dropped", "expired"];
-export const ACK_STATES = ["later", "muted", "done", "working"] as const;
+export const ACK_STATES = ["later", "muted", "done", "working", "reported"] as const;
 export type AckState = (typeof ACK_STATES)[number];
 
 /** Automatic closures. User-facing ones (`done`, `not_mine`, ...) are free-form strings too. */

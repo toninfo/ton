@@ -18,6 +18,7 @@ export const STATE_LABEL = {
 	done: "已完成",
 	expired: "已过期",
 	dropped: "不打扰",
+	ignored: "已忽略",
 };
 
 export function relativeTime(value, now = Date.now()) {

@@ -71,7 +71,7 @@ export class AssistantError extends Error {
 }
 
 /** The inbox lists every open item; snoozed/muted ones stay here and only stop bubbling. */
-const INBOX_STATES: readonly ItemState[] = ["reported", "working", "later", "muted"];
+const INBOX_STATES: readonly ItemState[] = ["reported", "working", "later", "muted", "ignored"];
 
 export interface AckOptions {
 	state: AckState;

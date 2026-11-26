@@ -1147,6 +1147,29 @@ describe("cli", () => {
 		expect(undone.skipped).toHaveLength(0);
 	});
 
+	it("keeps triage-rejected items in the inbox as ignored", async () => {
+		const harness = tickHarness({
+			realTriage: true,
+			completer: async () => '{"report":false,"reason":"现在不用打扰","items":[]}',
+		});
+		const output = await harness.tick({ snapshots: [snap("demo", [cand("x")])] });
+		expect(output.decision).toBe("silent");
+		const item = itemAt(harness.store, "demo", "chat", "x");
+		expect(item.state).toBe("ignored");
+		const service = newService(harness.agentDir, fakeMcp({ servers: [] }), acceptAll);
+		expect(service.inbox().items.some((entry) => entry.id === item.id)).toBe(true);
+
+		// Ignored items do not re-enter triage on every tick.
+		const again = await harness.tick({ snapshots: [snap("demo", [cand("x")])], now: at(1) });
+		expect(again.model_calls).toBe(0);
+
+		// The user can promote it back into the actionable inbox.
+		const run = cliOptions(harness.agentDir);
+		const code = await runAssistantCommand(["ack", item.id, "--state", "reported", "--json"], run.options);
+		expect(code).toBe(EXIT_OK);
+		expect(itemAt(harness.store, "demo", "chat", "x").state).toBe("reported");
+	});
+
 	it("holds an item until remind.before_hours before its due time", async () => {
 		const harness = tickHarness();
 		const due = new Date(NOW.getTime() + 48 * 3_600_000);

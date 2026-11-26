@@ -559,7 +559,10 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 						return;
 					}
 					if (!verdict) {
-						store.setState(item.id, { to: "dropped", now, actor: "model", reason: "triage", runId });
+						// Triage decides what to interrupt with, not whether the item exists. Keep it open
+						// in the inbox as ignored (no bubble) so the user can still see and handle it.
+						if (!item.why) store.updateItem(item.id, { why: "判官判断现在不需要打扰" });
+						store.setState(item.id, { to: "ignored", now, actor: "model", reason: "triage", runId });
 						return;
 					}
 					store.updateItem(item.id, {

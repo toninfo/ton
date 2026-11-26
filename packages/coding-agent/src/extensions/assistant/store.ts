@@ -252,7 +252,7 @@ export class AssistantStore {
 
 	/** Seen again: refresh the snapshot. Titles stay as triage wrote them once reported. */
 	touchItem(item: ItemRow, candidate: Candidate, now: Date): void {
-		const keepTitle = item.state !== "new" && item.state !== "dropped";
+		const keepTitle = item.state !== "new" && item.state !== "dropped" && item.state !== "ignored";
 		this.db
 			.prepare("UPDATE items SET last_seen_at = ?, payload = ?, context = ?, title = ? WHERE id = ?")
 			.run(
@@ -420,12 +420,18 @@ export class AssistantStore {
 		return {
 			/** Actionable now; drives the tray dot. */
 			pending: (byState.reported ?? 0) + (byState.working ?? 0),
-			/** Everything the inbox lists, including snoozed and muted items. */
-			open: (byState.reported ?? 0) + (byState.working ?? 0) + (byState.later ?? 0) + (byState.muted ?? 0),
+			/** Everything the inbox lists: snoozed, muted and triage-ignored items included. */
+			open:
+				(byState.reported ?? 0) +
+				(byState.working ?? 0) +
+				(byState.later ?? 0) +
+				(byState.muted ?? 0) +
+				(byState.ignored ?? 0),
 			reported: byState.reported ?? 0,
 			working: byState.working ?? 0,
 			later: byState.later ?? 0,
 			muted: byState.muted ?? 0,
+			ignored: byState.ignored ?? 0,
 			new: byState.new ?? 0,
 		};
 	}
