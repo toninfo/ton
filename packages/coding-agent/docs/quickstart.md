@@ -1,59 +1,51 @@
 # Quickstart
 
-Pi runs in your terminal and works with files on your machine. To use it, you need access to a model through a supported provider. This can be a subscription, an API key, or a local model.
+Ton runs in your terminal and works with files on your machine. To use it, you need access to a model through a supported provider. This can be a subscription, an API key, or a local model.
 
 For native Windows setup, read [Windows Setup](windows.md). For Android, read [Termux Setup](termux.md).
 
-## 1. Install Pi
+## 1. Install ton
 
-On macOS or Linux, you can use the installer:
+On macOS or Linux, run the installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 ```
 
-The installer pins all dependencies and updates Pi with `pi update`. Alternatively, install Pi from npm, which does not pin transitive dependencies. This requires Node.js 22.19 or newer:
+On Windows, run the installer from PowerShell:
 
-```bash
-npm install -g --ignore-scripts @ton/pi-coding-agent
+```powershell
+irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ```
 
-Pi does not require dependency lifecycle scripts for a normal npm installation.
-
-With Nix on macOS or Linux, install the latest release from Pi's flake. Nix builds Pi from source:
-
-```bash
-nix profile add github:earendil-works/pi/stable
-```
-
-Older Nix versions use `nix profile install` instead. Update with `nix profile upgrade pi`; `pi update` cannot update a Nix installation. To pin a release, use a tag such as `github:earendil-works/pi/v1.0.0`.
+The installer installs a prebuilt release, puts `ton` on your `PATH`, and updates it with `ton update`. To build from source instead, follow the [repository README](https://github.com/toninfo/ton).
 
 Verify the installation:
 
 ```bash
-pi --version
+ton --version
 ```
 
-## 2. Start Pi
+## 2. Start ton
 
-Change to the folder you want Pi to work with, then start it:
+Change to the folder you want ton to work with, then start it:
 
 ```bash
 cd /path/to/folder
-pi
+ton
 ```
 
-The working folder helps Pi discover relevant files, instructions, and configuration. Pi also uses it to group saved sessions.
+The working folder helps ton discover relevant files, instructions, and configuration. Ton also uses it to group saved sessions.
 
-<p align="center"><img src="images/interactive-mode.png" alt="Pi running in a terminal with a conversation, input editor, and status footer" width="750"></p>
+<p align="center"><img src="images/interactive-mode.png" alt="ton running in a terminal with a conversation, input editor, and status footer" width="750"></p>
 
-The interface shows your conversation, an editor for prompts and commands, and a footer with the current folder, model, and session status. See [Use Pi in the terminal](usage.md) to learn how to add files, run commands, direct ongoing work, and manage results.
+The interface shows your conversation, an editor for prompts and commands, and a footer with the current folder, model, and session status. See [Use ton in the terminal](usage.md) to learn how to add files, run commands, direct ongoing work, and manage results.
 
 ## 3. Choose a model
 
-A **model** generates Pi's responses. A **provider** is the service or account Pi uses to access that model.
+A **model** generates ton's responses. A **provider** is the service or account ton uses to access that model.
 
-In Pi, run:
+In ton, run:
 
 ```text
 /login
@@ -63,9 +55,9 @@ Choose a provider, then follow the prompts to use a subscription or store an API
 
 See [Choose a model and provider](models.md) for supported providers, environment-variable authentication, local models, and custom endpoints.
 
-## 4. Give Pi a task
+## 4. Give ton a task
 
-Pi shows each file read, search, command, and edit it performs. It does not ask before every tool call.
+Ton shows each file read, search, command, and edit it performs. It does not ask before every tool call.
 
 Enter a task that matches your work, for example:
 
@@ -81,56 +73,53 @@ Explain how this repository is structured and how to run its checks.
 Compare @previous.csv with @current.csv and summarize the important changes.
 ```
 
-Type `@` in the editor to search for a file instead of entering its full path. When Pi finishes, review its response and any changed files. Use version control or backups for important work. For untrusted or unattended work, use a container or another sandbox. See [Security](security.md).
+Type `@` in the editor to search for a file instead of entering its full path. When ton finishes, review its response and any changed files. Use version control or backups for important work. For untrusted or unattended work, use a container or another sandbox. See [Security](security.md).
 
 ## Continue later
 
-Pi saves sessions automatically. Exit Pi, then resume the most recent session for the same working folder with:
+Ton saves sessions automatically. Exit ton, then resume the most recent session for the same working folder with:
 
 ```bash
-pi --continue
+ton --continue
 ```
 
 Use `/resume` to choose another saved session. See [Continue or branch a session](sessions.md) for session naming, branching, compaction, export, and sharing.
 
 ## Next steps
 
-- [Use Pi interactively](usage.md) to learn input, commands, shortcuts, and queued messages.
-- [Add instructions](configuration.md#context-files) that Pi should follow whenever it works in a folder.
+- [Use ton interactively](usage.md) to learn input, commands, shortcuts, and queued messages.
+- [Add instructions](configuration.md#context-files) that ton should follow whenever it works in a folder.
 - [Choose a model and provider](models.md).
 
-### Choose how to customize Pi
+### Choose how to customize ton
 
 Start with the least powerful mechanism that meets your need:
 
 | Need | Start with |
 |---|---|
-| Give Pi persistent instructions for a folder | [`AGENTS.md`](configuration.md#context-files) |
+| Give ton persistent instructions for a folder | [`AGENTS.md`](configuration.md#context-files) |
 | Reuse a prompt from the `/` menu | [Prompt template](prompt-templates.md) |
 | Add task-specific instructions and supporting files | [Skill](skills.md) |
 | Add executable tools, commands, or event handlers | [Extension](extensions.md) |
 | Build a custom terminal component | [Terminal UI](tui.md) |
 | Connect an unsupported model service | [Custom provider](custom-provider.md) |
-| Install or distribute several resources | [Pi package](packages.md) |
+| Install or distribute several resources | [ton package](packages.md) |
 
-## Uninstall Pi
+## Uninstall ton
 
-If you installed Pi with npm, run:
+Remove the install directory and the `ton` command the installer added to `PATH`.
 
-```bash
-npm uninstall -g @ton/pi-coding-agent
-```
-
-If you used the installer, run it again and choose **Uninstall Pi**:
+On macOS or Linux, the defaults are `~/.local/share/ton` and `~/.local/bin`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
+rm -rf ~/.local/share/ton
+rm -f ~/.local/bin/ton ~/.local/bin/pi
 ```
 
-If you installed Pi with Nix, run:
+On Windows, the installer uses `%LOCALAPPDATA%\ton`:
 
-```bash
-nix profile remove pi
+```powershell
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\ton"
 ```
 
-None of these methods removes configuration, credentials, sessions, or installed Pi packages from `~/.pi/agent/`.
+Remove any custom install or bin directory you chose with `TON_INSTALL_DIR` or `TON_BIN_DIR`. Uninstalling does not remove configuration, credentials, sessions, or installed ton packages from `~/.ton/agent/`.

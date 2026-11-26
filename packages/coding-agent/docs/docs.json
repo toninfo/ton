@@ -12,8 +12,8 @@
           "path": "quickstart.md"
         },
         {
-          "title": "How Pi Works",
-          "path": "how-pi-works.md"
+          "title": "How ton Works",
+          "path": "how-ton-works.md"
         }
       ]
     },
@@ -21,10 +21,10 @@
       "title": "Guides",
       "items": [
         {
-          "title": "Run Pi",
+          "title": "Run ton",
           "items": [
             {
-              "title": "Use Pi in the Terminal",
+              "title": "Use ton in the Terminal",
               "path": "usage.md"
             },
             {
@@ -36,11 +36,11 @@
               "path": "sessions.md"
             },
             {
-              "title": "Run Pi Safely",
+              "title": "Run ton Safely",
               "path": "security.md"
             },
             {
-              "title": "Isolate Pi",
+              "title": "Isolate ton",
               "path": "containerization.md"
             },
             {
@@ -56,24 +56,24 @@
               "path": "shell-aliases.md"
             },
             {
-              "title": "Run Pi in tmux",
+              "title": "Run ton in tmux",
               "path": "tmux.md"
             },
             {
-              "title": "Run Pi on Windows",
+              "title": "Run ton on Windows",
               "path": "windows.md"
             },
             {
-              "title": "Run Pi on Android",
+              "title": "Run ton on Android",
               "path": "termux.md"
             }
           ]
         },
         {
-          "title": "Customize Pi",
+          "title": "Customize ton",
           "items": [
             {
-              "title": "Configure Pi",
+              "title": "Configure ton",
               "path": "configuration.md"
             },
             {
@@ -89,7 +89,7 @@
               "path": "themes.md"
             },
             {
-              "title": "Use Pi Packages",
+              "title": "Use ton Packages",
               "path": "packages.md"
             },
             {
@@ -99,7 +99,7 @@
           ]
         },
         {
-          "title": "Build on Pi",
+          "title": "Build on ton",
           "items": [
             {
               "title": "Build Extensions",
