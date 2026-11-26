@@ -956,22 +956,18 @@ function sourceRows(checks, failed) {
 }
 
 async function renderOverview() {
-	const [status, stats, doctor] = await Promise.all([
-		ton("status"),
-		ton("stats", "--days", "7"),
-		ton("doctor").catch(() => null),
-	]);
+	const status = await ton("status");
 	const health = Object.entries(status.health ?? {});
 	const healthOK = health.length > 0 && health.every(([, entry]) => entry.enabled && !(entry.failing > 0));
 	const lastRunText = status.last_run
 		? `${shortTime(status.last_run.started_at)} · ${status.last_run.reason ?? ""}`
 		: "还没有运行";
-	const statusCard = el(
-		"section.card",
+	const statusGroup = el(
+		"section.ov-group",
 		{},
-		cardHead("pulse", "运行状态"),
+		el("h3", { text: "运行状态" }),
 		el(
-			"dl",
+			"dl.ov-list",
 			{},
 			el("dt", { text: "状态" }),
 			el("dd", { text: `${status.enabled ? "已启用" : "已停用"}${status.dry_run ? "（dry-run：只记录不弹窗）" : ""}` }),
@@ -996,103 +992,42 @@ async function renderOverview() {
 			status.triage_failing ? el("dt", { text: "模型" }) : null,
 			status.triage_failing ? el("dd", { text: `连续失败 ${status.triage_failing} 轮` }) : null,
 		),
-		health.length > 0
-			? healthOK
-				? el(
-						"div.card-line",
-						{},
-						icon("check", 12),
-						el("span", { text: `${health.map(([source]) => source).join(" · ")} 正常` }),
-					)
-				: [
-						el("div.card-caption", { text: "数据源" }),
-						el(
-							"dl",
-							{},
-							...health.flatMap(([source, entry]) => {
-								const state = !entry.enabled ? "off" : entry.failing > 0 ? "bad" : "";
-								const text = !entry.enabled ? "关闭" : entry.failing > 0 ? `连续失败 ${entry.failing} 轮` : "正常";
-								return [el("dt", {}, el(`span.dot${state ? `.${state}` : ""}`), source), el("dd", { text })];
-							}),
-						),
-					]
-			: null,
-		(status.settings_errors ?? []).length > 0 ? el("pre", { text: status.settings_errors.join("\n") }) : null,
 		el(
-			"div.card-foot",
+			"div.ov-links",
 			{},
 			el("button.link", { type: "button", text: "历史", onclick: () => void show("history") }),
 			el("button.link", { type: "button", text: "日志", onclick: () => void show("runs") }),
 		),
 	);
-	const acks = Object.entries(stats.acks ?? {})
-		.map(([state, count]) => `${STATE_LABEL[state] ?? state} ${count}`)
-		.join("，");
-	const metric = (value, label) => el("div.act-metric", {}, el("div.act-num", { text: value }), el("div.act-lbl", { text: label }));
-	const notified = stats.notified ?? 0;
-	const metrics = [metric(String(notified), "提醒次数")];
-	if (notified > 0) metrics.push(metric(`${Math.round((stats.mute_rate ?? 0) * 100)}%`, "静音率"));
-	if ((stats.false_positives ?? 0) > 0) metrics.push(metric(String(stats.false_positives), "判断错误"));
-	const mutedKinds = (stats.muted_kinds ?? []).map((row) => `${row.kind} ×${row.n}`).join("，");
-	const statsCard = el(
-		"section.card",
-		{},
-		cardHead("chart", `近 ${stats.days} 天`),
-		el("div.stat-metrics", {}, metrics),
-		acks || mutedKinds
+	const healthGroup =
+		health.length > 0
 			? el(
-					"dl",
+					"section.ov-group",
 					{},
-					acks ? el("dt", { text: "处理方式" }) : null,
-					acks ? el("dd", { text: acks }) : null,
-					mutedKinds ? el("dt", { text: "常被静默" }) : null,
-					mutedKinds ? el("dd", { text: mutedKinds }) : null,
+					el("h3", { text: "数据源" }),
+					healthOK
+						? el("div.ov-line", {}, icon("check", 12), el("span", { text: `${health.map(([source]) => source).join(" · ")} 正常` }))
+						: el(
+								"dl.ov-list",
+								{},
+								...health.flatMap(([source, entry]) => {
+									const state = !entry.enabled ? "off" : entry.failing > 0 ? "bad" : "";
+									const text = !entry.enabled ? "关闭" : entry.failing > 0 ? `连续失败 ${entry.failing} 轮` : "正常";
+									return [el("dt", {}, el(`span.dot${state ? `.${state}` : ""}`), source), el("dd", { text })];
+								}),
+							),
 				)
-			: null,
-		...(stats.suggestions ?? []).map((line) => el("div.suggestion", {}, icon("sparkles", 13), el("span", { text: line }))),
-	);
-	const checks = doctor?.sources?.checks ?? [];
-	const failed = doctor?.sources?.failed ?? [];
-	const warnings = checks.flatMap((entry) => (entry.warnings ?? []).map((text) => `${entry.server}: ${text}`));
-	const badChecks =
-		checks.filter((entry) => !entry.skipped && !entry.ok).length +
-		failed.length +
-		(doctor?.path_ton && !doctor.path_ton_matches ? 1 : 0);
-	const doctorCard = doctor
-		? el(
-				"details.card.fold",
-				{ open: badChecks > 0 },
-				el(
-					"summary",
+			: null;
+	const errors =
+		(status.settings_errors ?? []).length > 0
+			? el(
+					"section.ov-group",
 					{},
-					icon("check", 13),
-					el("span", {
-						text: badChecks > 0 ? `自检：${badChecks} 项异常` : `自检正常${doctor.version ? ` · v${doctor.version}` : ""}`,
-					}),
-				),
-				el(
-					"dl",
-					{},
-					el("dt", { text: "版本" }),
-					el("dd", {
-						text: `v${doctor.version ?? "-"} · ${doctor.source ?? "-"}${doctor.commit ? ` · ${doctor.commit}` : ""}`,
-					}),
-					el("dt", { text: "入口" }),
-					el("dd", { text: doctor.binary ?? "-" }),
-					el("dt", {}, el(`span.dot${doctor.path_ton && !doctor.path_ton_matches ? ".bad" : ""}`), "PATH ton"),
-					el("dd", {
-						text: doctor.path_ton
-							? `${doctor.path_ton}${doctor.path_ton_matches ? "" : "（与当前运行的不是同一个）"}`
-							: "未找到",
-					}),
-				),
-				checks.length === 0 && failed.length === 0 ? el("div.card-hint", { text: "没有启用数据源" }) : null,
-				checks.length > 0 || failed.length > 0 ? el("div.card-caption", { text: "数据源" }) : null,
-				checks.length > 0 || failed.length > 0 ? el("dl", {}, ...sourceRows(checks, failed)) : null,
-				warnings.length > 0 ? el("pre", { text: warnings.join("\n") }) : null,
-			)
-		: null;
-	return [el("div.cards", {}, statusCard, statsCard, doctorCard)];
+					el("h3", { text: "配置问题" }),
+					el("pre", { text: status.settings_errors.join("\n") }),
+				)
+			: null;
+	return [el("div.overview", {}, statusGroup, healthGroup, errors)];
 }
 
 function field(label, hint, input) {
