@@ -1,88 +1,58 @@
-<p align="center">
-  <a href="https://pi.dev">
-    <img alt="Pi logo" src="https://pi.dev/logo-auto.svg" width="128">
-  </a>
-</p>
-<p align="center">
-  <a href="https://discord.com/invite/3cU7Bz4UPx"><img alt="Discord" src="https://img.shields.io/badge/discord-community-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
-  <a href="https://www.npmjs.com/package/@ton/pi-coding-agent"><img alt="npm" src="https://img.shields.io/npm/v/@ton/pi-coding-agent?style=flat-square&logo=npm&logoColor=white" /></a>
-</p>
+# ton CLI
 
-> New issues and PRs from new contributors are closed automatically. Maintainers review closed submissions daily. See [CONTRIBUTING.md](https://github.com/earendil-works/pi/blob/main/CONTRIBUTING.md).
+`@ton/pi-coding-agent` powers the `ton` command: an interactive TUI, print/JSON
+mode, RPC, the TypeScript SDK, extensions, skills, prompt templates, themes, and
+the built-in personal knowledge base.
 
-# Pi
+For the product overview, installers, and desktop app, see the
+[root README](../../README.md) and https://ton.ren/.
 
-Pi is a minimal, extensible agent harness that you can make your own.
+## Install
 
-Adapt Pi to your workflows, not the other way around. Customize Pi with [extensions](docs/extensions.md), [skills](docs/skills.md), [prompt templates](docs/prompt-templates.md), and [themes](docs/themes.md). Bundle them as [Pi packages](docs/packages.md) and share via npm or git.
-
-Pi ships with powerful defaults but skips features like sub-agents and plan mode. Ask Pi to build what you want, or install a package that does it your way.
-
-Use Pi [interactively](docs/usage.md), automate it in [print or JSON mode](docs/cli.md), control it over [RPC](docs/rpc.md), or build apps with the [Pi TypeScript SDK](docs/sdk.md). See [OpenClaw](https://github.com/OpenClaw/OpenClaw) for a real-world integration.
-
-**Why ton:** finish jobs in the terminal, and wire notes / WeChat / email into the same agent loop — no MCP, no cloud upload first. Built-in [personal knowledge base](docs/kb.md): `ton kb add|search|connect wechat|email`, tools `kb_list` / `kb_search` / `kb_read`, FTS + optional LanceDB hybrid. Prefer a browser for config? `ton settings` opens a localhost Settings UI over the same `settings.json` / `auth.json` / `kb/` files.
-
-## Getting started
-
-Install the command-line interface:
+Linux / macOS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 ```
 
-On Windows:
+Windows:
 
-```shell
+```powershell
 irm https://raw.githubusercontent.com/toninfo/ton/main/install.ps1 | iex
 ```
 
-Alternatively, install directly with npm (transitive deps not pinned):
+Requires Node.js 22.19 or newer. The installers can provide it.
 
-```bash
-npm install -g --ignore-scripts @ton/pi-coding-agent
-```
-
-Pi requires Node.js 22.19 or newer. The macOS, Linux, and Windows installers can install it if needed. Pi does not require dependency lifecycle scripts for a normal npm installation.
-
-On macOS and Linux, Nix users can install the latest release with `nix profile add github:earendil-works/pi/stable`. See the [quickstart](docs/quickstart.md#1-install-pi) for updating and pinning releases.
-
-Start Pi in the directory where you want it to work:
+## Run
 
 ```bash
 cd /path/to/project
-pi
+ton
 ```
 
-For a built-in AI provider, run `/login` inside Pi to connect a subscription or API key. Then give Pi a task.
+Run `/login` inside ton to connect a subscription or API key, then give it a task.
 
-See the [documentation](docs/index.md) for full setup and usage instructions.
-
-## Share your OSS coding agent sessions
-
-If you use Pi for open source work, please share your coding agent sessions.
-
-Public OSS session data helps improve models, prompts, tools, and evaluations using real development workflows.
-
-For the full explanation, see [this post on X](https://x.com/badlogicgames/status/2037811643774652911).
-
-To publish sessions, use [`badlogic/pi-share-hf`](https://github.com/badlogic/pi-share-hf) using a Hugging Face account and the Hugging Face CLI.
-
-- [Demo video](https://x.com/badlogicgames/status/2041151967695634619) on how to publish Pi sessions
-- Published Pi development sessions: [`badlogicgames/pi-mono` on Hugging Face](https://huggingface.co/datasets/badlogicgames/pi-mono).
+- [Usage](docs/usage.md)
+- [CLI / print / JSON](docs/cli.md)
+- [RPC](docs/rpc.md)
+- [SDK](docs/sdk.md)
+- [Extensions](docs/extensions.md)
+- [Skills](docs/skills.md)
+- [Knowledge base](docs/kb.md)
 
 ## Development
 
-Clone the repository, install its dependencies, and run Pi from source:
-
 ```bash
-git clone https://github.com/toninfo/ton
+git clone https://github.com/toninfo/ton.git
 cd ton
 npm install --ignore-scripts
-npm run hydrate:model-data
 npm run build:offline
 npm --prefix packages/coding-agent run build
-node packages/coding-agent/dist/cli.js
+node packages/coding-agent/dist/bundle/cli.js
 ```
+
+Model catalog data is committed under `packages/ai/src/providers/data/`; refresh
+it explicitly with `npm run generate-models` when needed.
 
 Before submitting changes, run:
 
@@ -91,7 +61,7 @@ npm run check
 ./test.sh
 ```
 
-Read [CONTRIBUTING.md](https://github.com/earendil-works/pi/blob/main/CONTRIBUTING.md) before opening an issue or pull request. It defines the contribution gate, issue quality bar, and required checks. Read [AGENTS.md](https://github.com/earendil-works/pi/blob/main/AGENTS.md) for repository-specific implementation, testing, dependency, and release rules.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) and [AGENTS.md](../../AGENTS.md).
 
 ## License
 

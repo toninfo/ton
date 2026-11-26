@@ -50,7 +50,6 @@ ton
 git clone https://github.com/toninfo/ton.git
 cd ton
 npm install --ignore-scripts
-npm run hydrate:model-data
 npm run build:offline
 npm --prefix packages/coding-agent run build
 node packages/coding-agent/dist/bundle/cli.js

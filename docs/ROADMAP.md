@@ -42,7 +42,6 @@
 ```bash
 # Node >= 22.19；日常安装请用仓库根目录 install.sh / install.ps1
 npm install --ignore-scripts
-npm run hydrate:model-data
 npm run build:offline
 npm --prefix packages/coding-agent run build
 node packages/coding-agent/dist/cli.js
