@@ -10,25 +10,15 @@
 
 [Product site](https://ton.ren/) · [Issues](https://github.com/toninfo/ton/issues) · [Releases](https://github.com/toninfo/ton/releases)
 
-**Finish the job in your terminal. Your notes, WeChat, and email become searchable long-term context in the same agent loop — no MCP, no cloud upload first.**
+Local-first personal AI assistant: the terminal / CLI handles files and commands, Ton Desktop stays on and works through what you entrust to it, and notes, WeChat, email, and Obsidian are searchable in one session. Bring your own model; nothing is uploaded by default.
 
-ton is a local-first universal AI assistant: edit files, run commands, tidy the workspace, and search the personal corpus you mounted — in one session. Bring your own model (Anthropic, OpenAI, local-compatible endpoints). By default it does not phone home; data leaves only through *your* chosen model.
+## Features
 
-**Ton Desktop** stays on and works through what you entrust to it; the terminal and desktop share the same assistant.
-
-## Why ton
-
-Most terminal agents are great at “work on this repo.” ton adds a layer: **personal long-form context wired into the same agent loop**.
-
-| Edge | What ton does |
-|------|----------------|
-| KB is first-class | `ton kb` plus in-session `kb_search` / `kb_read` — not another MCP you hope the model remembers |
-| WeChat / email / Obsidian | `ton kb connect wechat\|email\|obsidian` on local archives; Notion export → `kb add` |
-| Search first, hybrid when ready | FTS always on; vectors (LanceDB, sqlite fallback) only when the machine can host them |
-| Memory ≠ knowledge base | `/skill:memory` for short preferences; long corpus stays in KB so context stays sane |
-| Local and controllable | Index and sessions under `~/.ton`; no vendor lock-in; notes are not uploaded by default |
-
-The pitch is not “yet another smarter coding agent.” It is a **controllable work surface plus local personal corpus**.
+- Edit files, run commands, tidy the workspace; TUI, print/JSON, RPC, SDK.
+- Personal knowledge base: `ton kb` plus in-session `kb_search` / `kb_read`; FTS always on, optional LanceDB.
+- WeChat / email / Obsidian archives; Notion exports via `kb add`.
+- Short preferences in `/skill:memory`; long corpus in the knowledge base.
+- Extend with Extensions, Skills, Prompt Templates, and Themes.
 
 ## Install
 
@@ -42,9 +32,9 @@ curl -fsSL https://raw.githubusercontent.com/toninfo/ton/main/install.sh | bash
 ton
 ```
 
-### From source (contributors)
+### From source
 
-Requires Node.js ≥ 22.19. Day-to-day installs should use `install.sh` / `install.ps1` above.
+Requires Node.js 22.19 or newer.
 
 ```bash
 git clone https://github.com/toninfo/ton.git
@@ -52,7 +42,7 @@ cd ton
 npm install --ignore-scripts
 npm run build:offline
 npm --prefix packages/coding-agent run build
-node packages/coding-agent/dist/cli.js
+node packages/coding-agent/dist/bundle/cli.js
 ```
 
 ## Quick start
@@ -62,36 +52,23 @@ cd /path/to/project
 ton
 ```
 
-Wire personal corpus into the same session:
-
 ```bash
 ton kb add ~/Notes
 ton kb connect wechat          # or email / obsidian
 ton kb search "keyword"
 ```
 
-| Path | Purpose |
-|------|---------|
-| `~/.ton/agent/` | Global config, credentials, sessions, memory |
-| `~/.ton/agent/kb/` | Personal KB config and index (FTS + optional LanceDB) |
-| `.ton/` | Project extensions / skills / prompts; optional `kb.yml` |
-
-## What it does
-
-- **Does the job in front of you** — read/edit files, run commands, explain the repo, tidy the workspace.
-- **Personal knowledge base** — notes / PDF / DOCX / WeChat / email; search and read in-session. See [KB docs](packages/coding-agent/docs/kb.md).
-- **Light memory** — `/skill:memory` writes short preferences to `~/.ton/agent/memory/`.
-- **Extensible** — TypeScript extensions, skills, prompt templates, themes.
-- **Four modes** — interactive TUI, print/JSON, RPC, SDK embedding.
+Config and indexes live in `~/.ton/agent/`; project extensions in `.ton/`.
 
 ## Repository layout
 
-| Path | Role |
-|------|------|
+| Path | Purpose |
+|------|---------|
 | `packages/coding-agent/` | ton CLI / TUI, skills, sessions, knowledge base |
 | `packages/desktop/` | Ton Desktop (Tauri) |
 | `packages/ai/` etc. | Agent kernel and toolchain |
-| `extras/web/` | [Ton product site](https://ton.ren/) |
+
+Product site: [ton.ren](https://ton.ren/) (source in the private `toninfo/ton-web` repo).
 
 More: [knowledge base](packages/coding-agent/docs/kb.md) · [product line](docs/PRODUCT_LINE.md) · [roadmap](docs/ROADMAP.md)
 
