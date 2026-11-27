@@ -137,7 +137,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Tray> {
     let open = MenuItem::with_id(app, "open", "打开", true, None::<&str>)?;
     let activity = MenuItem::with_id(app, "activity", "动态", true, None::<&str>)?;
     let tick = MenuItem::with_id(app, "tick", "立即刷新", true, None::<&str>)?;
-    let pause_hours = (1..=24)
+    let pause_hours = (1..=8)
         .map(|hours| {
             MenuItem::with_id(
                 app,

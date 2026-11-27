@@ -1515,7 +1515,12 @@ async function refreshHeader() {
 			(base || "没有待办") +
 			(status.paused_until ? ` · 暂停至 ${shortTime(status.paused_until)}` : "") +
 			(status.dry_run ? " · dry-run" : "");
-		document.getElementById("resume").hidden = !status.paused_until;
+		const paused = Boolean(status.paused_until);
+		pauseButton.dataset.paused = paused ? "1" : "0";
+		pauseButton.classList.toggle("paused", paused);
+		const children = [icon(paused ? "play" : "moon", 13), document.createTextNode(paused ? "恢复" : "暂停")];
+		if (!paused) children.push(el("span.pause-caret", { text: "▾" }));
+		pauseButton.replaceChildren(...children);
 	} catch (error) {
 		document.getElementById("summary").textContent = `无法读取状态：${errorText(error)}`;
 	}
@@ -1589,29 +1594,27 @@ for (const [tab, meta] of Object.entries(TABS)) {
 	});
 	nav.append(button);
 }
-const resumeButton = document.getElementById("resume");
-resumeButton.replaceChildren(icon("play", 13), document.createTextNode("恢复"));
-resumeButton.addEventListener("click", (event) => void action(event.currentTarget, "已恢复", "resume"));
-
-const pauseSelect = document.getElementById("pause-hours");
-pauseSelect.append(el("option", { value: "" }, "暂停"));
-for (let hours = 1; hours <= 24; hours += 1) {
-	pauseSelect.append(el("option", { value: String(hours) }, `${hours} 小时`));
+const pauseButton = document.getElementById("pause");
+const pauseMenu = document.getElementById("pause-menu");
+for (let hours = 1; hours <= 8; hours += 1) {
+	const option = el("button", { type: "button", text: `${hours} 小时` });
+	option.addEventListener("click", () => {
+		pauseMenu.hidden = true;
+		void action(pauseButton, `已暂停 ${hours} 小时`, "pause", "--for", `${hours}h`);
+	});
+	pauseMenu.append(option);
 }
-pauseSelect.addEventListener("change", async () => {
-	const hours = Number(pauseSelect.value);
-	if (!hours) return;
-	pauseSelect.disabled = true;
-	try {
-		await ton("pause", "--for", `${hours}h`);
-		toast(`已暂停 ${hours} 小时`);
-		pauseSelect.value = "";
-		await refreshHeader();
-	} catch (error) {
-		toast(`失败：${errorText(error)}`);
-	} finally {
-		pauseSelect.disabled = false;
+pauseButton.addEventListener("click", (event) => {
+	event.stopPropagation();
+	if (pauseButton.dataset.paused === "1") {
+		pauseMenu.hidden = true;
+		void action(pauseButton, "已恢复", "resume");
+		return;
 	}
+	pauseMenu.hidden = !pauseMenu.hidden;
+});
+document.addEventListener("click", (event) => {
+	if (!pauseMenu.hidden && !pauseMenu.contains(event.target) && event.target !== pauseButton) pauseMenu.hidden = true;
 });
 tickButton.addEventListener("click", async () => {
 	tickButton.disabled = true;
@@ -1634,6 +1637,11 @@ async function refreshLive() {
 window.addEventListener("focus", () => void refreshLive());
 window.addEventListener("keydown", (event) => {
 	if (event.key !== "Escape" || event.defaultPrevented) return;
+	if (!pauseMenu.hidden) {
+		pauseMenu.hidden = true;
+		event.preventDefault();
+		return;
+	}
 	const active = document.activeElement;
 	if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
 		active.blur();

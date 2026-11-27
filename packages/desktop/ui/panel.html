@@ -13,8 +13,10 @@
 			<span id="summary"></span>
 			<span class="spacer"></span>
 			<button id="tick" title="立即检查新消息">刷新</button>
-			<select id="pause-hours" title="暂停提醒" aria-label="暂停时长"></select>
-			<button id="resume" hidden>恢复</button>
+			<span class="pause-wrap">
+				<button id="pause" title="暂停或恢复提醒"></button>
+				<div id="pause-menu" class="pause-menu" hidden></div>
+			</span>
 		</header>
 		<nav id="tabs"></nav>
 		<main id="content"></main>
