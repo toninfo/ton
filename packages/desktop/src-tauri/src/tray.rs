@@ -4,7 +4,7 @@
 use crate::state::{log, Shared};
 use crate::{panel, scheduler};
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt;
@@ -136,16 +136,30 @@ pub fn build(app: &AppHandle) -> tauri::Result<Tray> {
     wait_for_host();
     let open = MenuItem::with_id(app, "open", "打开", true, None::<&str>)?;
     let activity = MenuItem::with_id(app, "activity", "动态", true, None::<&str>)?;
-    let tick = MenuItem::with_id(app, "tick", "现在探测", true, None::<&str>)?;
-    let pause_hour = MenuItem::with_id(app, "pause_1h", "暂停 1 小时", true, None::<&str>)?;
-    let pause_today = MenuItem::with_id(app, "pause_today", "暂停今天", true, None::<&str>)?;
+    let tick = MenuItem::with_id(app, "tick", "立即刷新", true, None::<&str>)?;
+    let pause_hours = (1..=24)
+        .map(|hours| {
+            MenuItem::with_id(
+                app,
+                format!("pause_h{hours}"),
+                format!("{hours} 小时"),
+                true,
+                None::<&str>,
+            )
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
     let resume = MenuItem::with_id(app, "resume", "恢复", true, None::<&str>)?;
     let enabled = app.autolaunch().is_enabled().unwrap_or(false);
     let autostart =
         CheckMenuItem::with_id(app, "autostart", "开机自启", true, enabled, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let pause = Submenu::with_items(app, "暂停", true, &[&pause_hour, &pause_today, &resume])?;
+    let pause_sep = PredefinedMenuItem::separator(app)?;
+    let mut pause_items: Vec<&dyn IsMenuItem<Wry>> =
+        pause_hours.iter().map(|item| item as _).collect();
+    pause_items.push(&pause_sep);
+    pause_items.push(&resume);
+    let pause = Submenu::with_items(app, "暂停", true, &pause_items)?;
     let more_sep = PredefinedMenuItem::separator(app)?;
     let more = Submenu::with_items(
         app,
@@ -196,10 +210,10 @@ fn on_menu(app: &AppHandle, id: &str) {
         "activity" => panel::open(&app, Some("activity")),
         "settings" => panel::open(&app, Some("settings")),
         "tick" => app.state::<Shared>().wake.notify_one(),
-        "pause_1h" | "pause_today" => {
-            let duration = if id == "pause_1h" { "1h" } else { "today" };
+        _ if id.starts_with("pause_h") => {
+            let duration = format!("{}h", &id["pause_h".len()..]);
             tauri::async_runtime::spawn(
-                async move { scheduler::pause(&app, Some(duration)).await },
+                async move { scheduler::pause(&app, Some(&duration)).await },
             );
         }
         "resume" => {

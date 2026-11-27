@@ -77,9 +77,19 @@ body {
 	padding: 5px 13px;
 	font-size: 12.5px;
 }
-.top button:not(#tick):not(#resume) {
+.top button:not(#tick):not(#resume),
+.top select {
 	background: rgba(255, 255, 255, 0.05);
 	border-color: var(--border);
+}
+.top select {
+	flex-shrink: 0;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	padding: 5px 10px;
+	color: var(--text);
+	font: inherit;
+	font-size: 12.5px;
 }
 #tick {
 	background: var(--accent);

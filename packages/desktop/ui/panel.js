@@ -29,7 +29,7 @@ function applyShell(state) {
 	shell = state;
 	const busy = Boolean(state?.running);
 	tickButton.disabled = busy;
-	tickButton.replaceChildren(icon(busy ? "pulse" : "bolt", 13), document.createTextNode(busy ? "探测中…" : "探测"));
+	tickButton.replaceChildren(icon(busy ? "pulse" : "bolt", 13), document.createTextNode(busy ? "刷新中…" : "刷新"));
 }
 
 function toast(text) {
@@ -711,7 +711,7 @@ function activityStatus(activity) {
 			"span.act-live",
 			{},
 			el(`span.dot${running ? ".running" : ""}`),
-			running ? "正在探测…" : "空闲",
+			running ? "正在刷新…" : "空闲",
 		),
 		running && shell?.started_at_ms ? el("span.act-sub", { text: `开始于 ${relativeTime(shell.started_at_ms)}` }) : null,
 		last
@@ -824,10 +824,10 @@ function runsFoot(empty) {
 		"div.runs-foot",
 		{},
 		el("span", {
-			text: runsShowEmpty ? "已显示全部运行记录" : `另有 ${empty.total} 次空探测（最近 ${shortTime(empty.last_at)}）`,
+			text: runsShowEmpty ? "已显示全部运行记录" : `另有 ${empty.total} 次没有新内容（最近 ${shortTime(empty.last_at)}）`,
 		}),
 		el("button.link", {
-			text: runsShowEmpty ? "隐藏空探测" : "显示",
+			text: runsShowEmpty ? "只看有内容" : "显示全部",
 			onclick: () => {
 				runsShowEmpty = !runsShowEmpty;
 				void show("runs");
@@ -1018,7 +1018,7 @@ async function renderOverview() {
 			{},
 			el("dt", { text: "状态" }),
 			el("dd", { text: `${status.enabled ? "已启用" : "已停用"}${status.dry_run ? "（dry-run：只记录不弹窗）" : ""}` }),
-			el("dt", { text: "探测间隔" }),
+			el("dt", { text: "刷新间隔" }),
 			el("dd", { text: `每 ${status.desktop?.tickMinutes ?? "-"} 分钟` }),
 			el("dt", { text: "本机" }),
 			el("dd", { text: status.machine ?? "-" }),
@@ -1446,7 +1446,7 @@ async function renderSettings() {
 		"section.card",
 		{},
 		cardHead("clock", "提醒规则"),
-		el("div.card-hint", { text: "探测间隔、静默、上限：`ton assistant settings set`" }),
+		el("div.card-hint", { text: "刷新间隔、静默、上限：`ton assistant settings set`" }),
 		el(
 			"div.settings-grid",
 			{},
@@ -1583,27 +1583,35 @@ for (const [tab, meta] of Object.entries(TABS)) {
 	});
 	nav.append(button);
 }
-for (const [id, name] of [
-	["pause-1h", "moon"],
-	["pause-today", "moon"],
-	["resume", "play"],
-]) {
-	const button = document.getElementById(id);
-	if (!button) continue;
-	const label = button.textContent;
-	button.replaceChildren(icon(name, 13), document.createTextNode(label));
-}
+const resumeButton = document.getElementById("resume");
+resumeButton.replaceChildren(icon("play", 13), document.createTextNode("恢复"));
+resumeButton.addEventListener("click", (event) => void action(event.currentTarget, "已恢复", "resume"));
 
-const headerAction = (id, label, ...args) =>
-	document.getElementById(id).addEventListener("click", (event) => void action(event.currentTarget, label, ...args));
-headerAction("pause-1h", "已暂停 1 小时", "pause", "--for", "1h");
-headerAction("pause-today", "今天不再提醒", "pause", "--for", "today");
-headerAction("resume", "已恢复", "resume");
+const pauseSelect = document.getElementById("pause-hours");
+pauseSelect.append(el("option", { value: "" }, "暂停"));
+for (let hours = 1; hours <= 24; hours += 1) {
+	pauseSelect.append(el("option", { value: String(hours) }, `${hours} 小时`));
+}
+pauseSelect.addEventListener("change", async () => {
+	const hours = Number(pauseSelect.value);
+	if (!hours) return;
+	pauseSelect.disabled = true;
+	try {
+		await ton("pause", "--for", `${hours}h`);
+		toast(`已暂停 ${hours} 小时`);
+		pauseSelect.value = "";
+		await refreshHeader();
+	} catch (error) {
+		toast(`失败：${errorText(error)}`);
+	} finally {
+		pauseSelect.disabled = false;
+	}
+});
 tickButton.addEventListener("click", async () => {
 	tickButton.disabled = true;
-	tickButton.replaceChildren(icon("pulse", 13), document.createTextNode("探测中…"));
+	tickButton.replaceChildren(icon("pulse", 13), document.createTextNode("刷新中…"));
 	await invoke("tick_now");
-	toast("已开始探测");
+	toast("已开始刷新");
 });
 
 /** Settings keeps unsaved text; history/runs keep their paging. */
