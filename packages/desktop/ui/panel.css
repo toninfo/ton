@@ -490,6 +490,23 @@ main::-webkit-scrollbar-thumb:hover {
 	line-height: 1.65;
 }
 
+.search {
+	width: 100%;
+	height: 30px;
+	margin-bottom: 10px;
+	padding: 0 10px;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--panel);
+	color: var(--text);
+	font: inherit;
+	font-size: 12.5px;
+}
+
+.search::placeholder {
+	color: var(--muted);
+}
+
 /* Cards: inbox / quiet / history / activity / runs ---------------------- */
 
 .item,
@@ -520,10 +537,17 @@ main::-webkit-scrollbar-thumb:hover {
 }
 
 .ignored-group summary {
+	position: relative;
 	margin-bottom: 10px;
 	color: var(--muted);
 	font-size: 12.5px;
 	cursor: pointer;
+}
+
+.ignored-clear {
+	position: absolute;
+	right: 0;
+	top: -4px;
 }
 
 .ignored-group[open] summary {

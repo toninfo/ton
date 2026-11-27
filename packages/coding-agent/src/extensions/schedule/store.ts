@@ -337,6 +337,25 @@ export class ScheduleStore {
 		});
 	}
 
+	/** Highest run id, used to start failure reporting without replaying old runs. */
+	maxRunId(): number {
+		const row = this.db.prepare("SELECT MAX(id) AS id FROM runs").get() as { id: number | null } | undefined;
+		return row?.id ?? 0;
+	}
+
+	/** Failed/timeout/error runs newer than the last reported id, oldest first. */
+	failuresAfter(id: number): { id: number; jobId: string; name: string; status: string; error: string | null }[] {
+		return this.db
+			.prepare(
+				`SELECT runs.id AS id, runs.job_id AS jobId, COALESCE(jobs.name, runs.job_id) AS name,
+				        runs.status AS status, runs.error AS error
+				   FROM runs LEFT JOIN jobs ON jobs.id = runs.job_id
+				  WHERE runs.id > ? AND runs.status IN ('failed', 'timeout', 'error')
+				  ORDER BY runs.id`,
+			)
+			.all(id) as unknown as { id: number; jobId: string; name: string; status: string; error: string | null }[];
+	}
+
 	getMeta(key: string): string | undefined {
 		const row = this.db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | undefined;
 		return row?.value;

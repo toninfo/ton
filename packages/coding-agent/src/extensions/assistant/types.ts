@@ -248,4 +248,11 @@ export interface AssistantSettings {
 	agentTimeoutHours: number;
 	/** Read by the desktop shell: when to hold bubbles back (items still reach the inbox). */
 	desktop: { idleMinutes: number; suppressFullscreen: boolean; suppressLocked: boolean };
+	/** Command-based notification when the user is away (locked or idle). */
+	awayNotify: {
+		enabled: boolean;
+		/** Shell command; receives TON_* env vars and a JSON payload on stdin. */
+		command: string;
+		minUrgency: Urgency;
+	};
 }

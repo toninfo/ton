@@ -94,6 +94,8 @@ export interface JobUpdate {
 export interface DueResult {
 	started: { runId: number; jobId: string; name: string }[];
 	skipped: { jobId: string; name: string; reason: string }[];
+	/** Failures finished since the previous run-due call; the desktop turns them into inbox items. */
+	failures: { runId: number; jobId: string; name: string; status: string; error: string | null }[];
 	more: boolean;
 	nextRunInMs: number | null;
 }

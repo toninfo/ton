@@ -23,6 +23,9 @@ pub struct DesktopConfig {
     pub idle_minutes: u64,
     pub suppress_fullscreen: bool,
     pub suppress_locked: bool,
+    pub away_notify_enabled: bool,
+    pub away_notify_command: String,
+    pub away_notify_min_urgency: String,
 }
 
 impl Default for DesktopConfig {
@@ -35,6 +38,9 @@ impl Default for DesktopConfig {
             idle_minutes: 10,
             suppress_fullscreen: true,
             suppress_locked: true,
+            away_notify_enabled: false,
+            away_notify_command: String::new(),
+            away_notify_min_urgency: "P1".to_string(),
         }
     }
 }
@@ -60,6 +66,17 @@ impl DesktopConfig {
                 .unwrap_or(defaults.idle_minutes),
             suppress_fullscreen: flag("suppressFullscreen", defaults.suppress_fullscreen),
             suppress_locked: flag("suppressLocked", defaults.suppress_locked),
+            away_notify_enabled: desktop["awayNotify"]["enabled"]
+                .as_bool()
+                .unwrap_or(defaults.away_notify_enabled),
+            away_notify_command: desktop["awayNotify"]["command"]
+                .as_str()
+                .unwrap_or(&defaults.away_notify_command)
+                .to_string(),
+            away_notify_min_urgency: desktop["awayNotify"]["minUrgency"]
+                .as_str()
+                .unwrap_or(&defaults.away_notify_min_urgency)
+                .to_string(),
         }
     }
 }

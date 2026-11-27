@@ -67,6 +67,19 @@ describe("schedule store and service", () => {
 		store.close();
 	});
 
+	it("reports a newly failed run once", () => {
+		const { store, dir } = storeFor();
+		const job = add(store, dir);
+		store.setMeta("reported_failure_id", "0");
+		const id = store.createRun(job.id, NOW.toISOString(), NOW.toISOString(), "running");
+		store.updateRun(id, { status: "failed", finishedAt: NOW.toISOString(), error: "exit 1" });
+		const first = runDue(store, { now: NOW, spawnExecute: () => undefined });
+		expect(first.failures).toEqual([{ runId: id, jobId: job.id, name: job.name, status: "failed", error: "exit 1" }]);
+		const second = runDue(store, { now: NOW, spawnExecute: () => undefined });
+		expect(second.failures).toEqual([]);
+		store.close();
+	});
+
 	it("skips a run that is older than the catch-up window", () => {
 		const { store, dir } = storeFor();
 		const job = add(store, dir);

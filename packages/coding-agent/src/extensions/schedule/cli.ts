@@ -390,6 +390,9 @@ export async function runScheduleCommand(args: readonly string[], options: Optio
 					`启动 ${result.started.length}，跳过 ${result.skipped.length}${result.more ? "，还有更多" : ""}`,
 					...result.started.map((item) => `  #${item.runId} ${item.name}`),
 					...result.skipped.map((item) => `  ${item.name}: ${item.reason}`),
+					...result.failures.map(
+						(item) => `  ! #${item.runId} ${item.name}: ${item.status}${item.error ? ` ${item.error}` : ""}`,
+					),
 				].join("\n"),
 			);
 			return 0;

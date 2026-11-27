@@ -23,6 +23,9 @@ let scheduleDirty = false;
 let runsShowEmpty = false;
 /** Keep the ignored group expanded across re-renders (delete, polling, focus). */
 let ignoredOpen = false;
+/** Per-list search terms; Enter re-renders with the server-side query. */
+const SEARCH = { inbox: "", history: "", activity: "" };
+let focusSearch = false;
 const PAGE = 50;
 /** The service refuses more than this many ids per bulk call (delete or ack). */
 const BULK_CHUNK = 200;
@@ -41,6 +44,22 @@ function toast(text) {
 	toastTimer = setTimeout(() => {
 		toastEl.hidden = true;
 	}, 3000);
+}
+
+/** Search box for a list; Enter applies the term (the page is rebuilt, so keep focus). */
+function searchField(tab, placeholder) {
+	const input = el("input.search", { type: "search", placeholder, value: SEARCH[tab] });
+	input.addEventListener("input", () => {
+		SEARCH[tab] = input.value;
+	});
+	input.addEventListener("keydown", (event) => {
+		if (event.key !== "Enter") return;
+		event.preventDefault();
+		SEARCH[tab] = input.value.trim();
+		focusSearch = true;
+		void show(tab);
+	});
+	return input;
 }
 
 /** Run a command with the button disabled; refresh the tab afterwards. */
@@ -380,9 +399,11 @@ function doNowButton(item) {
 }
 
 async function renderInbox() {
-	const inbox = await ton("inbox");
+	const query = SEARCH.inbox;
+	const inbox = await ton("inbox", ...(query ? ["--query", query] : []));
+	const search = searchField("inbox", "搜索待办，回车");
 	if (inbox.items.length === 0) {
-		return [emptyState("inbox", "没有待办")];
+		return [search, emptyState("inbox", query ? "没有匹配的待办" : "没有待办")];
 	}
 	const list = selectableList("item", BULK_ACK);
 	/** Snoozed and muted items stay here; they only stop bubbling until their time is up. */
@@ -428,28 +449,30 @@ async function renderInbox() {
 	const ignored = inbox.items.filter((item) => item.state === "ignored");
 	const nodes = active.map(card);
 	if (ignored.length > 0) {
-		const group = el(
-			"details.ignored-group",
-			{ open: ignoredOpen },
-			el("summary", { text: `低优先 · 已忽略 ${ignored.length}` }),
-			...ignored.map(card),
-		);
+		const summary = el("summary", {}, el("span", { text: `低优先 · 已忽略 ${ignored.length}` }));
+		const clear = confirmButton("清空", "确认清空？", () => void deleteMany("item", ignored.map((item) => item.id)));
+		clear.classList.add("ignored-clear");
+		clear.addEventListener("click", (event) => event.stopPropagation());
+		summary.append(clear);
+		const group = el("details.ignored-group", { open: ignoredOpen }, summary, ...ignored.map(card));
 		group.addEventListener("toggle", () => {
 			ignoredOpen = group.open;
 		});
 		nodes.push(group);
 	}
 	list.refresh();
-	return [list.toolbar, ...nodes];
+	return [search, list.toolbar, ...nodes];
 }
 
 async function renderHistory() {
-	const history = await ton("inbox", "--history", "--limit", String(PAGE), "--offset", "0");
-	if (history.items.length === 0) return [emptyState("list", "还没有历史")];
+	const query = SEARCH.history;
+	const history = await ton("inbox", "--history", "--limit", String(PAGE), "--offset", "0", ...(query ? ["--query", query] : []));
+	const search = searchField("history", "搜索历史，回车");
+	if (history.items.length === 0) return [search, emptyState("list", query ? "没有匹配的历史" : "还没有历史")];
 	const list = selectableList("item", BULK_UNDO);
 	const node = (item) =>
 		list.add(itemNode(item, [ackButton(item, "撤销", "已撤销", "--undo"), () => deleteButton("item", item.id)]), item.id);
-	const nodes = [list.toolbar, ...history.items.map(node)];
+	const nodes = [search, list.toolbar, ...history.items.map(node)];
 	list.refresh();
 	if (history.items.length >= PAGE) {
 		let offset = history.items.length;
@@ -457,7 +480,15 @@ async function renderHistory() {
 		more.addEventListener("click", async () => {
 			more.disabled = true;
 			try {
-				const next = await ton("inbox", "--history", "--limit", String(PAGE), "--offset", String(offset));
+				const next = await ton(
+					"inbox",
+					"--history",
+					"--limit",
+					String(PAGE),
+					"--offset",
+					String(offset),
+					...(query ? ["--query", query] : []),
+				);
 				offset += next.items.length;
 				for (const item of next.items) more.before(node(item));
 				list.refresh();
@@ -694,6 +725,26 @@ function activityCard(entry) {
 	const card = el("article.act-card", {}, el(`div.tile.${tone}`, {}, icon(glyph, 17)), body);
 	const foot = el("div.act-foot");
 	if (item) {
+		const retryable = entry.kind === "agent" && ["failed", "timeout", "blocked"].includes(status);
+		if (retryable) {
+			foot.append(
+				el("button.link", {
+					text: "重试",
+					onclick: async (event) => {
+						const button = event.currentTarget;
+						button.disabled = true;
+						try {
+							const result = await ton("act", item.id);
+							toast(result.message ?? "已重新派发");
+							await show("activity");
+						} catch (error) {
+							toast(`失败：${errorText(error)}`);
+							button.disabled = false;
+						}
+					},
+				}),
+			);
+		}
 		foot.append(
 			el("button.link", { onclick: (event) => void trace(item, card, event.currentTarget) }, "轨迹", icon("chevron", 12)),
 		);
@@ -767,15 +818,17 @@ function activityStatus(activity) {
 }
 
 async function renderActivity() {
-	const activity = await ton("activity", "--limit", String(PAGE));
+	const query = SEARCH.activity;
+	const activity = await ton("activity", "--limit", String(PAGE), ...(query ? ["--query", query] : []));
 	const top = activityStatus(activity);
 	const entries = activity.entries ?? [];
 	activityPages = 1;
+	const search = searchField("activity", "搜索动态，回车");
 	if (entries.length === 0) {
-		return [top, emptyState("sparkles", "最近没有自动处理记录")];
+		return [top, search, emptyState("sparkles", query ? "没有匹配的动态" : "最近没有自动处理记录")];
 	}
 	const list = selectableList("activity");
-	const nodes = [top, el("div.act-section", {}, "最近动态"), list.toolbar];
+	const nodes = [top, search, el("div.act-section", {}, "最近动态"), list.toolbar];
 	for (const entry of entries) nodes.push(list.add(activityCard(entry), entry.event_id));
 	list.refresh();
 	if (entries.length >= PAGE) {
@@ -1476,6 +1529,52 @@ async function renderSettings() {
 			}, "保存"),
 		),
 	);
+	const away = settings.awayNotify ?? {};
+	const awayOn = el("input", { type: "checkbox" });
+	awayOn.checked = away.enabled === true;
+	const awayCommand = el("input", {
+		type: "text",
+		spellcheck: "false",
+		placeholder: "例如：openclaw message send ... --message \"$TON_TEXT\"",
+	});
+	awayCommand.value = away.command ?? "";
+	const awayUrgency = el(
+		"select",
+		{},
+		...["P0", "P1", "P2"].map((level) => el("option", { value: level }, level)),
+	);
+	awayUrgency.value = away.minUrgency ?? "P1";
+	const awayCard = el(
+		"section.card",
+		{},
+		cardHead("moon", "离机通知"),
+		el("div.card-hint", {
+			text: "锁屏或离开电脑时，把提醒交给命令发到手机。命令经 sh -lc 执行，正文在 TON_TEXT，JSON 在 stdin。",
+		}),
+		el(
+			"div.settings-grid",
+			{},
+			field("启用", null, el("span.inline", {}, awayOn, "开启")),
+			field("最低级别", null, awayUrgency),
+			field("命令", null, awayCommand),
+		),
+		el(
+			"div.card-foot",
+			{},
+			el("button.primary", {
+				onclick: (event) =>
+					void save(
+						event.currentTarget,
+						"已保存",
+						"settings",
+						"set",
+						`awayNotify.enabled=${awayOn.checked}`,
+						`awayNotify.command=${awayCommand.value}`,
+						`awayNotify.minUrgency=${awayUrgency.value}`,
+					),
+			}, "保存"),
+		),
+	);
 	const contractCard = el(
 		"section.card.card-wide",
 		{},
@@ -1487,7 +1586,7 @@ async function renderSettings() {
 		schemaDetails,
 		el("div.card-foot", {}, checkButton),
 	);
-	return [el("div.cards.settings", {}, prefsCard, rulesCard, contractCard)];
+	return [el("div.cards.settings", {}, prefsCard, rulesCard, awayCard, contractCard)];
 }
 
 /**
@@ -1570,6 +1669,10 @@ async function show(tab) {
 			);
 		}
 		content.replaceChildren(...nodes);
+		if (focusSearch) {
+			content.querySelector(".search")?.focus();
+			focusSearch = false;
+		}
 	} catch (error) {
 		if (seq !== renderSeq) return;
 		content.replaceChildren(emptyState("warn", "读取失败", errorText(error)));

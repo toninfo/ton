@@ -593,16 +593,20 @@ async function dispatch(
 			}
 		}
 		case "inbox": {
-			const parsed = parse(rest, { json: "flag", history: "flag", limit: "value", offset: "value" });
+			const parsed = parse(rest, { json: "flag", history: "flag", limit: "value", offset: "value", query: "value" });
 			const now = new Date();
 			if (parsed.values.has("history")) {
-				const items = service.history(parsePositiveInt(parsed, "limit", 50), parseOffset(parsed));
+				const items = service.history(
+					parsePositiveInt(parsed, "limit", 50),
+					parseOffset(parsed),
+					text(parsed, "query"),
+				);
 				out({ schema: 1, items }, () =>
 					items.length === 0 ? "没有历史事项" : items.map((item) => formatItem(item, now)).join("\n"),
 				);
 				return 0;
 			}
-			const inbox = service.inbox();
+			const inbox = service.inbox(text(parsed, "query"));
 			out(inbox, () => {
 				const { counts } = inbox;
 				const quiet = [counts.later ? `稍后 ${counts.later}` : "", counts.muted ? `静默 ${counts.muted}` : ""]
@@ -615,9 +619,14 @@ async function dispatch(
 			return 0;
 		}
 		case "activity": {
-			const parsed = parse(rest, { json: "flag", limit: "value", before: "value" });
+			const parsed = parse(rest, { json: "flag", limit: "value", before: "value", query: "value" });
 			const before = text(parsed, "before") === undefined ? undefined : parsePositiveInt(parsed, "before", 1);
-			const activity = service.activity(new Date(), parsePositiveInt(parsed, "limit", 30), before);
+			const activity = service.activity(
+				new Date(),
+				parsePositiveInt(parsed, "limit", 30),
+				before,
+				text(parsed, "query"),
+			);
 			out(activity, () => formatActivity(activity));
 			return 0;
 		}

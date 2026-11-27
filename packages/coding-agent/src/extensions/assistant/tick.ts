@@ -590,7 +590,11 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 					if (!verdict) {
 						// Triage decides what to interrupt with, not whether the item exists. Keep it open
 						// in the inbox as ignored (no bubble) so the user can still see and handle it.
-						if (!item.why) store.updateItem(item.id, { why: "判官判断现在不需要打扰" });
+						// When nothing was reported, the overall reason explains why these were skipped.
+						const rejectWhy = decision.report
+							? "判官判断这条现在不用打扰"
+							: decision.reason || "判官判断现在不需要打扰";
+						store.updateItem(item.id, { why: item.why || rejectWhy });
 						store.setState(item.id, { to: "ignored", now, actor: "model", reason: "triage", runId });
 						return;
 					}

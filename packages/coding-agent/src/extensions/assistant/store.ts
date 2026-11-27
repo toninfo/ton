@@ -209,12 +209,23 @@ export class AssistantStore {
 	}
 
 	/** Recently closed items, newest first. `id DESC` keeps paging stable when timestamps tie. */
-	listHistory(limit: number, offset = 0): ItemRow[] {
+	listHistory(limit: number, offset = 0, query?: string): ItemRow[] {
+		const q = query?.trim();
+		if (!q) {
+			return this.db
+				.prepare(
+					`SELECT * FROM items WHERE state IN (${placeholders(CLOSED)}) ORDER BY COALESCE(closed_at, last_seen_at) DESC, id DESC LIMIT ? OFFSET ?`,
+				)
+				.all(...CLOSED, limit, offset) as unknown as ItemRow[];
+		}
+		const like = `%${q}%`;
 		return this.db
 			.prepare(
-				`SELECT * FROM items WHERE state IN (${placeholders(CLOSED)}) ORDER BY COALESCE(closed_at, last_seen_at) DESC, id DESC LIMIT ? OFFSET ?`,
+				`SELECT * FROM items WHERE state IN (${placeholders(CLOSED)})
+				   AND (title LIKE ? OR why LIKE ? OR context LIKE ? OR server LIKE ? OR stream LIKE ?)
+				 ORDER BY COALESCE(closed_at, last_seen_at) DESC, id DESC LIMIT ? OFFSET ?`,
 			)
-			.all(...CLOSED, limit, offset) as unknown as ItemRow[];
+			.all(...CLOSED, like, like, like, like, like, limit, offset) as unknown as ItemRow[];
 	}
 
 	insertItem(candidate: Candidate, now: Date, runId?: number): ItemRow {

@@ -146,19 +146,24 @@ export class AssistantService {
 		return item;
 	}
 
-	inbox(): { schema: 1; items: ItemView[]; counts: Record<string, number> } {
+	inbox(query?: string): { schema: 1; items: ItemView[]; counts: Record<string, number> } {
 		const resolvable = cachedResolvableServers(this.agentDir);
-		return {
-			schema: 1,
-			items: this.store
-				.listByStates(INBOX_STATES)
-				.map((item) => ({ ...toView(item), resolvable: resolvable.has(item.server) })),
-			counts: this.store.counts(),
-		};
+		const q = query?.trim().toLowerCase();
+		const items = this.store
+			.listByStates(INBOX_STATES)
+			.map((item) => ({ ...toView(item), resolvable: resolvable.has(item.server) }))
+			.filter(
+				(item) =>
+					!q ||
+					[item.title, item.why, item.context, item.source_label].some((text) =>
+						(text ?? "").toLowerCase().includes(q),
+					),
+			);
+		return { schema: 1, items, counts: this.store.counts() };
 	}
 
-	history(limit: number, offset = 0): ItemView[] {
-		return this.store.listHistory(limit, offset).map(toView);
+	history(limit: number, offset = 0, query?: string): ItemView[] {
+		return this.store.listHistory(limit, offset, query).map(toView);
 	}
 
 	/**
@@ -661,6 +666,7 @@ export class AssistantService {
 				p0MaxMinutes: this.settings.p0MaxMinutes,
 				maxCardsPerWindow: this.settings.maxCardsPerWindow,
 				...this.settings.desktop,
+				awayNotify: this.settings.awayNotify,
 			},
 		};
 	}
@@ -684,12 +690,13 @@ export class AssistantService {
 	 * is just as meaningful. Notes attach to the newest entry of their item only, so a later draft
 	 * or relaunch never inherits notes from an earlier round.
 	 */
-	activity(now: Date, limit: number, before?: number): Record<string, unknown> {
+	activity(now: Date, limit: number, before?: number, query?: string): Record<string, unknown> {
 		// Older builds let autoHandle's runAction write both `auto_handle` and `act_open_zentao` at
 		// the same timestamp, which listed every automatic launch twice. Hide the redundant manual
 		// row; real clicks happen at a different time and stay visible. Entries the user deleted
 		// (`hidden`) leave the feed, but hidden auto_handle rows still suppress their same-ts twin.
 		const cursor = before ?? null;
+		const like = query?.trim() ? `%${query.trim()}%` : null;
 		const rows = this.store.db
 			.prepare(
 				`SELECT * FROM events e
@@ -698,9 +705,12 @@ export class AssistantService {
 				    OR (e.action = 'act_open_zentao' AND NOT EXISTS (
 				         SELECT 1 FROM events a
 				         WHERE a.action = 'auto_handle' AND a.item_id = e.item_id AND a.ts = e.ts)))
+				   AND (? IS NULL
+				        OR e.detail LIKE ?
+				        OR EXISTS (SELECT 1 FROM items i WHERE i.id = e.item_id AND (i.title LIKE ? OR i.why LIKE ?)))
 				 ORDER BY e.id DESC LIMIT ?`,
 			)
-			.all(cursor, cursor, Math.max(1, Math.min(limit, 100))) as unknown as EventRow[];
+			.all(cursor, cursor, like, like, like, like, Math.max(1, Math.min(limit, 100))) as unknown as EventRow[];
 		const entries = rows.map((row) => {
 			const detail = parseDetail(row.detail);
 			const trigger = row.action === "act_open_zentao" ? "manual" : "auto";

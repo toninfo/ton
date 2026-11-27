@@ -1147,6 +1147,24 @@ describe("cli", () => {
 		expect(undone.skipped).toHaveLength(0);
 	});
 
+	it("searches the inbox and history by text", async () => {
+		const harness = tickHarness();
+		await harness.tick({ snapshots: [snap("demo", [cand("alpha"), cand("beta")])] });
+		const run = cliOptions(harness.agentDir);
+		expect(await runAssistantCommand(["inbox", "--query", "alpha", "--json"], run.options)).toBe(EXIT_OK);
+		const inbox = JSON.parse(run.lines.join("\n")) as { items: { title: string }[] };
+		expect(inbox.items.map((item) => item.title)).toEqual(["事项 alpha"]);
+
+		const item = itemAt(harness.store, "demo", "chat", "beta");
+		harness.store.setState(item.id, { to: "done", now: NOW, actor: "user" });
+		const history = cliOptions(harness.agentDir);
+		expect(await runAssistantCommand(["inbox", "--history", "--query", "beta", "--json"], history.options)).toBe(
+			EXIT_OK,
+		);
+		const closed = JSON.parse(history.lines.join("\n")) as { items: { title: string }[] };
+		expect(closed.items.map((entry) => entry.title)).toEqual(["事项 beta"]);
+	});
+
 	it("marks whether a source can cancel the item", async () => {
 		const harness = tickHarness();
 		await harness.tick({ snapshots: [snap("demo", [cand("a")])] });
@@ -1216,6 +1234,7 @@ describe("cli", () => {
 		expect(output.decision).toBe("silent");
 		const item = itemAt(harness.store, "demo", "chat", "x");
 		expect(item.state).toBe("ignored");
+		expect(item.why).toBe("现在不用打扰");
 		const service = newService(harness.agentDir, fakeMcp({ servers: [] }), acceptAll);
 		expect(service.inbox().items.some((entry) => entry.id === item.id)).toBe(true);
 

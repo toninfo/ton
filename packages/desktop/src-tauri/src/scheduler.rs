@@ -1,9 +1,9 @@
 //! Every `tickMinutes` (+0–5 min jitter): `ton assistant tick --json`, then show the batch. A failing
 //! round only colours the tray; the loop never exits.
 
-use crate::bubble;
 use crate::state::{log, AssistantState, DesktopConfig, Mode, Shared};
 use crate::tray::{self, Health};
+use crate::{away, bubble};
 use rand::Rng;
 use serde_json::Value;
 use std::time::Duration;
@@ -195,17 +195,23 @@ async fn tick_round(app: &AppHandle) -> RoundOutcome {
         return outcome;
     }
     let config = shared.config();
+    let suppression_config = config.clone();
     let suppression = tokio::task::spawn_blocking(move || {
         crate::platform::suppression(
-            config.suppress_fullscreen,
-            config.suppress_locked,
-            config.idle_minutes,
+            suppression_config.suppress_fullscreen,
+            suppression_config.suppress_locked,
+            suppression_config.idle_minutes,
         )
     })
     .await
     .unwrap_or_default();
     // Has P0 → show anyway, except on a locked screen where nobody can see it.
     let urgent = items.iter().any(|item| item["urgency"] == "P0");
+    // Locked or idle means the user is away; forward through the configured channel even when a P0
+    // bubble is still shown (it stays in the inbox for when they return).
+    if suppression.locked || suppression.idle {
+        let _ = away::send(&items, &config).await;
+    }
     if let Some(reason) = suppression.reason() {
         if !urgent || suppression.locked {
             log(format!(

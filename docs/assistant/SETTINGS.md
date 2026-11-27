@@ -36,3 +36,6 @@ Run `npm run docs:assistant-settings` after changing a default; `npm run check` 
 | `desktop.idleMinutes` | `10` |
 | `desktop.suppressFullscreen` | `true` |
 | `desktop.suppressLocked` | `true` |
+| `awayNotify.enabled` | `false` |
+| `awayNotify.command` | `""` |
+| `awayNotify.minUrgency` | `"P1"` |

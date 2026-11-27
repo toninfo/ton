@@ -33,6 +33,7 @@ export function defaultSettings(): AssistantSettings {
 		autoHandle: true,
 		agentTimeoutHours: 2,
 		desktop: { idleMinutes: 10, suppressFullscreen: true, suppressLocked: true },
+		awayNotify: { enabled: false, command: "", minUrgency: "P1" },
 	};
 }
 

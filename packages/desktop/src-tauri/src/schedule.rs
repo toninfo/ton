@@ -51,6 +51,42 @@ pub async fn run(app: AppHandle) {
                 {
                     log(format!("schedule run-due: {error}"));
                 }
+                // Failed runs become inbox items so an unattended job cannot fail silently.
+                if let Some(failures) = output
+                    .json
+                    .as_ref()
+                    .and_then(|json| json.get("failures"))
+                    .and_then(|v| v.as_array())
+                {
+                    for failure in failures {
+                        let run_id = failure["runId"].as_u64().unwrap_or(0);
+                        let name = failure["name"].as_str().unwrap_or("未命名任务");
+                        let status = failure["status"].as_str().unwrap_or("failed");
+                        let error = failure["error"].as_str().unwrap_or("");
+                        let args: Vec<String> = vec![
+                            "notify".into(),
+                            "--title".into(),
+                            format!("定时任务失败：{name}"),
+                            "--body".into(),
+                            if error.is_empty() {
+                                format!("{status} · run #{run_id}")
+                            } else {
+                                format!("{status} · {error} · run #{run_id}")
+                            },
+                            "--urgency".into(),
+                            "P2".into(),
+                            "--key".into(),
+                            format!("schedule-failure-{run_id}"),
+                            "--source".into(),
+                            "schedule".into(),
+                            "--ref".into(),
+                            failure["jobId"].as_str().unwrap_or("").to_string(),
+                        ];
+                        if let Err(error) = ton.assistant(&args, SHORT_TIMEOUT).await {
+                            log(format!("schedule failure notify: {error}"));
+                        }
+                    }
+                }
                 let more = output
                     .json
                     .as_ref()

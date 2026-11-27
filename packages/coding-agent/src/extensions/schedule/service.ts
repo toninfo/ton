@@ -227,6 +227,7 @@ export function runDue(store: ScheduleStore, options: RunDueOptions): DueResult 
 	}
 	const started: DueResult["started"] = [];
 	const skipped: DueResult["skipped"] = [];
+	const failures: DueResult["failures"] = [];
 	let more = false;
 	if (!options.dryRun) store.recoverStale(now);
 
@@ -276,7 +277,7 @@ export function runDue(store: ScheduleStore, options: RunDueOptions): DueResult 
 		}
 	});
 	if (options.dryRun) {
-		return { started, skipped, more, nextRunInMs: nextRunInMs(store, now) };
+		return { started, skipped, failures, more, nextRunInMs: nextRunInMs(store, now) };
 	}
 	for (const item of started) {
 		try {
@@ -290,7 +291,20 @@ export function runDue(store: ScheduleStore, options: RunDueOptions): DueResult 
 			store.markJobRun(item.jobId, now, "error");
 		}
 	}
-	return { started, skipped, more, nextRunInMs: nextRunInMs(store, now) };
+	const storedFailureId = store.getMeta("reported_failure_id");
+	if (storedFailureId === undefined) {
+		// First run after the feature was added: old failures are history, not new notifications.
+		store.setMeta("reported_failure_id", String(store.maxRunId()));
+	}
+	const reported = Number(store.getMeta("reported_failure_id") ?? "0") || 0;
+	const fresh = store.failuresAfter(reported);
+	if (fresh.length > 0) {
+		store.setMeta("reported_failure_id", String(fresh[fresh.length - 1].id));
+		for (const run of fresh) {
+			failures.push({ runId: run.id, jobId: run.jobId, name: run.name, status: run.status, error: run.error });
+		}
+	}
+	return { started, skipped, failures, more, nextRunInMs: nextRunInMs(store, now) };
 }
 
 export function createManualRun(store: ScheduleStore, ref: string, now: Date): { job: Job; run: Run } {

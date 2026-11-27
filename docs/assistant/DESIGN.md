@@ -234,6 +234,14 @@ new ──────────┼────────► reported ──
 
 静默时段处理：非 P0 候选入库后保持 `new`，不在静默时段调模型；早上第一轮再进入 triage。P0 不受静默时段限制，当轮照常判断与推送。
 
+### 离机通知
+
+- 触发：桌面端发现 `locked`（锁屏）或 `idle`（超过 `desktop.idleMinutes` 没输入）。全屏但人在电脑前不触发；暂停或 dry-run 不产生批次，自然不会发。
+- 配置：`settings.awayNotify` —— `enabled`、`command`、`minUrgency`（默认 P1）。没有内置渠道，命令经 `sh -lc` 执行。
+- 输入：`TON_TITLE` / `TON_BODY` / `TON_TEXT` / `TON_URGENCY` / `TON_COUNT` / `TON_ITEMS_JSON` 环境变量，同一份 JSON 也写到 stdin。条目内容只进环境变量和 stdin，不拼进命令行。
+- 语义：只影响“人不在电脑前”这一种情况；气泡仍照常走锁定/空闲抑制。命令失败只记桌面日志，不阻塞 tick。
+- 限制：通知由桌面端发出；ton 没运行时不会发（这是本地进程，不是独立守护进程）。
+
 ### 自动降级
 
 用户不需要点「判断错了」；同一个来源反复被静默或删除时，ton 自己降低它的打扰级别：

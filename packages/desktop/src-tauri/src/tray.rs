@@ -64,14 +64,43 @@ fn draw(dot: Option<[u8; 3]>) -> Image<'static> {
 const WHITE: [u8; 3] = [255, 255, 255];
 const YELLOW: [u8; 3] = [234, 179, 8];
 
-fn default_tab(app: &AppHandle) -> Option<&'static str> {
-    let pending = app
-        .state::<Shared>()
-        .tray_status
-        .lock()
-        .map(|status| status.pending)
-        .unwrap_or(0);
-    Some(if pending > 0 { "inbox" } else { "overview" })
+/// Open the panel on the live default tab. The cached tray count can lag a tick, so ask the CLI;
+/// on failure fall back to the cached value.
+fn open_default(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let shared = app.state::<Shared>();
+        let cached = shared
+            .tray_status
+            .lock()
+            .map(|status| status.pending > 0)
+            .unwrap_or(false);
+        let live = match shared.ton.clone() {
+            Some(ton) => ton
+                .assistant(
+                    &["status".into(), "--json".into()],
+                    crate::scheduler::SHORT_TIMEOUT,
+                )
+                .await
+                .ok()
+                .and_then(|output| {
+                    output
+                        .json
+                        .as_ref()
+                        .and_then(|json| json["counts"]["pending"].as_u64())
+                        .map(|pending| pending > 0)
+                }),
+            None => None,
+        };
+        panel::open(
+            &app,
+            Some(if live.unwrap_or(cached) {
+                "inbox"
+            } else {
+                "overview"
+            }),
+        );
+    });
 }
 
 /// The Linux backend is a pure StatusNotifierItem (tray-icon's `ksni` feature). At login ton can
@@ -190,8 +219,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Tray> {
                 _ => false,
             };
             if open {
-                let app = tray.app_handle().clone();
-                tauri::async_runtime::spawn(async move { panel::open(&app, default_tab(&app)) });
+                open_default(tray.app_handle());
             }
         });
     #[cfg(target_os = "linux")]
@@ -206,7 +234,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Tray> {
 fn on_menu(app: &AppHandle, id: &str) {
     let app = app.clone();
     match id {
-        "open" => panel::open(&app, default_tab(&app)),
+        "open" => open_default(&app),
         "activity" => panel::open(&app, Some("activity")),
         "settings" => panel::open(&app, Some("settings")),
         "tick" => app.state::<Shared>().wake.notify_one(),
