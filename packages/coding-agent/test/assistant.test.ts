@@ -1147,6 +1147,26 @@ describe("cli", () => {
 		expect(undone.skipped).toHaveLength(0);
 	});
 
+	it("shows overdue items with the payload deadline instead of a stale why", async () => {
+		const harness = tickHarness();
+		await harness.tick({
+			snapshots: [
+				snap("demo", [
+					cand("late", {
+						payload: {
+							why: "今天新建的任务，11/26 10:00 截止，需要推进",
+							due_at: "2026-11-12T10:00:00.000Z",
+						},
+					}),
+				]),
+			],
+		});
+		const service = newService(harness.agentDir, fakeMcp({ servers: [] }), acceptAll);
+		const view = service.inbox().items.find((entry) => entry.id === itemAt(harness.store, "demo", "chat", "late").id);
+		expect(view?.why).toContain("已逾期");
+		expect(view?.why).not.toContain("今天新建");
+	});
+
 	it("closes an item on the agent's done note but not on the wrapper note", async () => {
 		const harness = tickHarness();
 		await harness.tick({ snapshots: [snap("demo", [cand("a"), cand("b")])] });

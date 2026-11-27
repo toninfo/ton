@@ -6,7 +6,7 @@
  * a source name, so any server implementing the contract triages the same way.
  */
 
-import { formatLocalIso, relativeZh } from "../time.ts";
+import { formatLocalIso, parseTime, relativeZh } from "../time.ts";
 import { SUGGESTED, type Suggested, URGENCIES, type Urgency } from "./types.ts";
 import { clip, isRecord, str } from "./util.ts";
 
@@ -54,12 +54,12 @@ export const SYSTEM_PROMPT = `你是 ton 的主动助理，判断哪些候选值
   last_me_at 晚于 last_incoming_at 时，用户已经回过了。
 - doc 表示归档文档/邮件：按文档日期陈述，不要声称「刚刚收到」；automated 为 true 的是自动通知，
   同一来源的重复通知最多报一条。
-- due_at/remind 表示有截止要求：按截止时间陈述紧迫性，不要编造。
+- due_at/remind 表示有截止要求：按给出的本地截止时间陈述紧迫性，不要编造，也不要把 UTC 原文照抄。
 - priority 是来源给出的参考优先级，可以调整但要有理由。
 - 宁少勿多：不确定就不报。
 - 尊重「用户偏好」里的每一条。
 - title 不超过 40 字。why 用一句话说明为什么现在找用户（截止、谁在等），不超过 60 字；
-  不要写「X 分钟前 / X 小时前 / 刚刚」这类相对时间，界面会显示时间，确需写时间就用具体日期或时刻。
+  不要写「今天新建 / 昨天 / X 分钟前 / X 小时前 / 刚刚」这类相对时间；why 可能在几天后仍被展示，一律用具体日期或时刻。
 - suggested 取值：draft_reply（需要回复消息）、open（需要打开来源处理）、none。
 只输出 JSON，不要解释，不要代码块。格式：
 {"report": true, "reason": "一句话总结", "items": [{"candidate_id": "c1", "urgency": "P1", "title": "...", "why": "...", "suggested": "draft_reply"}]}
@@ -108,7 +108,8 @@ function summarize(candidate: TriageCandidate): string {
 	for (const key of ["steps", "desc", "body"] as const) {
 		if (payload[key]) parts.push(clip(str(payload[key]), 160));
 	}
-	if (payload.due_at) parts.push(`截止 ${str(payload.due_at)}`);
+	const due = parseTime(payload.due_at);
+	if (due) parts.push(`截止 ${formatLocalIso(due)}（本地时间）`);
 	if (payload.expires_at) parts.push(`过期 ${str(payload.expires_at)}`);
 	if (isRecord(payload.refs)) parts.push(`关联 ${Object.keys(payload.refs).join("/")}`);
 	if (isRecord(payload.attrs)) parts.push(clip(JSON.stringify(payload.attrs), 160));

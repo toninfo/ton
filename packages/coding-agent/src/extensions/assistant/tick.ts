@@ -551,9 +551,11 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 						store.setState(item.id, { to: "ignored", now, actor: "model", reason: "triage", runId });
 						return;
 					}
+					// Relative phrases ("今天新建的任务") go stale within a day; drop the leading form.
+					const why = verdict.why.replace(/^(今天|昨天|刚刚)新建的?任务?[，,]\s*/, "") || verdict.why;
 					store.updateItem(item.id, {
 						title: verdict.title,
-						why: verdict.why,
+						why,
 						urgency: verdict.urgency,
 						suggested: verdict.suggested,
 						reported_at: toStored(now),

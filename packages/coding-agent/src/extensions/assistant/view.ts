@@ -1,4 +1,4 @@
-import { toOutput } from "../time.ts";
+import { formatLocalIso, parseTime, toOutput } from "../time.ts";
 import type { ItemRow, ItemView, Suggested } from "./types.ts";
 import { isRecord, str } from "./util.ts";
 
@@ -76,6 +76,19 @@ function sourcePathOf(payload: Record<string, unknown>): string {
 	return "";
 }
 
+/** Strip a leading relative-time clause and restate the due date from the payload. */
+function displayWhy(item: ItemRow, payload: Record<string, unknown>): string {
+	const clean = item.why
+		.replace(/^(今天|昨天|刚刚)新建的?任务?[，,]\s*/, "")
+		.replace(/^\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}\s*截止[，,]?\s*/, "");
+	const due = parseTime(payload.due_at);
+	if (!due) return clean || item.why;
+	const open = !["done", "dropped", "expired", "deleted"].includes(item.state);
+	const overdue = open && due.getTime() < Date.now();
+	const when = formatLocalIso(due).slice(5, 16).replace("T", " ");
+	return `${overdue ? "已逾期" : "截止"} ${when}${clean ? ` · ${clean}` : ""}`;
+}
+
 export function toView(item: ItemRow): ItemView {
 	const payload = parsePayload(item);
 	const observed = typeof payload.observedAt === "string" ? payload.observedAt : item.first_seen_at;
@@ -87,7 +100,7 @@ export function toView(item: ItemRow): ItemView {
 		urgency: item.urgency,
 		state: item.state,
 		title: item.title,
-		why: item.why,
+		why: displayWhy(item, payload),
 		context: item.context ?? "",
 		suggested: (item.suggested ?? "none") as Suggested,
 		actions: ["now", "later", "mute", "more"],
