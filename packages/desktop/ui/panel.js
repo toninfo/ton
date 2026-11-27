@@ -34,7 +34,7 @@ function applyShell(state) {
 	shell = state;
 	const busy = Boolean(state?.running);
 	tickButton.disabled = busy;
-	tickButton.replaceChildren(icon(busy ? "pulse" : "bolt", 13), document.createTextNode(busy ? "刷新中…" : "刷新"));
+	tickButton.replaceChildren(icon(busy ? "pulse" : "refresh", 14));
 }
 
 function toast(text) {
@@ -122,8 +122,35 @@ function confirmButton(text, confirmText, onConfirm) {
 	return button;
 }
 
+/** Icon-only button; the title is both the tooltip and the accessible name. */
+function iconButton(name, title, onclick, cls = "small") {
+	return el(`button.${cls}.icon-button`, { type: "button", title, "aria-label": title, onclick }, icon(name, 14));
+}
+
+/** Two-step confirmation for a destructive icon button: click 1 arms, click 2 within 3 s runs. */
+function confirmIconButton(name, title, onConfirm) {
+	const button = iconButton(name, title, () => {
+		if (!button.classList.contains("armed")) {
+			button.classList.add("armed");
+			button.replaceChildren(icon("check", 14));
+			button.title = "确认删除？";
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				button.classList.remove("armed");
+				button.replaceChildren(icon(name, 14));
+				button.title = title;
+			}, 3000);
+			return;
+		}
+		clearTimeout(timer);
+		onConfirm();
+	});
+	let timer;
+	return button;
+}
+
 function deleteButton(kind, id) {
-	return confirmButton("删除", "确认删除？", () => void deleteMany(kind, [String(id)]));
+	return confirmIconButton("trash", "删除", () => void deleteMany(kind, [String(id)]));
 }
 
 /** Delete in chunks, then report one summary and reload the tab. */
@@ -324,7 +351,13 @@ function itemNode(item, buttons) {
 	);
 	const row = el("div.item-actions");
 	for (const make of buttons) row.append(make(node));
-	row.append(el("button.link", { onclick: (event) => void trace(item, node, event.currentTarget) }, "详情", icon("chevron", 12)));
+	row.append(
+		el(
+			"button.link.icon-button",
+			{ type: "button", title: "详情", "aria-label": "详情", onclick: (event) => void trace(item, node, event.currentTarget) },
+			icon("chevron", 12),
+		),
+	);
 	body.append(row);
 	return node;
 }
@@ -362,10 +395,15 @@ async function trace(item, node, button) {
 const ackButton = (item, text, label, ...args) => () =>
 	el("button.small", { text, onclick: (event) => void action(event.currentTarget, label, "ack", item.id, ...args) });
 
+const iconAckButton = (item, name, title, label, ...args) => () =>
+	iconButton(name, title, (event) => void action(event.currentTarget, label, "ack", item.id, ...args));
+
 function doNowButton(item) {
 	return (node) =>
-		el("button.small.primary", {
-			text: "马上做",
+		el("button.small.primary.icon-button", {
+			type: "button",
+			title: "马上做",
+			"aria-label": "马上做",
 			onclick: async (event) => {
 				const button = event.currentTarget;
 				button.disabled = true;
@@ -396,7 +434,7 @@ function doNowButton(item) {
 					button.disabled = false;
 				}
 			},
-		});
+		}, icon("bolt", 14));
 }
 
 async function renderInbox() {
@@ -414,19 +452,19 @@ async function renderInbox() {
 			item.state === "ignored"
 				? [
 						ackButton(item, "转为待办", "已转回待办", "--state", "reported"),
-						ackButton(item, "已处理", "已处理", "--state", "done"),
+						iconAckButton(item, "check", "已处理", "已处理", "--state", "done"),
 					]
 				: snoozed(item)
 					? [
-							ackButton(item, "撤销", "已撤销", "--undo"),
-							ackButton(item, "已处理", "已处理", "--state", "done"),
+							iconAckButton(item, "undo", "撤销", "已撤销", "--undo"),
+							iconAckButton(item, "check", "已处理", "已处理", "--state", "done"),
 							item.state === "muted"
 								? ackButton(item, "延长到 30 天", "静默 30 天", "--state", "muted", "--for", "30d")
 								: ackButton(item, "改到明天", "明天再提醒", "--state", "later", "--for", "tomorrow"),
 						]
 					: [
 							doNowButton(item),
-							ackButton(item, "已处理", "已处理", "--state", "done"),
+							iconAckButton(item, "check", "已处理", "已处理", "--state", "done"),
 							ackButton(item, "稍后 2 小时", "2 小时后再提醒", "--state", "later", "--for", "2h"),
 							ackButton(item, "明天再说", "明天再提醒", "--state", "later", "--for", "tomorrow"),
 						];
@@ -451,7 +489,7 @@ async function renderInbox() {
 	const nodes = active.map(card);
 	if (ignored.length > 0) {
 		const summary = el("summary", {}, el("span", { text: `低优先 · 已忽略 ${ignored.length}` }));
-		const clear = confirmButton("清空", "确认清空？", () => void deleteMany("item", ignored.map((item) => item.id)));
+		const clear = confirmIconButton("trash", "清空已忽略", () => void deleteMany("item", ignored.map((item) => item.id)));
 		clear.classList.add("ignored-clear");
 		clear.addEventListener("click", (event) => event.stopPropagation());
 		summary.append(clear);
@@ -472,7 +510,7 @@ async function renderHistory() {
 	if (history.items.length === 0) return [search, emptyState("list", query ? "没有匹配的历史" : "还没有历史")];
 	const list = selectableList("item", BULK_UNDO);
 	const node = (item) =>
-		list.add(itemNode(item, [ackButton(item, "撤销", "已撤销", "--undo"), () => deleteButton("item", item.id)]), item.id);
+		list.add(itemNode(item, [iconAckButton(item, "undo", "撤销", "已撤销", "--undo"), () => deleteButton("item", item.id)]), item.id);
 	const nodes = [search, list.toolbar, ...history.items.map(node)];
 	list.refresh();
 	if (history.items.length >= PAGE) {
@@ -609,6 +647,36 @@ const ICONS = {
 		["circle", { cx: 11.8, cy: 16.6, r: 2 }],
 	],
 	play: [["path", { d: "M8.6 5.8v12.4l9.6-6.2z" }]],
+	refresh: [
+		["path", { d: "M20 12a8 8 0 1 1-2.4-5.7" }],
+		["path", { d: "M20 4.5V10h-5.5" }],
+	],
+	save: [
+		["path", { d: "M5 4.5h11l3 3V19.5H5z" }],
+		["path", { d: "M8.5 4.5v5h7v-5" }],
+		["path", { d: "M8 19.5v-6h8v6" }],
+	],
+	trash: [
+		["path", { d: "M4 7h16" }],
+		["path", { d: "M9 7V5h6v2" }],
+		["path", { d: "M7 7l1 13h8l1-13" }],
+	],
+	pencil: [
+		["path", { d: "M4 20l4.5-1L19 8.5 15.5 5 5 15.5z" }],
+		["path", { d: "M13.5 7 17 10.5" }],
+	],
+	power: [
+		["path", { d: "M12 3v9" }],
+		["path", { d: "M6.3 6.4a8 8 0 1 0 11.4 0" }],
+	],
+	undo: [
+		["path", { d: "M9 6 4 11l5 5" }],
+		["path", { d: "M4 11h9a6 6 0 0 1 0 12" }],
+	],
+	x: [
+		["path", { d: "M6 6l12 12" }],
+		["path", { d: "M18 6 6 18" }],
+	],
 };
 
 /** Any source's card glyph: ton's own system items, the native knowledge base, then the stream. */
@@ -729,9 +797,7 @@ function activityCard(entry) {
 		const retryable = entry.kind === "agent" && ["failed", "timeout", "blocked"].includes(status);
 		if (retryable) {
 			foot.append(
-				el("button.link", {
-					text: "重试",
-					onclick: async (event) => {
+				iconButton("refresh", "重试", async (event) => {
 						const button = event.currentTarget;
 						button.disabled = true;
 						try {
@@ -742,12 +808,15 @@ function activityCard(entry) {
 							toast(`失败：${errorText(error)}`);
 							button.disabled = false;
 						}
-					},
 				}),
 			);
 		}
 		foot.append(
-			el("button.link", { onclick: (event) => void trace(item, card, event.currentTarget) }, "轨迹", icon("chevron", 12)),
+			el(
+				"button.link.icon-button",
+				{ type: "button", title: "轨迹", "aria-label": "轨迹", onclick: (event) => void trace(item, card, event.currentTarget) },
+				icon("list", 13),
+			),
 		);
 	}
 	foot.append(el("span.spacer"), deleteButton("activity", entry.event_id));
@@ -1182,7 +1251,7 @@ async function renderSchedule() {
 	const script = el("input", { type: "text", placeholder: "/path/to/check.sh" });
 	const scriptArgs = el("textarea", { rows: "2", placeholder: "每行一个参数（可选）" });
 	const status = el("span.card-hint", { text: "" });
-	const submit = el("button.primary", { type: "submit", text: "保存" });
+	const submit = el("button.primary.icon-button", { type: "submit", title: "保存", "aria-label": "保存" }, icon("save", 14));
 
 	const nameField = field("名称", null, name);
 	const kindField = field("类型", null, kind);
@@ -1235,15 +1304,11 @@ async function renderSchedule() {
 			"div.card-foot",
 			{},
 			status,
-			el("button.small", {
-				type: "button",
-				text: "取消",
-				onclick: () => {
-					editing = null;
-					scheduleDirty = false;
-					form.reset();
-					form.hidden = true;
-				},
+			iconButton("x", "取消", () => {
+				editing = null;
+				scheduleDirty = false;
+				form.reset();
+				form.hidden = true;
 			}),
 			submit,
 		),
@@ -1319,10 +1384,7 @@ async function renderSchedule() {
 			? `上次检查 ${shortTime(job.last_checked_at)}${job.last_gate ? ` · ${job.last_gate}` : ""}`
 			: "";
 		const output = el("pre.schedule-output", { hidden: true });
-		const detail = el("button.small", {
-			type: "button",
-			text: "运行记录",
-			onclick: async (event) => {
+		const detail = iconButton("list", "运行记录", async (event) => {
 				event.currentTarget.disabled = true;
 				try {
 					const result = await schedule(["show", job.id, "--runs", "5"]);
@@ -1336,12 +1398,8 @@ async function renderSchedule() {
 				} finally {
 					event.currentTarget.disabled = false;
 				}
-			},
 		});
-		const run = el("button.small.primary", {
-			type: "button",
-			text: "立即运行",
-			onclick: async (event) => {
+		const run = iconButton("play", "立即运行", async (event) => {
 				event.currentTarget.disabled = true;
 				try {
 					await schedule(["run", job.id]);
@@ -1351,12 +1409,8 @@ async function renderSchedule() {
 					toast(`启动失败：${errorText(error)}`);
 					event.currentTarget.disabled = false;
 				}
-			},
-		});
-		const toggle = el("button.small", {
-			type: "button",
-			text: job.enabled ? "停用" : "启用",
-			onclick: async (event) => {
+		}, "small.primary");
+		const toggle = iconButton("power", job.enabled ? "停用" : "启用", async (event) => {
 				event.currentTarget.disabled = true;
 				try {
 					await schedule([job.enabled ? "disable" : "enable", job.id]);
@@ -1365,9 +1419,8 @@ async function renderSchedule() {
 					toast(`失败：${errorText(error)}`);
 					event.currentTarget.disabled = false;
 				}
-			},
 		});
-		const remove = confirmButton("删除", "确认删除？", async () => {
+		const remove = confirmIconButton("trash", "删除", async () => {
 			try {
 				await schedule(["remove", job.id]);
 				await show("schedule");
@@ -1382,7 +1435,7 @@ async function renderSchedule() {
 			el("div.schedule-meta", { text: `${job.kind === "gated" ? "脚本前置" : "直发"} · ${job.summary ?? job.cron} · ${job.enabled ? "启用" : "停用"}` }),
 			el("div.schedule-meta", { text: `下次 ${shortTime(job.next_run_at)} · 上次 ${runState}` }),
 			checked ? el("div.schedule-meta", { text: checked }) : null,
-			el("div.item-actions", {}, run, detail, el("button.small", { type: "button", text: "编辑", onclick: () => edit(job) }), toggle, remove),
+			el("div.item-actions", {}, run, detail, iconButton("pencil", "编辑", () => edit(job)), toggle, remove),
 			output,
 		);
 	});
@@ -1428,9 +1481,7 @@ async function renderSettings() {
 		el(
 			"div.card-foot",
 			{},
-			el("button.primary", {
-				onclick: (event) => void save(event.currentTarget, "已保存", "prefs", "set", area.value),
-			}, "保存"),
+			iconButton("save", "保存", (event) => void save(event.currentTarget, "已保存", "prefs", "set", area.value), "primary"),
 		),
 	);
 	const sourceList = el("div", {});
@@ -1446,29 +1497,24 @@ async function renderSettings() {
 		);
 	};
 	renderSources(doctor?.sources?.checks ?? [], doctor?.sources?.failed ?? []);
-	const checkButton = el(
-		"button.primary",
-		{
-			type: "button",
-			onclick: async (event) => {
-				const button = event.currentTarget;
-				button.disabled = true;
-				button.textContent = "检测中…";
-				try {
-					const result = await ton("contract", "check");
-					renderSources(result.servers ?? [], result.failed ?? []);
-					const failed = (result.servers ?? []).filter((entry) => !entry.ok && !entry.skipped).length + (result.failed ?? []).length;
-					toast(result.ok ? "契约自检通过" : `契约自检：${failed} 项失败`);
-				} catch (error) {
-					toast(`自检失败：${errorText(error)}`);
-				} finally {
-					button.disabled = false;
-					button.textContent = "契约自检";
-				}
-			},
-		},
-		"契约自检",
-	);
+	const checkButton = iconButton("refresh", "契约自检", async (event) => {
+		const button = event.currentTarget;
+		button.disabled = true;
+		button.replaceChildren(icon("pulse", 14));
+		button.title = "检测中…";
+		try {
+			const result = await ton("contract", "check");
+			renderSources(result.servers ?? [], result.failed ?? []);
+			const failed = (result.servers ?? []).filter((entry) => !entry.ok && !entry.skipped).length + (result.failed ?? []).length;
+			toast(result.ok ? "契约自检通过" : `契约自检：${failed} 项失败`);
+		} catch (error) {
+			toast(`自检失败：${errorText(error)}`);
+		} finally {
+			button.disabled = false;
+			button.replaceChildren(icon("refresh", 14));
+			button.title = "契约自检";
+		}
+	}, "primary");
 	const schemaPre = el("pre", { text: "展开后读取…" });
 	let schemaLoaded = false;
 	const schemaDetails = el(
@@ -1523,8 +1569,10 @@ async function renderSettings() {
 		el(
 			"div.card-foot",
 			{},
-			el("button.primary", {
-				onclick: (event) =>
+			iconButton(
+				"save",
+				"保存",
+				(event) =>
 					void save(
 						event.currentTarget,
 						"已保存",
@@ -1534,7 +1582,8 @@ async function renderSettings() {
 						`awayNotify.command=${awayCommand.value}`,
 						`awayNotify.minUrgency=${awayUrgency.value}`,
 					),
-			}, "保存"),
+				"primary",
+			),
 		),
 	);
 	const contractCard = el(
@@ -1581,9 +1630,11 @@ async function refreshHeader() {
 		const paused = Boolean(status.paused_until);
 		pauseButton.dataset.paused = paused ? "1" : "0";
 		pauseButton.classList.toggle("paused", paused);
-		const children = [icon(paused ? "play" : "moon", 13), document.createTextNode(paused ? "恢复" : "暂停")];
+		const children = [icon(paused ? "play" : "moon", 14)];
 		if (!paused) children.push(el("span.pause-caret", { text: "▾" }));
 		pauseButton.replaceChildren(...children);
+		pauseButton.title = paused ? "恢复" : "暂停";
+		pauseButton.setAttribute("aria-label", pauseButton.title);
 	} catch (error) {
 		document.getElementById("summary").textContent = `无法读取状态：${errorText(error)}`;
 	}
@@ -1663,6 +1714,8 @@ for (const [tab, meta] of Object.entries(TABS)) {
 }
 const pauseButton = document.getElementById("pause");
 const pauseMenu = document.getElementById("pause-menu");
+pauseButton.replaceChildren(icon("moon", 14), el("span.pause-caret", { text: "▾" }));
+pauseButton.title = "暂停";
 for (let hours = 1; hours <= 8; hours += 1) {
 	const option = el("button", { type: "button", text: `${hours} 小时` });
 	option.addEventListener("click", () => {
@@ -1685,7 +1738,7 @@ document.addEventListener("click", (event) => {
 });
 tickButton.addEventListener("click", async () => {
 	tickButton.disabled = true;
-	tickButton.replaceChildren(icon("pulse", 13), document.createTextNode("刷新中…"));
+	tickButton.replaceChildren(icon("pulse", 14));
 	await invoke("tick_now");
 	toast("已开始刷新");
 });

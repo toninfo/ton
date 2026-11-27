@@ -1378,6 +1378,31 @@ button.icon-button {
   min-width: 30px;
 }
 
+button.small.icon-button {
+  width: 26px;
+  height: 26px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 8px;
+}
+
+button.primary.icon-button {
+  width: 30px;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
+}
+
+.top button.icon-button {
+  width: 28px;
+  padding: 0;
+}
+
+.top #pause.icon-button {
+  width: auto;
+  padding: 0 9px;
+}
+
 .subnav {
   display: flex;
   align-items: center;
