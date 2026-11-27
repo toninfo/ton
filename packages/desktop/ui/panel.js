@@ -21,6 +21,8 @@ let activityPages = 1;
 let scheduleDirty = false;
 /** Runs tab: reveal runs that produced no events. Reset when leaving the tab. */
 let runsShowEmpty = false;
+/** Keep the ignored group expanded across re-renders (delete, polling, focus). */
+let ignoredOpen = false;
 const PAGE = 50;
 /** The service refuses more than this many ids per bulk call (delete or ack). */
 const BULK_CHUNK = 200;
@@ -51,8 +53,10 @@ async function action(button, label, ...args) {
 		return result;
 	} catch (error) {
 		toast(`失败：${errorText(error)}`);
-		button.disabled = false;
 		return undefined;
+	} finally {
+		// Header buttons survive the content re-render; without this they stay disabled after use.
+		button.disabled = false;
 	}
 }
 
@@ -424,14 +428,16 @@ async function renderInbox() {
 	const ignored = inbox.items.filter((item) => item.state === "ignored");
 	const nodes = active.map(card);
 	if (ignored.length > 0) {
-		nodes.push(
-			el(
-				"details.ignored-group",
-				{},
-				el("summary", { text: `低优先 · 已忽略 ${ignored.length}` }),
-				...ignored.map(card),
-			),
+		const group = el(
+			"details.ignored-group",
+			{ open: ignoredOpen },
+			el("summary", { text: `低优先 · 已忽略 ${ignored.length}` }),
+			...ignored.map(card),
 		);
+		group.addEventListener("toggle", () => {
+			ignoredOpen = group.open;
+		});
+		nodes.push(group);
 	}
 	list.refresh();
 	return [list.toolbar, ...nodes];
