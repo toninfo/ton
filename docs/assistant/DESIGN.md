@@ -391,7 +391,7 @@ ton assistant doctor [--json]
 
 `ton assistant note <id> --status progress|done|blocked|failed --message <text>`：编码代理结束工作时回写一条结果，写 `agent_note` 事件（`actor: "agent"`），复制该事项最新 `auto_handle` 的 `run_id`。
 
-`note` 只记录、展示，**不改 item 状态**：待办里的「处理中」仍由用户关闭；禅道状态仍由编码代理用 zentao MCP 回写。`message` 截断到 2000 字，事项不存在时退出码 1。
+`note` 记录并展示；代理自己报 `--status done` 时把待办自动关为 `done`（close_reason `agent_done`），终端包装脚本的 exit-code 回写带 `--wrapper`，只补空缺、不自动关单。`blocked`/`failed` 保持可见可重试；禅道状态仍由编码代理用 zentao MCP 回写。`message` 截断到 2000 字，事项不存在时退出码 1。
 
 包装脚本用隐藏的 `--wrapper` 调用：同一轮启动如果已经有终态回写（`done`/`failed`/`blocked`），这次回写直接忽略。代理已经回报完成后，用户关终端产生的 exit 129 不该把成功的任务改成「失败」。
 

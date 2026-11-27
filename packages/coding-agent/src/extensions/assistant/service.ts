@@ -544,8 +544,9 @@ export class AssistantService {
 
 	/**
 	 * A coding agent's writeback, called from its terminal when the work is done. Recorded as an
-	 * `agent_note` event and shown in the activity feed; the item state is left alone on purpose —
-	 * closing the inbox card stays the user's decision.
+	 * `agent_note` event and shown in the activity feed. An explicit `done` from the agent closes
+	 * the inbox card; the terminal wrapper's exit-code note (`wrapper: true`) only fills gaps and
+	 * never closes it.
 	 */
 	note(
 		ref: string,
@@ -587,7 +588,16 @@ export class AssistantService {
 			runId: launched?.run_id ?? undefined,
 			detail: { status: input.status, message },
 		});
-		return { schema: 1, ok: true, item: toView(item), status: input.status, message };
+		if (input.status === "done" && input.wrapper !== true && item.state !== "done") {
+			this.store.setState(item.id, { to: "done", now, actor: "agent", reason: "agent_done" });
+		}
+		return {
+			schema: 1,
+			ok: true,
+			item: toView(this.store.getItem(item.id) ?? item),
+			status: input.status,
+			message,
+		};
 	}
 
 	/**

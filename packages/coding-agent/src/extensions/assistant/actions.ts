@@ -350,6 +350,12 @@ export async function runAction(
 			const coderArgs =
 				coder === "claude"
 					? [
+							// Print mode runs one turn and exits, so the terminal window closes when the
+							// work is done. Auto permission mode matches the interactive default and keeps
+							// the unattended run moving.
+							"-p",
+							"--permission-mode",
+							"auto",
 							// `--allowedTools` is variadic: the equals form keeps the following prompt
 							// positional instead of swallowing it as another tool name.
 							`--allowedTools=${[
@@ -364,7 +370,7 @@ export async function runAction(
 								`mcp__${item.server}__put_bugs_bugID_resolve`,
 							].join(",")}`,
 						]
-					: [];
+					: ["-p"];
 			// The agent is told to report its own progress, but a crash or a forgotten note must not
 			// leave the item stuck at "launched". The wrapper ignores SIGHUP/SIGINT/SIGTERM so a
 			// closed window or Ctrl-C still runs the writeback, beats `ton assistant beat` every 5

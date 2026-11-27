@@ -922,12 +922,12 @@ describe("assistant service", () => {
 		expect(launched.args.slice(0, 3)).toEqual(["-x", "bash", "-lc"]);
 		expect(launched.args[3]).toMatch(/^trap '' HUP INT TERM; cd \/home\/work\/gitlab \|\| exit 1; /);
 		expect(launched.args[4]).toBe("claude");
-		expect(launched.args[5]).toMatch(/^--allowedTools=/);
-		const allowed = String(launched.args[5]);
+		expect(launched.args.slice(5, 8)).toEqual(["-p", "--permission-mode", "auto"]);
+		const allowed = String(launched.args.find((arg) => arg.startsWith("--allowedTools=")));
 		expect(allowed).toContain("mcp__zentao__put_bugs_bugID_resolve");
 		expect(allowed).toContain("mcp__zentao__put_tasks_taskID_finish");
 		expect(allowed).not.toContain("delete_");
-		expect(launched.args[6]).toContain("Bug #101");
+		expect(launched.args.at(-1)).toContain("Bug #101");
 		expect(service.store.listByStates(["working"])).toHaveLength(1);
 
 		await service.tick("test", at(1 / 60));
@@ -1145,6 +1145,31 @@ describe("cli", () => {
 		const undone = JSON.parse(undo.lines.join("\n")) as { undone: { state: string }[]; skipped: unknown[] };
 		expect(undone.undone.map((item) => item.state)).toEqual(["reported", "reported", "reported"]);
 		expect(undone.skipped).toHaveLength(0);
+	});
+
+	it("closes an item on the agent's done note but not on the wrapper note", async () => {
+		const harness = tickHarness();
+		await harness.tick({ snapshots: [snap("demo", [cand("a"), cand("b")])] });
+		const first = itemAt(harness.store, "demo", "chat", "a");
+		const run = cliOptions(harness.agentDir);
+		expect(
+			await runAssistantCommand(
+				["note", first.id, "--status", "done", "--message", "做完了", "--json"],
+				run.options,
+			),
+		).toBe(EXIT_OK);
+		expect(itemAt(harness.store, "demo", "chat", "a").state).toBe("done");
+		expect(itemAt(harness.store, "demo", "chat", "a").close_reason).toBe("agent_done");
+
+		const second = itemAt(harness.store, "demo", "chat", "b");
+		const wrapper = cliOptions(harness.agentDir);
+		expect(
+			await runAssistantCommand(
+				["note", second.id, "--wrapper", "--status", "done", "--message", "exit 0", "--json"],
+				wrapper.options,
+			),
+		).toBe(EXIT_OK);
+		expect(itemAt(harness.store, "demo", "chat", "b").state).toBe("reported");
 	});
 
 	it("searches the inbox and history by text", async () => {

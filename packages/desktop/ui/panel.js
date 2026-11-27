@@ -271,6 +271,7 @@ const URGENCY_TONE = { p0: "bad", p1: "warn", p2: "ok", p3: "muted" };
 const CLOSE_LABEL = {
 	user: "已处理",
 	not_mine: "不是我的事",
+	agent_done: "代理已完成",
 	false_positive: "误判",
 	resolved: "来源已解决",
 	expired: "已过期",
