@@ -1409,7 +1409,6 @@ async function renderSchedule() {
 async function renderSettings() {
 	const [prefs, loaded, doctor] = await Promise.all([ton("prefs"), ton("settings"), ton("doctor").catch(() => null)]);
 	const settings = loaded.settings ?? {};
-	const digest = settings.digest ?? {};
 	const area = el("textarea", { spellcheck: "false" });
 	const prefsText = prefs.text ?? "";
 	area.value = prefsText.trim() === "" ? "" : prefsText;
@@ -1433,12 +1432,6 @@ async function renderSettings() {
 			}, "保存"),
 		),
 	);
-	const digestOn = el("input", { type: "checkbox" });
-	digestOn.checked = digest.enabled !== false;
-	const digestTime = el("input", { type: "time" });
-	digestTime.value = digest.time ?? "08:30";
-	const digestWindow = el("input", { type: "number", min: "0", step: "15" });
-	digestWindow.value = String(digest.windowMinutes ?? 90);
 	const sourceList = el("div", {});
 	const renderSources = (checks, failed) => {
 		if (checks.length === 0 && failed.length === 0) {
@@ -1496,42 +1489,10 @@ async function renderSettings() {
 				schemaPre.textContent = `读取失败：${errorText(error)}`;
 			});
 	});
-	const pairs = () => [
-		`digest.enabled=${digestOn.checked}`,
-		`digest.time=${digestTime.value || "08:30"}`,
-		`digest.windowMinutes=${Number(digestWindow.value) || 0}`,
-	];
-	const rulesCard = el(
-		"section.card",
-		{},
-		cardHead("clock", "提醒规则"),
-		el("div.card-hint", { text: "刷新间隔、静默、上限：`ton assistant settings set`" }),
-		el(
-			"div.settings-grid",
-			{},
-			field("早安摘要", null, el("span.inline", {}, digestOn, "开启")),
-			field("摘要时间", null, digestTime),
-		),
-		el(
-			"details.card-more",
-			{},
-			el("summary", { text: "更多 · 补发窗口与文件位置" }),
-			field("补发窗口（分钟）", "错过整点也在窗口内补发", digestWindow),
-			el("span.card-path", { text: loaded.path ?? "" }),
-			el("span.card-path", { text: "桌面端日志：~/.ton/agent/ton-desktop.log" }),
-		),
-		(loaded.errors ?? []).length > 0 ? el("pre", { text: loaded.errors.join("\n") }) : null,
-		el(
-			"div.card-foot",
-			{},
-			el("button.primary", {
-				onclick: (event) => void save(event.currentTarget, "已保存", "settings", "set", ...pairs()),
-			}, "保存"),
-		),
-	);
 	const away = settings.awayNotify ?? {};
 	const awayOn = el("input", { type: "checkbox" });
 	awayOn.checked = away.enabled === true;
+	const awaySwitch = el("label.switch", {}, awayOn, el("span.switch-track"));
 	const awayCommand = el("input", {
 		type: "text",
 		spellcheck: "false",
@@ -1552,9 +1513,9 @@ async function renderSettings() {
 			text: "锁屏或离开电脑时，把提醒交给命令发到手机。命令经 sh -lc 执行，正文在 TON_TEXT，JSON 在 stdin。",
 		}),
 		el(
-			"div.settings-grid",
+			"div.settings-grid.away-grid",
 			{},
-			field("启用", null, el("span.inline", {}, awayOn, "开启")),
+			field("启用", null, el("span.switch-row", {}, awaySwitch)),
 			field("最低级别", null, awayUrgency),
 			field("命令", null, awayCommand),
 		),
@@ -1586,7 +1547,9 @@ async function renderSettings() {
 		schemaDetails,
 		el("div.card-foot", {}, checkButton),
 	);
-	return [el("div.cards.settings", {}, prefsCard, rulesCard, awayCard, contractCard)];
+	const settingsErrors =
+		(loaded.errors ?? []).length > 0 ? el("pre", { text: (loaded.errors ?? []).join("\n") }) : null;
+	return [settingsErrors, el("div.cards.settings", {}, prefsCard, awayCard, contractCard)].filter(Boolean);
 }
 
 /**

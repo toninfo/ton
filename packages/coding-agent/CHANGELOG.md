@@ -99,6 +99,7 @@
 
 ### Removed
 
+- 移除「早安摘要」功能与设置里的「提醒规则」卡片：不再生成 `system:digest` 系统卡片，`settings.digest` 从默认配置删除；旧 settings.json 里的 digest 键会被忽略。离机通知的启用改为胶囊开关，级别选择收窄、命令输入占满剩余宽度。
 - Removed the WeChat- and memory-specific assistant probes and their settings (`settings.probes`, `settings.servers`, `wechat.*`, `memory.*`, most `knowledge.*`), including the WeChat urgent-contact/keyword fast channel; the desktop settings page no longer has WeChat shortcut fields. Use a contract data source, the built-in `ton-kb` adapter, or the Zentao adapter instead.
 - Removed the bubble action "mute this conversation" (这个会话静音); the item menu now ends with "not mine" (`ton assistant dismiss`, which also writes back `cancel` when the source supports it).
 - 删除隐藏彩蛋 `/dementedelves`（上游 "pi has joined Earendil" 公告组件及其图片）。

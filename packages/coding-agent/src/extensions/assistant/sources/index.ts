@@ -9,7 +9,7 @@ import type { Discovery } from "./discover.ts";
 import { probeSources } from "./discover.ts";
 import { probeKb } from "./kb.ts";
 
-/** `ton`'s own items (health, digest, triage notes); they never come from a probe. */
+/** `ton`'s own items (health, triage notes); they never come from a probe. */
 export const SYSTEM_SERVER = "ton";
 export const SYSTEM_STREAM = "system";
 

@@ -215,14 +215,6 @@ export interface AssistantSettings {
 		taskDueHours: number;
 		bugNewHours: number;
 	};
-	/** 每天固定时间的一条摘要，告诉用户现在攒了多少事，不用等随机 tick。 */
-	digest: {
-		enabled: boolean;
-		/** 本地时间 HH:mm。 */
-		time: string;
-		/** 过了这个时间点还有多少分钟内补发（错过整点 tick 也能发）。 */
-		windowMinutes: number;
-	};
 	knowledge: {
 		/** Run enabled kb collectors in the background at most this often; 0 disables. */
 		collectorSyncMinutes: number;

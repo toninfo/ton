@@ -3,7 +3,7 @@
  * docs/assistant/DESIGN.md §5 (states), §7 (policy), §8 (output), §12 (degradation).
  */
 
-import { DAY, formatLocalIso, HOUR, hhmmMinutes, inQuietHours, MINUTE, parseTime, toStored, ulid } from "../time.ts";
+import { DAY, formatLocalIso, HOUR, inQuietHours, MINUTE, parseTime, toStored, ulid } from "../time.ts";
 import { COLLECTOR_SYNC_KEY, collectorSyncCursor, maybeSyncCollectors } from "./archive-sync.ts";
 import { DOWNRANK_WINDOW_DAYS, downrankedStreams, streamKey } from "./downrank.ts";
 import { readPrefs } from "./settings.ts";
@@ -76,10 +76,6 @@ function bumpStreak(store: AssistantStore, key: string, now: Date): FailStreak {
 	const next = { count: (current?.count ?? 0) + 1, since: current?.since ?? toStored(now) };
 	store.setCursor(key, JSON.stringify(next), now);
 	return next;
-}
-
-function localDay(now: Date): string {
-	return formatLocalIso(now).slice(0, 10);
 }
 
 /** Per-item `remind.every_hours` overrides the global cooldown. */
@@ -176,43 +172,6 @@ function healthCandidates(store: AssistantStore, results: readonly SourceSnapsho
 		);
 	}
 	return candidates;
-}
-
-/**
- * 早安摘要：每天固定时间一条系统事项，汇总现在攒了多少事。随机 tick 经常上午一条都没有，
- * 用户看不到全貌；这条不依赖模型判断（direct），每天只出现一张。
- */
-function digestCandidate(store: AssistantStore, settings: AssistantSettings, now: Date): Candidate | undefined {
-	const { enabled, time, windowMinutes } = settings.digest;
-	if (!enabled) return undefined;
-	const start = hhmmMinutes(time);
-	if (start === undefined) return undefined;
-	const current = now.getHours() * 60 + now.getMinutes();
-	if ((current - start + 1440) % 1440 >= windowMinutes) return undefined;
-	// Only the real backlog counts. Raw probe candidates repeat every tick until their lookback
-	// window closes, so showing them made the number both wrong and noisy.
-	const pending = store.listByStates(["reported", "working"]).filter((item) => item.server !== SYSTEM_SERVER);
-	const p0 = pending.filter((item) => item.urgency === "P0").length;
-	return {
-		id: "",
-		server: SYSTEM_SERVER,
-		stream: SYSTEM_STREAM,
-		itemKey: `system:digest:${localDay(now)}`,
-		title: clip(
-			pending.length > 0
-				? `今日摘要：${pending.length} 件待处理${p0 > 0 ? `（P0 ${p0} 件）` : ""}`
-				: "今日摘要：暂无待处理",
-			40,
-		),
-		context: "Silen's Assistant",
-		urgencyHint: p0 > 0 ? "P1" : "P2",
-		observedAt: now.toISOString(),
-		suggested: "none",
-		payload: {
-			why: pending.length > 0 ? "待办里还有需要你处理的事项。" : "现在没有需要你处理的事。",
-		},
-		direct: true,
-	};
 }
 
 function triageCandidate(item: ItemRow, index: number): TriageCandidate {
@@ -379,8 +338,7 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 	);
 	store.transaction(() => {
 		const health = healthCandidates(store, snapshots, now);
-		const digest = digestCandidate(store, settings, now);
-		const systemItems = digest ? [...health, digest] : health;
+		const systemItems = health;
 		const systemSnapshot: SourceSnapshot = {
 			server: SYSTEM_SERVER,
 			kind: "system",
@@ -464,12 +422,7 @@ export async function runTick(options: TickOptions): Promise<TickOutput> {
 						to: "done",
 						now,
 						actor: "system",
-						reason:
-							scope.stream === SYSTEM_STREAM
-								? item.item_key.startsWith("system:digest")
-									? "expired"
-									: "recovered"
-								: "resolved",
+						reason: scope.stream === SYSTEM_STREAM ? "recovered" : "resolved",
 						runId,
 					});
 				}

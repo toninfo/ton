@@ -203,7 +203,7 @@ new ──────────┼────────► reported ──
 | 契约服务器 | `items[].id` | 由数据源保证生命周期内稳定（契约 §4.4） |
 | 禅道 | bug / task / todo / story 的 id | 关闭或从列表消失即闭环 |
 | ton-kb | `<root_id>:<path>` | 文件 mtime 作为 observed_at |
-| 系统 | `system:digest:<day>` / `system:probe:<server>` / `system:auth:<server>` | ton 自己生成 |
+| 系统 | `system:probe:<server>` / `system:auth:<server>` | ton 自己生成 |
 
 关闭只按 [CONTRACT.md](./CONTRACT.md) §4.3：快照 `ok=true` 且非 skipped，对应 stream 的 `scope.complete` 与 `scope.fresh` 同时为 true，而 `item_key` 不在本次 `items` 中；或 `expires_at` 已过。任一条件不满足一律保活，不做推断。服务器从 `mcp.json` 删除或连接失败时，其名下条目全部保活，面板显示「未连接」。
 
@@ -430,7 +430,7 @@ ton assistant doctor [--json]
 
 ### settings
 
-`ton assistant settings` 打印解析后的生效设置、路径与 `errors`；`settings set key=value ...` 深合并写回 `settings.json`（保留用户手写的未知键）。键必须是默认设置里存在的点分路径（如 `zentao.taskDueHours=24`），值按 JSON 解析（`["a","b"]`、`true`、`3`），类型不符报错退出。数据源没有配置键：接哪些服务器只由 `mcp.json` 决定，不存在 `servers` / `probes` 之类字段。桌面「设置」页用它保存提醒规则。
+`ton assistant settings` 打印解析后的生效设置、路径与 `errors`；`settings set key=value ...` 深合并写回 `settings.json`（保留用户手写的未知键）。键必须是默认设置里存在的点分路径（如 `zentao.taskDueHours=24`），值按 JSON 解析（`["a","b"]`、`true`、`3`），类型不符报错退出。数据源没有配置键：接哪些服务器只由 `mcp.json` 决定，不存在 `servers` / `probes` 之类字段。桌面「设置」页用它保存离机通知等设置。
 
 ### doctor
 
@@ -504,7 +504,6 @@ ton assistant doctor [--json]
   "maxProbeMs": 20000,
   "maxTriageMs": 45000,
   "zentao": { "taskDueHours": 48, "bugNewHours": 24 },
-  "digest": { "enabled": true, "time": "08:30", "windowMinutes": 90 },
   "knowledge": { "collectorSyncMinutes": 15 },
   "terminal": "",
   "codingAgent": "claude",
@@ -516,7 +515,7 @@ ton assistant doctor [--json]
 
 数据源没有配置项：接哪些服务器、读哪些 stream 只由 `mcp.json` 与各服务器暴露的工具决定（见 [PROBES.md](./PROBES.md)），所以这里没有 `probes` / `servers` / `wechat` / `memory`。`zentao` 块只有适配器的两个时间阈值；「打开禅道」链接的 base URL 从检测到的 zentao MCP 端点自动推导（`https://host/mcp` → `https://host`），也不提供配置项。`knowledge.collectorSyncMinutes`（默认 15）控制 tick 前置启动归档采集器的最小间隔。`terminal` 留空时 `act open_zentao` 用系统默认终端。`codingAgent` 决定禅道事项交给谁处理：`claude`（Claude Code CLI，默认）或 `cursor`（cursor-agent），ton 自己不写代码。`autoHandle`（默认 `true`）打开 tick 内的自动处理：禅道 bug/任务/待办交给编码代理（bug 修完标记已解决、不关单；任务/待办由 Claude Code 判断能做就做、只能准备就准备好）；研发需求只提醒、不自动拆任务（已有子任务的需求跳过），也不交给编码代理（启动 Claude Code 时用 `--allowedTools` 只预授权禅道 `get_*` 读工具与 `put_tasks_taskID_start/finish`、`put_bugs_bugID_resolve`，无人值守时不会停在权限确认，新建/删除类工具仍需人工确认）；预起草只覆盖带 `reply` 块的条目与非自动通知（`doc.automated=false`）的 P0/P1 文档，从不发送；每 tick 最多 3 项、总预算约 25 秒，同一条目只处理一次（`auto_handle` 事件去重），草稿按 `observedAt` 版本去重。`agentTimeoutHours`（默认 2，0 关闭）是派发后的跟踪超时：启动超过这个时间仍没有结果回写（最新回写还停在 `progress` 也算），`tick` 会自己补一条「被卡住」的 note，避免终端被关掉后动态页永远显示「已启动」。字段类型不符时保留默认值并在 `tick` 的 stderr 报告。
 
-`digest` 每天在 `[time, time+windowMinutes)` 内生成一条「今日摘要」系统卡片（条数与来源计数，随本轮结果刷新），隔天自动被新摘要取代。没有「过期记忆自动取消」的配置：时间盒事项由数据源给 `expires_at`，过期后 ton 关闭并回写 `resolve(cancel)`（契约 §14）；数据源自己决定是否随之取消记忆。
+没有「过期记忆自动取消」的配置：时间盒事项由数据源给 `expires_at`，过期后 ton 关闭并回写 `resolve(cancel)`（契约 §14）；数据源自己决定是否随之取消记忆。
 
 `dryRun` 默认 `true`（只记录不弹）；确认探测质量后改成 `false` 正式推送。
 

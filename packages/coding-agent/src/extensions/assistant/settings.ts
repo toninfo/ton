@@ -26,7 +26,6 @@ export function defaultSettings(): AssistantSettings {
 		maxProbeMs: 20_000,
 		maxTriageMs: 45_000,
 		zentao: { taskDueHours: 48, bugNewHours: 24 },
-		digest: { enabled: true, time: "08:30", windowMinutes: 90 },
 		knowledge: { collectorSyncMinutes: 15 },
 		terminal: "",
 		codingAgent: "claude",
@@ -91,10 +90,6 @@ export function loadSettings(agentDir: string): LoadedSettings {
 			errors.push(`quietHours.${key}: expected HH:mm`);
 			settings.quietHours[key] = defaultSettings().quietHours[key];
 		}
-	}
-	if (!isValidHhmm(settings.digest.time)) {
-		errors.push("digest.time: expected HH:mm");
-		settings.digest.time = defaultSettings().digest.time;
 	}
 	return { settings, path, errors, created: false };
 }

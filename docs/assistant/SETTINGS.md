@@ -25,9 +25,6 @@ Run `npm run docs:assistant-settings` after changing a default; `npm run check` 
 | `maxTriageMs` | `45000` |
 | `zentao.taskDueHours` | `48` |
 | `zentao.bugNewHours` | `24` |
-| `digest.enabled` | `true` |
-| `digest.time` | `"08:30"` |
-| `digest.windowMinutes` | `90` |
 | `knowledge.collectorSyncMinutes` | `15` |
 | `terminal` | `""` |
 | `codingAgent` | `"claude"` |

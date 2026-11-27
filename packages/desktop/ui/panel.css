@@ -1207,6 +1207,64 @@ textarea.compact {
 	accent-color: var(--accent);
 }
 
+.switch-row {
+	display: flex;
+	align-items: center;
+	height: 34px;
+}
+
+.switch {
+	position: relative;
+	display: inline-flex;
+	width: 38px;
+	height: 22px;
+	cursor: pointer;
+}
+
+.switch input {
+	position: absolute;
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.switch-track {
+	position: absolute;
+	inset: 0;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.14);
+	transition: background 0.15s ease;
+}
+
+.switch-track::after {
+	content: "";
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: #fff;
+	transition: transform 0.15s ease;
+}
+
+.switch input:checked + .switch-track {
+	background: var(--accent);
+}
+
+.switch input:checked + .switch-track::after {
+	transform: translateX(16px);
+}
+
+.settings-grid.away-grid {
+	grid-template-columns: 96px 96px minmax(0, 1fr);
+	align-items: end;
+}
+
+.settings-grid.away-grid select {
+	width: 96px;
+}
+
 details.origin {
 	grid-column: 1 / -1;
 	margin-top: 6px;

@@ -107,7 +107,6 @@ triage 输入是 `prefs.md` + 候选摘要；输出经代码校验：`candidate_
 - 失败 streak 按服务器记录（`probe_fail:<server>`），连续 3 轮失败生成一条 system P1；成功一轮即清零。
 - `authError=true` 立即生成「鉴权失效」system 事项，不等 streak。
 - `skipped` 的服务器不记失败、不产生系统事项。
-- 每天固定时间一条「今日摘要」（`settings.digest`，默认 08:30 + 90 分钟窗口），只统计收件箱里的真实待处理，不依赖模型。
 
 ## 9. 联调与测试
 
